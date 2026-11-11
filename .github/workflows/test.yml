@@ -11,3 +11,20 @@ jobs:
       - run: pip install pytest pyflakes
       - run: python -m pyflakes NomenclaturaADD.extension tests
       - run: python -m pytest -q tests
+
+  # pyRevit esegue gli script con IronPython 2.7: Python 2.7 e' il riferimento piu' vicino
+  # disponibile in CI (stesse regole su unicode, sintassi e librerie standard).
+  test-py27:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sintassi e test con Python 2.7
+        run: |
+          docker run --rm -v "$PWD":/src -w /src python:2.7-slim sh -c '
+            set -e
+            find NomenclaturaADD.extension -name "*.py" | while read f; do
+              python -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], \"exec\")" "$f"
+            done
+            pip install -q "pytest<5"
+            python -m pytest -q -p no:cacheprovider tests
+          '

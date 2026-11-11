@@ -2,10 +2,14 @@
 """Esportazione/importazione CSV (separatore ';', UTF-8 con BOM: si apre bene in Excel italiano).
 
 Scritto a mano perche' il modulo csv di IronPython 2.7 non gestisce l'unicode.
+In lettura accetta anche i CSV risalvati da Excel nel formato normale (codifica Windows cp1252).
 """
 import io
 
-COLONNE = [u"Id", u"Ambito", u"Campo", u"Categoria", u"Contesto", u"ValoreAttuale",
+# Codifiche provate in lettura, in ordine: UTF-8 (anche con BOM), poi quella di Excel italiano.
+CODIFICHE = ("utf-8-sig", "cp1252", "latin-1")
+
+COLONNE = [u"Modello", u"Id", u"Ambito", u"Campo", u"Categoria", u"Contesto", u"ValoreAttuale",
            u"Esito", u"Messaggio", u"Proposta", u"NuovoValore"]
 
 
@@ -60,9 +64,22 @@ def _dividi(testo, sep=u";"):
     return righe
 
 
+def leggi_testo(percorso):
+    """Contenuto del file come testo, con a capo normalizzati a '\\n'."""
+    with io.open(percorso, "rb") as f:
+        dati = f.read()
+    testo = None
+    for cod in CODIFICHE:
+        try:
+            testo = dati.decode(cod)
+            break
+        except UnicodeDecodeError:
+            continue
+    return testo.replace(u"\r\n", u"\n").replace(u"\r", u"\n")
+
+
 def leggi_csv(percorso):
-    with io.open(percorso, "r", encoding="utf-8-sig") as f:
-        testo = f.read()
+    testo = leggi_testo(percorso)
     sep = u";" if testo.split(u"\n", 1)[0].count(u";") >= testo.split(u"\n", 1)[0].count(u",") else u","
     righe = _dividi(testo, sep)
     if not righe:

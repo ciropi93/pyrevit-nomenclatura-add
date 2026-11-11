@@ -11,9 +11,9 @@ secondo le codifiche BIM dell'Agenzia del Demanio:
 | Pulsante | Cosa fa |
 |---|---|
 | **Controlla** | Scegli cosa controllare, ottieni un report con link agli elementi e, se vuoi, un CSV. |
-| **Correggi** | Applica solo le correzioni sicure (spazi, accenti, maiuscole, progressivo a 2 cifre, contrassegno tipo, nome locale da Allegato E). Prima mostra l'elenco da confermare. Una sola transazione: si annulla con Ctrl+Z. |
-| **Importa CSV** | Rinomina in blocco: esporti il CSV con *Controlla*, compili la colonna `NuovoValore` in Excel, lo reimporti. |
-| **Impostazioni** | Apre `%APPDATA%\NomenclaturaADD\progetto.json` (codice bene, codici fabbricato, fase, esclusioni). |
+| **Correggi** | Applica solo le correzioni sicure (spazi, accenti, maiuscole, unità di misura, progressivo a 2 cifre, contrassegno tipo, nome locale da Allegato E). Prima mostra l'elenco da confermare: sono già spuntate solo le correzioni di errori senza conflitti; quelle che nascono da un AVVISO o che porterebbero a un nome già in uso/doppio vanno spuntate a mano. Una sola transazione: si annulla con Ctrl+Z. |
+| **Importa CSV** | Rinomina in blocco: esporti il CSV con *Controlla*, compili la colonna `NuovoValore` in Excel, lo reimporti. Vedi [Importa CSV](#importa-csv). |
+| **Impostazioni** | Apre le impostazioni del progetto (`NomenclaturaADD.json` accanto al modello) o quelle personali (`%APPDATA%\NomenclaturaADD\progetto.json`). Vedi [Impostazioni](#impostazioni). |
 
 ## Regole controllate
 
@@ -32,14 +32,45 @@ Esiti: **ERRORE** = non conforme al BIMMS; **AVVISO** = ammesso ma da dichiarare
 (es. sottotipo non presente nell'Allegato D come `POR-SEZ`, suffisso livello, `/` nelle classi del cls,
 dettaglio materiale non previsto per la fase).
 
+Altri controlli:
+
+- **Progressivo univoco**: due tipi con lo stesso `TIPO-[SOTTOTIPO-]NN` (es. `MUR-EST-MuroA-01` e
+  `MUR-EST-MuroB-01`) darebbero lo stesso contrassegno tipo: è un ERRORE.
+- **Spazi all'inizio o alla fine** del nome: ERRORE, con proposta del nome ripulito.
+- **Lettere accentate e caratteri non ASCII** (`Ü`, `×`, `²`…): ERRORE; la proposta li sostituisce
+  quando c'è un equivalente sicuro (`U`, `x`, `2`).
+- **Nome locale vuoto**: ERRORE (proposta dall'Allegato E se l'uso ha un solo nome).
+
 Viste e schede di vista non sono normate dal BIMMS e per ora non vengono controllate.
+
+## Impostazioni
+
+Le impostazioni si sommano in quest'ordine (l'ultima prevale, i blocchi `{...}` si fondono voce per voce):
+
+1. predefinite del plugin (`lib/nomenclatura/data/progetto.json`);
+2. personali: `%APPDATA%\NomenclaturaADD\progetto.json`;
+3. **di progetto**: `NomenclaturaADD.json` nella cartella del modello (per i modelli condivisi,
+   quella del file centrale). Qui vanno codice bene, codici fabbricato/area e fase della commessa.
+
+Il file di progetto si crea dal pulsante *Impostazioni* e basta scriverci le voci che cambiano.
+Per i modelli su cloud (ACC/BIM 360) o non ancora salvati valgono solo le impostazioni personali.
+Se un file non è un JSON valido, il plugin lo segnala con il percorso e la riga dell'errore.
+Il report di *Controlla* elenca i file di impostazioni usati.
+
+## Importa CSV
+
+- Il CSV contiene la colonna `Modello`: se viene da un altro modello il plugin chiede conferma.
+- Prima di rinominare confronta il valore nel modello con `ValoreAttuale` del CSV: se sono diversi
+  (CSV di un altro modello o modello cambiato dopo l'esportazione) la riga viene scartata.
+- In Excel si può salvare sia come "CSV UTF-8" sia come "CSV (delimitato dal separatore di elenco)".
+- Le righe il cui nuovo valore resta in ERRORE, o è già usato da un altro elemento, non sono spuntate.
 
 ## Installazione
 
 1. Installa [pyRevit](https://github.com/pyrevitlabs/pyRevit) (4.8 o successivo).
 2. Da riga di comando:
    ```
-   pyrevit extend ui NomenclaturaADD https://github.com/<utente>/pyrevit-nomenclatura-add.git
+   pyrevit extend ui NomenclaturaADD https://github.com/ciropi93/pyrevit-nomenclatura-add.git
    ```
    oppure copia la cartella `NomenclaturaADD.extension` in una cartella di estensioni
    (pyRevit > Settings > Custom Extension Directories) e fai *Reload*.
@@ -65,4 +96,10 @@ tests/               test delle regole (pytest, senza Revit)
 ```
 pip install pytest
 python -m pytest -q tests
+```
+
+La CI esegue i test anche con Python 2.7 (il più vicino a IronPython 2.7 di pyRevit):
+
+```
+docker run --rm -v "$PWD":/src -w /src python:2.7-slim sh -c 'pip install -q "pytest<5" && python -m pytest -q -p no:cacheprovider tests'
 ```

@@ -19,6 +19,16 @@ class _VoceLista(forms.TemplateListItem):
         return self._testo
 
 
+def contesto(doc):
+    """Contesto del modello aperto; se le impostazioni non sono leggibili lo dice ed esce."""
+    try:
+        return RD.crea_contesto(doc)
+    except R.ConfigErrore as ex:
+        forms.alert(u"%s\n\nCorreggi il file (pulsante Impostazioni) e riprova." % ex,
+                    title=u"Impostazioni non valide")
+        script.exit()
+
+
 def scegli_ambiti(titolo=u"Cosa vuoi controllare?", escludi=()):
     righe = [_VoceLista(k, etichetta) for k, etichetta in RD.AMBITI if k not in escludi]
     scelti = forms.SelectFromList.show(righe, title=titolo, multiselect=True,
@@ -27,15 +37,16 @@ def scegli_ambiti(titolo=u"Cosa vuoi controllare?", escludi=()):
 
 
 def scegli_righe(righe_testo, titolo, pulsante):
-    """righe_testo: lista di (oggetto, testo). Ritorna gli oggetti spuntati."""
-    righe = [_VoceLista(o, t) for o, t in righe_testo]
+    """righe_testo: lista di (oggetto, testo) o (oggetto, testo, spuntata). Ritorna gli oggetti scelti."""
+    righe = [_VoceLista(r[0], r[1], checked=(r[2] if len(r) > 2 else True)) for r in righe_testo]
     scelti = forms.SelectFromList.show(righe, title=titolo, multiselect=True,
                                        button_name=pulsante, width=900, height=600)
     return scelti or []
 
 
-def riga_csv(v):
+def riga_csv(v, modello=u""):
     return {
+        u"Modello": modello,
         u"Id": v.id,
         u"Ambito": v.ambito,
         u"Campo": v.campo,
@@ -49,11 +60,14 @@ def riga_csv(v):
     }
 
 
-def mostra_report(voci, doc):
+def mostra_report(voci, doc, ctx=None):
     out = script.get_output()
     out.set_title(u"Controllo nomenclatura ADD")
     out.print_md(u"# Controllo nomenclatura ADD")
     out.print_md(u"Modello: **%s**" % RD.nome_file_modello(doc))
+    fonti = getattr(ctx, "fonti", None) if ctx is not None else None
+    if fonti:
+        out.print_md(u"Impostazioni usate: %s" % u" ; ".join(u"`%s`" % f for f in fonti))
 
     # Riepilogo per ambito
     riepilogo = {}
@@ -85,8 +99,8 @@ def mostra_report(voci, doc):
     return problemi
 
 
-def esporta_csv(voci, solo_problemi=True):
-    righe = [riga_csv(v) for v in voci if (not solo_problemi or not v.risultato.ok)]
+def esporta_csv(voci, modello=u"", solo_problemi=True):
+    righe = [riga_csv(v, modello) for v in voci if (not solo_problemi or not v.risultato.ok)]
     if not righe:
         return None
     percorso = forms.save_file(file_ext="csv", default_name="nomenclatura_ADD")
