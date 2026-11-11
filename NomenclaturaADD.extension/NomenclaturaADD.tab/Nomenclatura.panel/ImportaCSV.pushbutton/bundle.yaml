@@ -1,0 +1,5 @@
+title: Importa CSV
+tooltip: >-
+  Rinomina in blocco dal CSV esportato con "Controlla" dopo averlo modificato in Excel
+  (colonna NuovoValore). Mostra l'elenco con l'esito del controllo prima di scrivere.
+author: Ciro

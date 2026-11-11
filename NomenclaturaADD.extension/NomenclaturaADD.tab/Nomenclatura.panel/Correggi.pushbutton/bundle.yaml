@@ -1,0 +1,6 @@
+title: Correggi
+tooltip: >-
+  Applica le correzioni automatiche sicure (spazi, accenti, maiuscole, progressivi,
+  contrassegno tipo, nomi dei locali). Prima di scrivere mostra l'elenco da confermare.
+  Tutto in un'unica transazione: si annulla con Ctrl+Z.
+author: Ciro

@@ -1,0 +1,6 @@
+title: Controlla
+tooltip: >-
+  Controlla i nomi del modello secondo le codifiche BIM dell'Agenzia del Demanio
+  (BIMMS ADD2024 e Allegati D, E, H): file, livelli, tipi, famiglie, contrassegno tipo,
+  materiali, locali e tavole. Mostra un report e permette di esportarlo in CSV.
+author: Ciro

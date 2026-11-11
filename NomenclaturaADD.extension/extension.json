@@ -1,0 +1,7 @@
+{
+  "name": "NomenclaturaADD",
+  "type": "extension",
+  "rocket_mode_compatible": true,
+  "description": "Controllo e correzione della nomenclatura BIM secondo il BIMMS dell'Agenzia del Demanio (ADD2024)",
+  "author": "Ciro"
+}
