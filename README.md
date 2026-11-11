@@ -14,7 +14,7 @@ secondo le codifiche BIM dell'Agenzia del Demanio:
 | **Correggi** | Applica solo le correzioni sicure (spazi, accenti, maiuscole, progressivo a 2 cifre, contrassegno tipo, nome locale da Allegato E). Prima mostra l'elenco da confermare. Una sola transazione: si annulla con Ctrl+Z. |
 | **Suggerisci** | Propone il nome codificato dai dati: categoria Revit → codice (MUR, SOL, POR...), funzione del muro → EST/INT, strati → categorie dei materiali + spessore totale, porte/finestre → larghezza x altezza, progressivo libero. Per i materiali usa la classe Revit (Calcestruzzo → CLC...). Lavora sulla selezione o su tutti i tipi usati. |
 | **Importa CSV** | Rinomina in blocco: esporti il CSV con *Controlla*, compili la colonna `NuovoValore` in Excel, lo reimporti. |
-| **Impostazioni** | Apre `%APPDATA%\NomenclaturaADD\progetto.json` (codice bene, codici fabbricato, fase, esclusioni). |
+| **Impostazioni** | Finestra per inserire **codice fabbricato** (CF + 7 cifre), codice bene e fase; il file completo `%APPDATA%\NomenclaturaADD\progetto.json` resta apribile per le altre opzioni. Il codice fabbricato viene usato nei controlli di file modello e tavole (segnaposto `CFNNNNNNN` o codice diverso = errore, con correzione proposta per le tavole). |
 
 ## Regole controllate
 
@@ -54,7 +54,7 @@ Viste e schede di vista non sono normate dal BIMMS e per ora non vengono control
    ```
    oppure copia la cartella `NomenclaturaADD.extension` in una cartella di estensioni
    (pyRevit > Settings > Custom Extension Directories) e fai *Reload*.
-3. Apri **Impostazioni** e controlla codice bene, codici fabbricato/area e fase (`servizio`: `P` = PFTE).
+3. Apri **Impostazioni** e inserisci il codice fabbricato; controlla codice bene e fase (`P` = PFTE).
 
 ## Struttura
 

@@ -48,6 +48,6 @@ Nome famiglia `TIPO-[SOTT-]Descrizione`; Type Mark `TIPO-[SOTT-]NN`; suffisso li
 
 1. **Proprietà/parametri** (Allegati A, B, C): verificare che i parametri condivisi abbiano i nomi e i PSet giusti e che quelli obbligatori siano compilati (es. `ElementoCodifica.CodiceElemento` = nome tipo, `SpazioCodifica.CodiceSpazio` = numero locale). I dati di A e B sono già in `proprieta_add2024.json`.
 2. **Classificazione UNI 8290** (BIMMS §4.2, Tab. 33) per `ElementoCodifica.ClasseElementoTecnico`.
-3. **Viste**: la specifica AQD0031 chiede di codificarle, ma il BIMMS non dà una regola. Serve una convenzione di progetto.
+3. **Viste**: la specifica AQD0031 chiede di codificarle, ma il BIMMS non dà una regola. Rimandato per scelta di Ciro (2026-11-11): non implementare per ora.
 4. **Disciplina per tipo elemento** (colonna disciplina dell'Allegato D, es. FNT→A, ELM→S): utile per segnalare elementi nel modello sbagliato, ma la colonna estratta è poco affidabile e va verificata a mano.
-5. **Codice fabbricato** reale (sostituire `CFNNNNNNN`).
+5. **Codice fabbricato**: si inserisce dal pulsante Impostazioni (`codice_fabbricato`); il valore reale va chiesto all'Agenzia.

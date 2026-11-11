@@ -178,3 +178,33 @@ def test_codici_aggiunti_dalla_revisione(ctx):
     assert "REM" in ctx.sottotipi("ELR") and "RES" in ctx.sottotipi("ELR")
     assert "PNT" in ctx.tipi
     assert R.controlla_tavola("AQD0031-ADD-RELBARARC-ZZ-RT-A-P00001", ctx).livello != R.ERRORE
+
+
+# ---------------- codice fabbricato dalle Impostazioni ----------------
+def _ctx_con_cf(ctx, cf):
+    cfg = dict(ctx.cfg)
+    cfg["codice_fabbricato"] = cf
+    return R.Contesto(codici=ctx.codici, config=cfg)
+
+
+def test_codice_fabbricato_usato_nei_controlli(ctx):
+    c = _ctx_con_cf(ctx, "CF7654321")
+    assert R.controlla_file_modello("AQD0031-ADD-CF7654321-ZZ-M3-U-PN0001", c).ok
+    assert R.controlla_file_modello("AQD0031-ADD-CF1234567-ZZ-M3-U-PN0001", c).ha_errori
+    assert R.controlla_file_modello("AQD0031-ADD-CFNNNNNNN-ZZ-M3-U-PN0001", c).ha_errori
+    r = R.controlla_tavola("AQD0031-ADD-CFNNNNNNN-GF-DR-A-P00001", c)
+    assert r.proposta == "AQD0031-ADD-CF7654321-GF-DR-A-P00001"
+    assert R.controlla_tavola("AQD0031-ADD-PLANGENER-ZZ-DR-Z-P00001", c).ok
+
+
+def test_valida_e_salva_codice_fabbricato(tmp_path):
+    assert R.valida_codice_fabbricato("CF1234567")
+    assert R.valida_codice_fabbricato("")
+    assert not R.valida_codice_fabbricato("CF12")
+    p = str(tmp_path / "x" / "progetto.json")
+    R.salva_config_utente({"codice_fabbricato": "CF1234567"}, p)
+    R.salva_config_utente({"servizio": "E"}, p)
+    import json
+    with open(p, encoding="utf-8") as f:
+        d = json.load(f)
+    assert d == {"codice_fabbricato": "CF1234567", "servizio": "E"}
