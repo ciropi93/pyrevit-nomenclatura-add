@@ -156,3 +156,25 @@ def test_tavole(ctx):
     assert R.controlla_tavola("A101", ctx).ha_errori
     assert R.controlla_tavola("AQD0031-ADD-NUOVOCODX-ZZ-DR-A-P00001", ctx).livello == R.AVVISO
     assert R.controlla_tavola("AQD0031-ADD-PLANGENER-ZZ-DR-Z-E00001", ctx).livello == R.AVVISO
+
+
+# ---------------- verifiche aggiunte con la revisione della knowledge base ----------------
+def test_livello_disciplina_non_a_s_e_avviso(ctx):
+    assert R.controlla_livello("GF-U", ctx).livello == R.AVVISO
+    assert R.controlla_livello("01-A", ctx).ok
+
+
+def test_modello_federato_tipo_file(ctx):
+    assert R.controlla_file_modello("AQD0031-ADD-CF1234567-ZZ-M3-K-S00001", ctx).ha_errori
+    assert not R.controlla_file_modello("AQD0031-ADD-CF1234567-ZZ-MR-K-P00001", ctx).ha_errori
+    assert R.controlla_file_modello("AQD0031-ADD-MFEDERATO-ZZ-M3-A-P00001", ctx).ha_errori
+    assert R.controlla_file_modello("AQD0031-ADD-CF1234567-ZZ-MR-Y-P00001", ctx).ha_errori
+    assert not R.controlla_file_modello("AQD0031-ADD-MFEDERATO-ZZ-MR-Y-P00001", ctx).ha_errori
+
+
+def test_codici_aggiunti_dalla_revisione(ctx):
+    assert "SPK" in ctx.sottotipi("ANT")
+    assert "RIM" in ctx.sottotipi("FCO")
+    assert "REM" in ctx.sottotipi("ELR") and "RES" in ctx.sottotipi("ELR")
+    assert "PNT" in ctx.tipi
+    assert R.controlla_tavola("AQD0031-ADD-RELBARARC-ZZ-RT-A-P00001", ctx).livello != R.ERRORE

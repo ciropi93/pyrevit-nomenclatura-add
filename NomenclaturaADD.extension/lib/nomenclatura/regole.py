@@ -374,6 +374,8 @@ def controlla_livello(nome, ctx):
         r.errore(u"codice livello '%s' non valido (GF, 01, 02, M1, G1...)" % cod)
     if disc not in ctx.codici["discipline"]:
         r.errore(u"disciplina '%s' non in Tab. 15" % disc)
+    elif disc not in (u"A", u"S"):
+        r.avviso(u"il BIMMS (§4.1.5.2) prevede solo A o S per i livelli: '%s' va dichiarato nel pGI" % disc)
     if suff:
         rx = ctx.cfg.get("livelli", {}).get("suffisso_regex")
         if rx and re.match(rx, suff):
@@ -471,6 +473,17 @@ def controlla_file_modello(nome, ctx):
         r.errore(u"tipo file '%s' non valido per un modello (M2, M3, MR, PC)" % tf)
     if disc not in ctx.codici["discipline"]:
         r.errore(u"disciplina '%s' non in Tab. 15" % disc)
+    # Coerenze da BIMMS §4.1.1.4 (N.B.) e Allegato I
+    if disc in (u"C", u"K", u"Y") and tf not in (u"M2", u"MR"):
+        r.errore(u"i modelli federati (disciplina %s) devono essere M2 o MR" % disc)
+    if fab == u"MFEDERATO" and tf not in (u"M2", u"MR", u"PC"):
+        r.errore(u"MFEDERATO ammette solo M2, MR o PC (Allegato I)")
+    if fab == u"MGENERALE" and tf not in (u"M3", u"MR", u"PC"):
+        r.errore(u"MGENERALE ammette solo M3, MR o PC (Allegato I)")
+    if disc == u"Y" and fab != u"MFEDERATO":
+        r.errore(u"la disciplina Y (federato di sintesi) richiede MFEDERATO come terzo campo")
+    if tf == u"PC" and alfa[:1] not in (u"S", u"G", u""):
+        r.avviso(u"le nuvole di punti sono di norma Stato di fatto (S)")
     m = re.match(r"^([A-Z])([A-Z0])(\d{4})$", alfa)
     if not m:
         r.errore(u"codice alfanumerico '%s' non valido (es. PN0001, S00001)" % alfa)

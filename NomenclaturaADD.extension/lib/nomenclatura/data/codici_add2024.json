@@ -1,5 +1,5 @@
 {
- "_fonte": "ADD2024-ADD-METHODSTP-XX-MS-Z-G00001 (BIMMS) e Allegati D, E, H. Estratto automaticamente dai PDF del committente.",
+ "_fonte": "BIMMS ADD2024-ADD-METHODSTP-XX-MS-Z-G00001 (Tab. 11-30) e Allegati D, E, H. Tipi/sottotipi = unione di Allegato D e BIMMS Tab. 23-24 (le voci presenti solo nel BIMMS sono marcate). Verificato il 2026-11-11, vedi docs/knowledge-base.md.",
  "tipi_elemento": {
   "TRV": {
    "descr": "Beam (Trave)",
@@ -32,7 +32,9 @@
   },
   "FCO": {
    "descr": "Curtain Wall (Facciata Continua)",
-   "sottotipi": {}
+   "sottotipi": {
+    "RIM": "RemovablePanel (Pannello rimovibile) [solo BIMMS Tab.24]"
+   }
   },
   "ECA": {
    "descr": "Distribution Chamber Element (Elemento Camera Distribuzione)",
@@ -99,7 +101,8 @@
    "sottotipi": {
     "IDR": "fire hydrants (Idranti)",
     "AVV": "Hosereel (AvvolgitoreTubo)",
-    "RAC": "Symmetrical pipe fitting (Raccordo)"
+    "RAC": "Symmetrical pipe fitting (Raccordo)",
+    "SPK": "Sprinkler [solo BIMMS Tab.24]"
    }
   },
   "CFL": {
@@ -204,12 +207,61 @@
     "CUS": "Cuscino",
     "ODS": "Organizzatore da scrivania",
     "ARM": "Armadio",
-    "PGG": "Portaoggetti"
+    "PGG": "Portaoggetti",
+    "TVP": "Tavolo da pranzo [solo BIMMS Tab.24]",
+    "DIV": "Divano [solo BIMMS Tab.24]",
+    "CST": "Cassettone [solo BIMMS Tab.24]",
+    "TOV": "Tovaglia [solo BIMMS Tab.24]",
+    "POL": "Poltrona [solo BIMMS Tab.24]",
+    "LAS": "Letto a scomparsa [solo BIMMS Tab.24]",
+    "FON": "Fontana [solo BIMMS Tab.24]",
+    "POG": "Poggiapiedi [solo BIMMS Tab.24]",
+    "APP": "Appendiabiti a colonna [solo BIMMS Tab.24]",
+    "CSO": "Magazzino orizzontale a carosello [solo BIMMS Tab.24]",
+    "SDI": "Segno di informazioni [solo BIMMS Tab.24]",
+    "ASC": "Armadietto di sicurezza per chiavi [solo BIMMS Tab.24]",
+    "CRE": "Credenza della cucina [solo BIMMS Tab.24]",
+    "LEG": "Leggio [solo BIMMS Tab.24]",
+    "AMD": "Armadietto [solo BIMMS Tab.24]",
+    "SPE": "Specchio [solo BIMMS Tab.24]",
+    "MRL": "Murale [solo BIMMS Tab.24]",
+    "TGT": "Targhetta [solo BIMMS Tab.24]",
+    "BCC": "Bacheca [solo BIMMS Tab.24]",
+    "OGN": "Organo [solo BIMMS Tab.24]",
+    "ORN": "Ornamento [solo BIMMS Tab.24]",
+    "DIP": "Dipinto [solo BIMMS Tab.24]",
+    "CPP": "Cassettiera porta planimetrie [solo BIMMS Tab.24]",
+    "PNT": "Pianta [solo BIMMS Tab.24]",
+    "FIO": "Fioriera [solo BIMMS Tab.24]",
+    "CSP": "Casella postale [solo BIMMS Tab.24]",
+    "STA": "Stampa [solo BIMMS Tab.24]",
+    "BAA": "Banco accettazione [solo BIMMS Tab.24]",
+    "PRF": "Porta rifiuti [solo BIMMS Tab.24]",
+    "SCU": "Scultura [solo BIMMS Tab.24]",
+    "VET": "Vetrina [solo BIMMS Tab.24]",
+    "MAD": "Madia [solo BIMMS Tab.24]",
+    "ERS": "Erogatore di sapone [solo BIMMS Tab.24]",
+    "PST": "Porta saponetta [solo BIMMS Tab.24]",
+    "SGA": "Sgabello [solo BIMMS Tab.24]",
+    "TAV": "Tavolo [solo BIMMS Tab.24]",
+    "ARZ": "Arazzo [solo BIMMS Tab.24]",
+    "DDA": "Distributore di asciugamani [solo BIMMS Tab.24]",
+    "PAS": "Portasciugamani [solo BIMMS Tab.24]",
+    "CRL": "Carrelli [solo BIMMS Tab.24]",
+    "POM": "Portaombrelli [solo BIMMS Tab.24]",
+    "VAS": "Vaso [solo BIMMS Tab.24]",
+    "CDC": "Cestino della carta [solo BIMMS Tab.24]",
+    "PDL": "Piano di lavoro [solo BIMMS Tab.24]",
+    "LCP": "Lavagna con pennarelli [solo BIMMS Tab.24]"
    }
   },
   "MAC": {
    "descr": "IfcFurnishingElement (Macchine di cantiere)",
-   "sottotipi": {}
+   "sottotipi": {
+    "GRU": "Gru [solo BIMMS Tab.24]",
+    "MSR": "Wheeled vehicles (Mezzi su ruote) [solo BIMMS Tab.24]",
+    "MSC": "Tracked vehicles (Mezzi su cingoli) [solo BIMMS Tab.24]"
+   }
   },
   "VEG": {
    "descr": "IfcFurnishingElement (Vegetazione)",
@@ -272,7 +324,8 @@
     "BAR": "Reinforcing Bar (Barra Armatura)",
     "RES": "Reinforcing Mesh (Rete Metallica)",
     "TIR": "Tendon (Tirante)",
-    "ATR": "Tendon Anchor (Ancoraggio Tirante)"
+    "ATR": "Tendon Anchor (Ancoraggio Tirante)",
+    "REM": "Reinforcing Mesh (Rete Metallica) [solo BIMMS Tab.24]"
    }
   },
   "TET": {
@@ -334,6 +387,10 @@
     "TPD": "TriplePanelRight (Due orizzontali;Una verticale destra)",
     "PER": "UserDefined (Personalizzata)"
    }
+  },
+  "PNT": {
+   "descr": "Plant (Piante) [solo BIMMS Tab.23]",
+   "sottotipi": {}
   }
  },
  "categorie_materiali": {
@@ -1162,6 +1219,26 @@
   "RELSTRATI": [
    "RT",
    "Relazione sulle stratigrafie realizzate"
+  ],
+  "PROFILIID": [
+   "DR",
+   "Profili idraulici"
+  ],
+  "PROFILIST": [
+   "DR",
+   "Profili Stradali"
+  ],
+  "TRACCIAM": [
+   "DR",
+   "Tracciamenti"
+  ],
+  "RELBARARC": [
+   "RT",
+   "Relazione barriere architettoniche"
+  ],
+  "PIAGEOSTR": [
+   "RT",
+   "Piano Geotecnico Strutturale"
   ]
  },
  "codici_livello": {
