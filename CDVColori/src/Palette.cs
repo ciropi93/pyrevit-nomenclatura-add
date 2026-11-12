@@ -231,6 +231,71 @@ namespace CDVColori
             return head + "RGB " + ToRgb(c) + "   " + ToHex(c);
         }
 
+        /// <summary>
+        /// Varianti piu' scure e piu' chiare: stessa tinta e saturazione (HSL), luminosita' distribuita
+        /// a passi uguali verso il nero (a sinistra) e verso il bianco (a destra).
+        /// Restituisce 2*perLato+1 colori: [scuri..., colore, chiari...].
+        /// </summary>
+        public static Color[] Variants(Color c, int perLato)
+        {
+            double h, sat, l;
+            ToHsl(c, out h, out sat, out l);
+            Color[] res = new Color[perLato * 2 + 1];
+            res[perLato] = Color.FromArgb(c.R, c.G, c.B);
+            for (int i = 1; i <= perLato; i++)
+            {
+                double f = i / (double)(perLato + 1);
+                res[perLato - i] = FromHsl(h, sat, l * (1 - f));
+                res[perLato + i] = FromHsl(h, sat, l + (1 - l) * f);
+            }
+            return res;
+        }
+
+        public static void ToHsl(Color c, out double h, out double s, out double l)
+        {
+            double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
+            double max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
+            l = (max + min) / 2;
+            double d = max - min;
+            if (d < 1e-9) { h = 0; s = 0; return; }
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            if (max == r) h = (g - b) / d + (g < b ? 6 : 0);
+            else if (max == g) h = (b - r) / d + 2;
+            else h = (r - g) / d + 4;
+            h /= 6;
+        }
+
+        public static Color FromHsl(double h, double s, double l)
+        {
+            double r, g, b;
+            if (s < 1e-9) { r = g = b = l; }
+            else
+            {
+                double q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                double p = 2 * l - q;
+                r = Hue(p, q, h + 1.0 / 3);
+                g = Hue(p, q, h);
+                b = Hue(p, q, h - 1.0 / 3);
+            }
+            return Color.FromArgb(To255(r), To255(g), To255(b));
+        }
+
+        private static double Hue(double p, double q, double t)
+        {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1.0 / 6) return p + (q - p) * 6 * t;
+            if (t < 0.5) return q;
+            if (t < 2.0 / 3) return p + (q - p) * (2.0 / 3 - t) * 6;
+            return p;
+        }
+
+        private static int To255(double v)
+        {
+            int i = (int)Math.Round(v * 255);
+            return i < 0 ? 0 : (i > 255 ? 255 : i);
+        }
+
         /// <summary>Colore del testo leggibile sopra al colore dato.</summary>
         public static Color Contrast(Color c)
         {

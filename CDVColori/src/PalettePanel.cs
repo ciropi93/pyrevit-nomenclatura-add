@@ -31,6 +31,9 @@ namespace CDVColori
         private readonly Button btnAdd = new Button();
         private readonly ToolTip tip = new ToolTip();
         private readonly ContextMenuStrip menuPalette = new ContextMenuStrip();
+        private readonly Label lblVariants = new Label();
+        private readonly VariantStrip variants = new VariantStrip();
+        private readonly Timer poll = new Timer();
 
         public float ScaleFactor { get { return s; } }
 
@@ -88,8 +91,18 @@ namespace CDVColori
             menuPalette.Items.Add("Apri cartella palette", null, delegate { OpenFolder(settings.PaletteDir); });
             menuPalette.Items.Add("Ricarica", null, delegate { Reload(); });
 
-            Controls.AddRange(new Control[] { cmbPalette, btnMenu, grid, lblHint, txtValue, btnApply, btnAdd });
-            ClientSize = new Size(Px(248), Px(400));
+            lblVariants.Text = "Varianti:  \u2190 pi\u00f9 scuro  \u00b7  pi\u00f9 chiaro \u2192";
+            lblVariants.AutoSize = false;
+            lblVariants.ForeColor = SystemColors.GrayText;
+            variants.VariantClicked += delegate (Color c, bool ok) { Apply(c, ok); };
+            variants.VariantRightClicked += delegate (Color c, Point at) { VariantMenu(c).Show(variants, at); };
+
+            // il pannello segue il colore della finestra Colore, comunque venga cambiato
+            poll.Interval = 300;
+            poll.Tick += delegate { SyncFromDialog(); };
+
+            Controls.AddRange(new Control[] { cmbPalette, btnMenu, lblVariants, variants, grid, lblHint, txtValue, btnApply, btnAdd });
+            ClientSize = new Size(Px(248), Px(450));
             Reload();
         }
 
@@ -123,6 +136,10 @@ namespace CDVColori
             lblHint.SetBounds(m, bottom - Px(18), w - 2 * m, Px(18));
             bottom -= Px(20);
             int top = m + h + Px(6);
+            lblVariants.SetBounds(m, top, w - 2 * m, Px(18));
+            top += Px(18);
+            variants.SetBounds(m, top, w - 2 * m, Px(30));
+            top += Px(30) + Px(8);
             grid.SetBounds(m, top, w - 2 * m, Math.Max(Px(40), bottom - top));
         }
 
@@ -170,6 +187,45 @@ namespace CDVColori
                 grid.Controls.Add(empty);
             }
             grid.ResumeLayout();
+        }
+
+        /// <summary>
+        /// Legge il colore dalla finestra Colore. Se e' una delle varianti mostrate la evidenzia,
+        /// altrimenti lo usa come nuovo colore base (cosi' scegliendo una variante la riga non "scappa").
+        /// </summary>
+        private void SyncFromDialog()
+        {
+            if (ReadCurrent == null) return;
+            Color? cur = ReadCurrent();
+            if (!cur.HasValue) return;
+            if (variants.Contains(cur.Value)) variants.MarkSelected(cur.Value);
+            else variants.SetBase(cur.Value);
+        }
+
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            base.OnVisibleChanged(e);
+            if (Visible) { SyncFromDialog(); poll.Start(); }
+            else poll.Stop();
+        }
+
+        private ContextMenuStrip VariantMenu(Color c)
+        {
+            ContextMenuStrip m = new ContextMenuStrip();
+            string hex = ColorText.ToHex(c);
+            m.Items.Add("Applica e OK", null, delegate { Apply(c, true); });
+            m.Items.Add("Usa come colore base", null, delegate { variants.SetBase(c); });
+            m.Items.Add("Copia " + hex, null, delegate { Clipboard.SetText(hex); });
+            ToolStripMenuItem addTo = new ToolStripMenuItem("Aggiungi alla palette");
+            foreach (Palette dest in palettes)
+            {
+                if (dest.IsRecent) continue;
+                Palette d = dest;
+                addTo.DropDownItems.Add(d.Nome, null, delegate { AddTo(d, c); });
+            }
+            m.Items.Add(addTo);
+            m.Closed += delegate { BeginInvoke((Action)m.Dispose); };
+            return m;
         }
 
         private Swatch MakeSwatch(Palette p, VoceColore v)
@@ -375,7 +431,7 @@ namespace CDVColori
             int x = d.Right + gap;
             if (x + w > wa.Right) x = d.Left - gap - w;
             if (x < wa.Left) x = wa.Right - w;
-            int h = Math.Max(Px(300), d.Height);
+            int h = Math.Max(Px(380), d.Height);
             int y = d.Top;
             if (y + h > wa.Bottom) y = wa.Bottom - h;
             if (y < wa.Top) y = wa.Top;
@@ -384,7 +440,7 @@ namespace CDVColori
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { tip.Dispose(); menuPalette.Dispose(); }
+            if (disposing) { poll.Dispose(); tip.Dispose(); menuPalette.Dispose(); }
             base.Dispose(disposing);
         }
     }

@@ -9,7 +9,11 @@ Piccolo programma per Windows che si aggancia alla finestra **Colore** di Revit 
   - clic su un colore: lo imposta nella finestra Colore;
   - doppio clic: lo imposta e preme OK;
   - "+ Aggiungi colore attuale": salva nella palette il colore impostato nella finestra;
-  - tasto destro su un colore: rinomina, sposta, elimina, copia HEX.
+  - tasto destro su un colore: rinomina, sposta, elimina, copia HEX;
+  - **varianti**: riga con il colore attuale al centro, 4 varianti più scure a sinistra e 4 più chiare
+    a destra (stessa tinta e saturazione, luminosità a passi uguali verso nero e bianco). Si aggiorna da sola
+    quando il colore cambia; scegliendo una variante la riga resta ferma. Tasto destro: "Usa come colore base",
+    "Aggiungi alla palette", copia HEX.
 
 La finestra di Revit resta quella originale: PANTONE, "Nessuna sostituzione" ecc. funzionano come prima.
 
