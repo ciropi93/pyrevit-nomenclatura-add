@@ -22,6 +22,13 @@ Piccolo programma per Windows che si aggancia alla finestra **Colore** di Revit 
   triade, complementari divisi); da 2 a 6 varianti per lato. La riga segue il colore della finestra e resta
   ferma quando scegli una sua variante. Tasto destro: "Usa come colore base", "Aggiungi alla palette", copia HEX.
 
+- **estrai palette da immagine** (menu "…" del pannello o menu dell'icona): apri un file, incolla
+  (Ctrl+V), trascina un file nella finestra oppure **cattura una zona dello schermo**. Il programma trova i
+  colori "piatti" (esclude testo e bordi sfumati), li numera sull'immagine e li elenca: spunta quelli da tenere,
+  rinominali (F2) e crea una nuova palette o aggiungili a una esistente. Regolazioni: numero massimo di
+  colori, soglia di **fusione** dei colori simili (più bassa = più colori distinti), ignora bianco/nero,
+  ordine per area o per tinta. Con le foto (niente zone piatte) usa colori medi per gruppi simili.
+
 La finestra di Revit resta quella originale: PANTONE, "Nessuna sostituzione" ecc. funzionano come prima.
 
 ## Come funziona (e perché è sicuro)

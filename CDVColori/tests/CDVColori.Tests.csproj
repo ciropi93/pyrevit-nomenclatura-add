@@ -8,6 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../src/ColorMath.cs" Link="src/ColorMath.cs" />
+    <Compile Include="../src/ImagePalette.cs" Link="src/ImagePalette.cs" />
+    <None Include="data/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

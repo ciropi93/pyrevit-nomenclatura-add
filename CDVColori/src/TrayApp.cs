@@ -45,6 +45,7 @@ namespace CDVColori
             menu.Items.Add("Contagocce (senza finestra Colore)", null, delegate { PickToClipboard(); });
             menu.Items.Add("Apri cartella palette", null, delegate { PalettePanel.OpenFolder(settings.PaletteDir); });
             menu.Items.Add("Apri impostazioni (config.json)", null, delegate { OpenFile(Settings.FilePath); });
+            menu.Items.Add("Estrai palette da immagine\u2026", null, delegate { OpenExtractor(); });
             menu.Items.Add("Diagnosi finestra Colore", null, delegate { RunDiagnosi(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(miStartup);
@@ -123,6 +124,7 @@ namespace CDVColori
                 {
                     panel = new PalettePanel(settings, scale);
                     panel.ApplyColor = ApplyToDialog;
+                    panel.ExtractRequested += OpenExtractor;
                     panel.ReadCurrent = delegate
                     {
                         ColorDialogTarget cur = watcher.Current;
@@ -220,6 +222,28 @@ namespace CDVColori
             else PaletteStore.AddRecent(PaletteStore.LoadRecenti(), c);
         }
 
+        // ---------- estrazione da immagine ----------
+
+        private ImagePaletteForm extractor;
+
+        private void OpenExtractor()
+        {
+            if (extractor != null && !extractor.IsDisposed)
+            {
+                if (extractor.WindowState == FormWindowState.Minimized) extractor.WindowState = FormWindowState.Normal;
+                extractor.Activate();
+                return;
+            }
+            extractor = new ImagePaletteForm(settings);
+            extractor.PaletteSaved += delegate (string nome)
+            {
+                if (panel != null && !panel.IsDisposed) panel.SelectPalette(nome);
+            };
+            extractor.FormClosed += delegate { extractor = null; };
+            extractor.Show();
+            extractor.Activate();
+        }
+
         // ---------- varie ----------
 
         private void RunDiagnosi()
@@ -270,6 +294,7 @@ namespace CDVColori
             watcher.Dispose();
             if (dropper != null) dropper.Dispose();
             if (panel != null) panel.Dispose();
+            if (extractor != null && !extractor.IsDisposed) extractor.Dispose();
             tray.Visible = false;
             tray.Dispose();
             iconOn.Dispose();
