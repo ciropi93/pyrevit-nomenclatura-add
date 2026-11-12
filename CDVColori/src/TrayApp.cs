@@ -182,7 +182,7 @@ namespace CDVColori
         private void StartPick()
         {
             if (dropper != null) dropper.Picking = true;
-            PickSession.Start(delegate (Color c)
+            PickSession.Start(settings, delegate (Color c)
             {
                 ColorDialogTarget t = watcher.Current;
                 if (t != null && t.IsAlive)
@@ -192,7 +192,7 @@ namespace CDVColori
                             ") ma non riesco a scriverlo nella finestra Colore.", ToolTipIcon.Warning);
                 }
                 if (panel != null && !panel.IsDisposed) panel.NotifyPicked(c);
-            }, delegate
+            }, CollectRecent, delegate
             {
                 if (dropper != null && !dropper.IsDisposed) dropper.Picking = false;
                 ColorDialogTarget t = watcher.Current;
@@ -203,14 +203,21 @@ namespace CDVColori
         /// <summary>Contagocce dal menu: copia il colore negli appunti (#RRGGBB) e lo aggiunge ai recenti.</summary>
         private void PickToClipboard()
         {
-            PickSession.Start(delegate (Color c)
+            PickSession.Start(settings, delegate (Color c)
             {
                 string hex = ColorText.ToHex(c);
                 try { Clipboard.SetText(hex); } catch { }
                 PaletteStore.AddRecent(PaletteStore.LoadRecenti(), c);
                 tray.ShowBalloonTip(2500, "CDV Colori", hex + "  (RGB " + ColorText.ToRgb(c) + ") copiato negli appunti",
                     ToolTipIcon.Info);
-            }, null);
+            }, CollectRecent, null);
+        }
+
+        /// <summary>Maiusc+clic col contagocce: il colore va nei Recenti e si continua.</summary>
+        private void CollectRecent(Color c)
+        {
+            if (panel != null && !panel.IsDisposed && panel.Visible) panel.NotifyPicked(c);
+            else PaletteStore.AddRecent(PaletteStore.LoadRecenti(), c);
         }
 
         // ---------- varie ----------

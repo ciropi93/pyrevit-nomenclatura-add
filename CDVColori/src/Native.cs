@@ -166,6 +166,33 @@ namespace CDVColori
         public static extern bool PostMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, string lParam);
+
+        private const int EM_SETCUEBANNER = 0x1501;
+
+        /// <summary>Testo grigio di suggerimento in una casella vuota (es. "Cerca...").</summary>
+        public static void SetCueBanner(System.Windows.Forms.TextBox t, string text)
+        {
+            SendMessage(t.Handle, EM_SETCUEBANNER, new IntPtr(1), text);
+        }
+
+        [DllImport("user32.dll")]
+        public static extern bool SetCursorPos(int x, int y);
+
+        [DllImport("user32.dll")]
+        public static extern short GetAsyncKeyState(int vKey);
+
+        public const int VK_SHIFT = 0x10;
+        public const int VK_RETURN = 0x0D;
+        public const int VK_LEFT = 0x25, VK_UP = 0x26, VK_RIGHT = 0x27, VK_DOWN = 0x28;
+        public const int WM_MOUSEWHEEL = 0x020A;
+
+        public static bool IsShiftDown()
+        {
+            return (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+        }
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         public static extern int RegisterWindowMessage(string lpString);
 
         [DllImport("user32.dll")]

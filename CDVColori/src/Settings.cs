@@ -35,6 +35,14 @@ namespace CDVColori
         public bool mostraPannello { get; set; }
         public bool mostraContagocce { get; set; }
         public string ultimaPalette { get; set; }
+        /// <summary>0 Luminosita', 1 Saturazione, 2 Tinta, 3 Armonie.</summary>
+        public int variantiModo { get; set; }
+        /// <summary>Varianti per lato (2-6).</summary>
+        public int variantiPassi { get; set; }
+        /// <summary>Area del contagocce in pixel: 1, 3 o 5 (media).</summary>
+        public int contagocceArea { get; set; }
+        /// <summary>Ingrandimento della lente (4-20).</summary>
+        public int contagocceZoom { get; set; }
 
         public Settings()
         {
@@ -44,6 +52,21 @@ namespace CDVColori
             mostraPannello = true;
             mostraContagocce = true;
             ultimaPalette = "";
+            variantiModo = 0;
+            variantiPassi = 4;
+            contagocceArea = 1;
+            contagocceZoom = 9;
+        }
+
+        /// <summary>Riporta nei limiti i valori scritti a mano nel file.</summary>
+        public void Normalize()
+        {
+            if (variantiModo < 0 || variantiModo > 3) variantiModo = 0;
+            if (variantiPassi < 2) variantiPassi = 2;
+            if (variantiPassi > 6) variantiPassi = 6;
+            if (contagocceArea != 1 && contagocceArea != 3 && contagocceArea != 5) contagocceArea = 1;
+            if (contagocceZoom < 4) contagocceZoom = 4;
+            if (contagocceZoom > 20) contagocceZoom = 20;
         }
 
         public static string AppDataDir
@@ -81,6 +104,7 @@ namespace CDVColori
                     {
                         if (s.programmi == null || s.programmi.Count == 0) s.programmi = new List<string> { "Revit" };
                         if (s.cartellaPalette == null) s.cartellaPalette = "";
+                        s.Normalize();
                         return s;
                     }
                 }
@@ -108,7 +132,11 @@ namespace CDVColori
                 sb.Append("  \"attivo\": ").Append(attivo ? "true" : "false").Append(",\n");
                 sb.Append("  \"mostraPannello\": ").Append(mostraPannello ? "true" : "false").Append(",\n");
                 sb.Append("  \"mostraContagocce\": ").Append(mostraContagocce ? "true" : "false").Append(",\n");
-                sb.Append("  \"ultimaPalette\": ").Append(Json.Str(ultimaPalette)).Append("\n");
+                sb.Append("  \"ultimaPalette\": ").Append(Json.Str(ultimaPalette)).Append(",\n");
+                sb.Append("  \"variantiModo\": ").Append(variantiModo).Append(",\n");
+                sb.Append("  \"variantiPassi\": ").Append(variantiPassi).Append(",\n");
+                sb.Append("  \"contagocceArea\": ").Append(contagocceArea).Append(",\n");
+                sb.Append("  \"contagocceZoom\": ").Append(contagocceZoom).Append("\n");
                 sb.Append("}\n");
                 File.WriteAllText(FilePath, sb.ToString(), new UTF8Encoding(false));
             }

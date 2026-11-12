@@ -10,6 +10,7 @@ namespace CDVColori
     /// <summary>
     /// Pannello delle palette, agganciato a destra (o a sinistra) della finestra Colore.
     /// Clic su un colore = lo scrive nella finestra Colore; doppio clic = scrive e preme OK.
+    /// Ricerca in tutte le palette, gruppi, riordino trascinando, varianti del colore attuale.
     /// </summary>
     internal sealed class PalettePanel : Form
     {
@@ -17,6 +18,10 @@ namespace CDVColori
         public Func<Color, bool, bool> ApplyColor;
         /// <summary>Legge il colore attuale della finestra Colore.</summary>
         public Func<Color?> ReadCurrent;
+        /// <summary>Richiesta di estrarre una palette da un'immagine (gestita dal programma).</summary>
+        public event Action ExtractRequested;
+
+        private static readonly string[] ModeNames = { "Luminosità", "Saturazione", "Tinta", "Armonie" };
 
         private readonly Settings settings;
         private readonly float s;
@@ -24,6 +29,11 @@ namespace CDVColori
 
         private readonly ComboBox cmbPalette = new ComboBox();
         private readonly Button btnMenu = new Button();
+        private readonly TextBox txtSearch = new TextBox();
+        private readonly Label lblVariants = new Label();
+        private readonly ComboBox cmbMode = new ComboBox();
+        private readonly ComboBox cmbPassi = new ComboBox();
+        private readonly VariantStrip variants = new VariantStrip();
         private readonly FlowLayoutPanel grid = new FlowLayoutPanel();
         private readonly Label lblHint = new Label();
         private readonly TextBox txtValue = new TextBox();
@@ -31,9 +41,10 @@ namespace CDVColori
         private readonly Button btnAdd = new Button();
         private readonly ToolTip tip = new ToolTip();
         private readonly ContextMenuStrip menuPalette = new ContextMenuStrip();
-        private readonly Label lblVariants = new Label();
-        private readonly VariantStrip variants = new VariantStrip();
+        private readonly ToolStripMenuItem miFolder = new ToolStripMenuItem();
         private readonly Timer poll = new Timer();
+        private readonly Timer searchDelay = new Timer();
+        private readonly Font boldFont;
 
         public float ScaleFactor { get { return s; } }
 
@@ -49,26 +60,62 @@ namespace CDVColori
             AutoScaleMode = AutoScaleMode.None;
             Font = new Font("Segoe UI", 12f * s, GraphicsUnit.Pixel);
             BackColor = SystemColors.Control;
-            KeyPreview = true;
+            boldFont = new Font(Font, FontStyle.Bold);
 
             cmbPalette.DropDownStyle = ComboBoxStyle.DropDownList;
-            cmbPalette.SelectedIndexChanged += delegate { ShowSelected(); };
+            cmbPalette.SelectedIndexChanged += delegate
+            {
+                if (txtSearch.Text.Length > 0) txtSearch.Text = ""; // la scelta di una palette chiude la ricerca
+                ShowSelected();
+            };
 
             btnMenu.Text = "…";
             btnMenu.Click += delegate { menuPalette.Show(btnMenu, new Point(0, btnMenu.Height)); };
             tip.SetToolTip(btnMenu, "Gestione palette");
+
+            txtSearch.HandleCreated += delegate { Native.SetCueBanner(txtSearch, "Cerca in tutte le palette (nome, gruppo o #HEX)"); };
+            searchDelay.Interval = 250;
+            searchDelay.Tick += delegate { searchDelay.Stop(); ShowSelected(); };
+            txtSearch.TextChanged += delegate { searchDelay.Stop(); searchDelay.Start(); };
+            txtSearch.KeyDown += delegate (object o, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Escape) { e.SuppressKeyPress = true; txtSearch.Text = ""; }
+            };
+
+            lblVariants.Text = "Varianti";
+            lblVariants.AutoSize = false;
+            lblVariants.TextAlign = ContentAlignment.MiddleLeft;
+            lblVariants.ForeColor = SystemColors.GrayText;
+            cmbMode.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbMode.Items.AddRange(ModeNames);
+            cmbMode.SelectedIndex = settings.variantiModo;
+            tip.SetToolTip(cmbMode, "Luminosità: più scuro ← → più chiaro\nSaturazione: grigio ← → pieno\n" +
+                "Tinta: ±10° per passo\nArmonie: complementare, analoghi, triade, complementari divisi");
+            cmbPassi.DropDownStyle = ComboBoxStyle.DropDownList;
+            for (int i = ColorText.MinPassi; i <= ColorText.MaxPassi; i++) cmbPassi.Items.Add(i.ToString());
+            cmbPassi.SelectedIndex = settings.variantiPassi - ColorText.MinPassi;
+            tip.SetToolTip(cmbPassi, "Varianti per lato");
+            cmbMode.SelectedIndexChanged += delegate { ModeChanged(); };
+            cmbPassi.SelectedIndexChanged += delegate { ModeChanged(); };
+            variants.SetMode((VariantMode)settings.variantiModo, settings.variantiPassi);
+            cmbPassi.Enabled = settings.variantiModo != (int)VariantMode.Armonie;
+            variants.VariantClicked += delegate (Color c, bool ok) { Apply(c, ok); };
+            variants.VariantRightClicked += delegate (Color c, Point at) { VariantMenu(c).Show(variants, at); };
 
             grid.AutoScroll = true;
             grid.WrapContents = true;
             grid.BackColor = SystemColors.Window;
             grid.BorderStyle = BorderStyle.FixedSingle;
             grid.Padding = new Padding(Px(3));
+            grid.AllowDrop = true;
+            grid.DragOver += delegate (object o, DragEventArgs e) { e.Effect = CanDrop(e) ? DragDropEffects.Move : DragDropEffects.None; };
+            grid.DragDrop += delegate (object o, DragEventArgs e) { DropAt(e, null, null); };
 
-            lblHint.Text = "Clic: applica  ·  Doppio clic: applica e OK";
+            lblHint.Text = "Clic: applica  ·  Doppio clic: applica e OK  ·  Trascina per riordinare";
             lblHint.ForeColor = SystemColors.GrayText;
             lblHint.AutoSize = false;
+            lblHint.AutoEllipsis = true;
 
-            txtValue.Text = "";
             tip.SetToolTip(txtValue, "Scrivi #RRGGBB oppure R,G,B (es. 128,64,0) e premi Invio");
             txtValue.KeyDown += delegate (object o, KeyEventArgs e)
             {
@@ -85,25 +132,31 @@ namespace CDVColori
             menuPalette.Items.Add("Nuova palette…", null, delegate { NewPalette(); });
             menuPalette.Items.Add("Rinomina palette…", null, delegate { RenamePalette(); });
             menuPalette.Items.Add("Elimina palette…", null, delegate { DeletePalette(); });
+            ToolStripItem miExtract = menuPalette.Items.Add("Estrai palette da immagine…", null,
+                delegate { if (ExtractRequested != null) ExtractRequested(); });
             menuPalette.Items.Add(new ToolStripSeparator());
             menuPalette.Items.Add("Svuota recenti", null, delegate { ClearRecent(); });
             menuPalette.Items.Add("Ripristina palette di base", null, delegate { RestoreBase(); });
             menuPalette.Items.Add(new ToolStripSeparator());
+            miFolder.Enabled = false;
+            menuPalette.Items.Add(miFolder);
+            menuPalette.Items.Add("Cambia cartella palette…", null, delegate { ChangeFolder(); });
+            menuPalette.Items.Add("Usa cartella personale", null, delegate { SetFolder(""); });
             menuPalette.Items.Add("Apri cartella palette", null, delegate { OpenFolder(settings.PaletteDir); });
             menuPalette.Items.Add("Ricarica", null, delegate { Reload(); });
-
-            lblVariants.Text = "Varianti:  \u2190 pi\u00f9 scuro  \u00b7  pi\u00f9 chiaro \u2192";
-            lblVariants.AutoSize = false;
-            lblVariants.ForeColor = SystemColors.GrayText;
-            variants.VariantClicked += delegate (Color c, bool ok) { Apply(c, ok); };
-            variants.VariantRightClicked += delegate (Color c, Point at) { VariantMenu(c).Show(variants, at); };
+            menuPalette.Opening += delegate
+            {
+                miFolder.Text = "Cartella: " + ShortPath(settings.PaletteDir);
+                miExtract.Visible = ExtractRequested != null;
+            };
 
             // il pannello segue il colore della finestra Colore, comunque venga cambiato
             poll.Interval = 300;
             poll.Tick += delegate { SyncFromDialog(); };
 
-            Controls.AddRange(new Control[] { cmbPalette, btnMenu, lblVariants, variants, grid, lblHint, txtValue, btnApply, btnAdd });
-            ClientSize = new Size(Px(248), Px(450));
+            Controls.AddRange(new Control[] { cmbPalette, btnMenu, txtSearch, lblVariants, cmbMode, cmbPassi, variants,
+                grid, lblHint, txtValue, btnApply, btnAdd });
+            ClientSize = new Size(Px(260), Px(500));
             Reload();
         }
 
@@ -125,24 +178,33 @@ namespace CDVColori
         {
             base.OnLayout(e);
             int m = Px(6), h = Px(26), w = ClientSize.Width;
-            btnMenu.SetBounds(w - m - h, m, h, h);
-            cmbPalette.SetBounds(m, m + Px(1), w - 3 * m - h + m, h);
+            int y = m;
+            btnMenu.SetBounds(w - m - h, y, h, h);
+            cmbPalette.SetBounds(m, y + Px(1), w - 2 * m - h - Px(4), h);
+            y += h + Px(6);
+            txtSearch.SetBounds(m, y, w - 2 * m, h);
+            y += h + Px(8);
+            int passiW = Px(44), modeW = Px(110);
+            cmbPassi.SetBounds(w - m - passiW, y, passiW, h);
+            cmbMode.SetBounds(w - m - passiW - Px(4) - modeW, y, modeW, h);
+            lblVariants.SetBounds(m, y, w - 2 * m - passiW - modeW - Px(8), h);
+            y += h + Px(3);
+            variants.SetBounds(m, y, w - 2 * m, Px(30));
+            y += Px(30) + Px(8);
+
             int bottom = ClientSize.Height - m;
             btnAdd.SetBounds(m, bottom - h, w - 2 * m, h);
             bottom -= h + Px(4);
             int bw = Px(64);
             btnApply.SetBounds(w - m - bw, bottom - h, bw, h);
-            txtValue.SetBounds(m, bottom - h + Px(2), w - 3 * m - bw + m - Px(2), h);
+            txtValue.SetBounds(m, bottom - h + Px(2), w - 2 * m - bw - Px(4), h);
             bottom -= h + Px(4);
             lblHint.SetBounds(m, bottom - Px(18), w - 2 * m, Px(18));
             bottom -= Px(20);
-            int top = m + h + Px(6);
-            lblVariants.SetBounds(m, top, w - 2 * m, Px(18));
-            top += Px(18);
-            variants.SetBounds(m, top, w - 2 * m, Px(30));
-            top += Px(30) + Px(8);
-            grid.SetBounds(m, top, w - 2 * m, Math.Max(Px(40), bottom - top));
+            grid.SetBounds(m, y, w - 2 * m, Math.Max(Px(60), bottom - y));
         }
+
+        // ------------------------------------------------------------------ palette e griglia
 
         /// <summary>Rilegge le palette dal disco (all'apertura di ogni finestra Colore).</summary>
         public void Reload()
@@ -163,7 +225,26 @@ namespace CDVColori
 
         private Palette Recenti { get { return palettes.Count > 0 ? palettes[0] : null; } }
 
+        private bool Searching { get { return txtSearch.Text.Trim().Length > 0; } }
+
+        private void ClearGrid()
+        {
+            Control[] old = new Control[grid.Controls.Count];
+            grid.Controls.CopyTo(old, 0);
+            grid.Controls.Clear();
+            foreach (Control c in old) c.Dispose();
+        }
+
         private void ShowSelected()
+        {
+            grid.SuspendLayout();
+            ClearGrid();
+            if (Searching) ShowSearch(txtSearch.Text.Trim());
+            else ShowPalette();
+            grid.ResumeLayout();
+        }
+
+        private void ShowPalette()
         {
             Palette p = Selected;
             if (p == null) return;
@@ -173,21 +254,162 @@ namespace CDVColori
                 settings.Save();
             }
             btnAdd.Enabled = !p.IsRecent;
-            grid.SuspendLayout();
-            foreach (Control c in grid.Controls) c.Dispose();
-            grid.Controls.Clear();
-            foreach (VoceColore v in p.Colori) grid.Controls.Add(MakeSwatch(p, v));
             if (p.Colori.Count == 0)
             {
-                Label empty = new Label();
-                empty.AutoSize = true;
-                empty.ForeColor = SystemColors.GrayText;
-                empty.Text = p.IsRecent
+                AddNote(p.IsRecent
                     ? "I colori che applichi da qui\ncompariranno in questo elenco."
-                    : "Palette vuota: imposta un colore\nnella finestra e premi \"+ Aggiungi\".";
-                grid.Controls.Add(empty);
+                    : "Palette vuota: imposta un colore\nnella finestra e premi \"+ Aggiungi\".");
+                return;
             }
-            grid.ResumeLayout();
+            if (!p.HasGroups)
+            {
+                foreach (VoceColore v in p.Colori) grid.Controls.Add(MakeSwatch(p, v, false));
+                return;
+            }
+            foreach (KeyValuePair<string, List<VoceColore>> kv in p.Grouped())
+            {
+                AddHeader(kv.Key == "" ? "Altri" : kv.Key, p, kv.Key);
+                foreach (VoceColore v in kv.Value) grid.Controls.Add(MakeSwatch(p, v, false));
+            }
+        }
+
+        private void ShowSearch(string q)
+        {
+            btnAdd.Enabled = Selected != null && !Selected.IsRecent;
+            string qq = q.TrimStart('#').ToLowerInvariant();
+            int found = 0;
+            foreach (Palette p in palettes)
+            {
+                if (p.IsRecent) continue;
+                List<VoceColore> hits = p.Colori.FindAll(v =>
+                    (v.nome ?? "").ToLowerInvariant().Contains(qq) ||
+                    (v.gruppo ?? "").ToLowerInvariant().Contains(qq) ||
+                    (v.hex ?? "").TrimStart('#').ToLowerInvariant().Contains(qq));
+                if (hits.Count == 0) continue;
+                AddHeader(p.Nome + "  (" + hits.Count + ")", null, null);
+                foreach (VoceColore v in hits) grid.Controls.Add(MakeSwatch(p, v, true));
+                found += hits.Count;
+            }
+            if (found == 0) AddNote("Nessun colore trovato per \"" + q + "\".");
+        }
+
+        private void AddNote(string text)
+        {
+            Label l = new Label();
+            l.AutoSize = true;
+            l.ForeColor = SystemColors.GrayText;
+            l.Text = text;
+            grid.Controls.Add(l);
+        }
+
+        /// <summary>Intestazione di gruppo a tutta larghezza (si puo' trascinarci sopra un colore).</summary>
+        private void AddHeader(string text, Palette p, string gruppo)
+        {
+            Label l = new Label();
+            l.AutoSize = false;
+            l.Text = text;
+            l.Font = boldFont;
+            l.ForeColor = SystemColors.ControlDarkDark;
+            l.Margin = new Padding(Px(2), grid.Controls.Count == 0 ? Px(2) : Px(8), Px(2), Px(1));
+            l.Size = new Size(Math.Max(Px(60), grid.ClientSize.Width - grid.Padding.Horizontal - SystemInformation.VerticalScrollBarWidth - Px(4)), Px(18));
+            if (p != null)
+            {
+                l.AllowDrop = true;
+                l.DragOver += delegate (object o, DragEventArgs e) { e.Effect = CanDrop(e) ? DragDropEffects.Move : DragDropEffects.None; };
+                l.DragDrop += delegate (object o, DragEventArgs e) { DropAt(e, null, gruppo); };
+            }
+            grid.Controls.Add(l);
+            grid.SetFlowBreak(l, true);
+        }
+
+        private Swatch MakeSwatch(Palette p, VoceColore v, bool inSearch)
+        {
+            Swatch sw = new Swatch(p, v);
+            int size = Px(26);
+            sw.Size = new Size(size, size);
+            sw.Margin = new Padding(Px(2));
+            string desc = ColorText.Describe(v);
+            if (!string.IsNullOrEmpty(v.gruppo)) desc += "\nGruppo: " + v.gruppo;
+            if (inSearch) desc += "\nPalette: " + p.Nome;
+            tip.SetToolTip(sw, desc);
+            sw.MouseClick += delegate (object o, MouseEventArgs e)
+            {
+                if (e.Button == MouseButtons.Left) Apply(v.ToColor(), false);
+                else if (e.Button == MouseButtons.Right) SwatchMenu(p, v).Show(sw, e.Location);
+            };
+            sw.MouseDoubleClick += delegate (object o, MouseEventArgs e)
+            {
+                if (e.Button == MouseButtons.Left) Apply(v.ToColor(), true);
+            };
+            if (!inSearch && !p.IsRecent)
+            {
+                sw.CanDrag = true;
+                sw.AllowDrop = true;
+                sw.DragOver += delegate (object o, DragEventArgs e) { e.Effect = CanDrop(e) ? DragDropEffects.Move : DragDropEffects.None; };
+                sw.DragDrop += delegate (object o, DragEventArgs e)
+                {
+                    Point pt = sw.PointToClient(new Point(e.X, e.Y));
+                    DropAt(e, new KeyValuePair<VoceColore, bool>(v, pt.X > sw.Width / 2), null);
+                };
+            }
+            return sw;
+        }
+
+        // ------------------------------------------------------------------ trascinamento
+
+        private bool CanDrop(DragEventArgs e)
+        {
+            Swatch src = e.Data.GetData(typeof(Swatch)) as Swatch;
+            return src != null && !Searching && src.Palette == Selected && !src.Palette.IsRecent;
+        }
+
+        /// <summary>
+        /// Sposta il colore trascinato: prima o dopo un altro colore (che ne da' anche il gruppo),
+        /// in fondo a un gruppo (intestazione), oppure in fondo alla palette (spazio vuoto).
+        /// </summary>
+        private void DropAt(DragEventArgs e, KeyValuePair<VoceColore, bool>? target, string gruppo)
+        {
+            if (!CanDrop(e)) return;
+            Swatch src = (Swatch)e.Data.GetData(typeof(Swatch));
+            Palette p = src.Palette;
+            VoceColore v = src.Voce;
+            p.Normalize();
+            List<VoceColore> list = p.Colori;
+            if (target.HasValue && target.Value.Key == v) return;
+            list.Remove(v);
+            if (target.HasValue)
+            {
+                VoceColore t = target.Value.Key;
+                v.gruppo = t.gruppo ?? "";
+                int idx = list.IndexOf(t);
+                list.Insert(target.Value.Value ? idx + 1 : idx, v);
+            }
+            else if (gruppo != null)
+            {
+                v.gruppo = gruppo;
+                int last = list.FindLastIndex(x => (x.gruppo ?? "") == gruppo);
+                list.Insert(last < 0 ? list.Count : last + 1, v);
+            }
+            else
+            {
+                list.Add(v);
+            }
+            p.Normalize();
+            SaveOrWarn(p);
+            ShowSelected();
+        }
+
+        // ------------------------------------------------------------------ varianti
+
+        private void ModeChanged()
+        {
+            if (cmbMode.SelectedIndex < 0 || cmbPassi.SelectedIndex < 0) return;
+            settings.variantiModo = cmbMode.SelectedIndex;
+            settings.variantiPassi = cmbPassi.SelectedIndex + ColorText.MinPassi;
+            settings.Save();
+            cmbPassi.Enabled = settings.variantiModo != (int)VariantMode.Armonie;
+            variants.SetMode((VariantMode)settings.variantiModo, settings.variantiPassi);
+            SyncFromDialog();
         }
 
         /// <summary>
@@ -217,6 +439,13 @@ namespace CDVColori
             m.Items.Add("Applica e OK", null, delegate { Apply(c, true); });
             m.Items.Add("Usa come colore base", null, delegate { variants.SetBase(c); });
             m.Items.Add("Copia " + hex, null, delegate { Clipboard.SetText(hex); });
+            m.Items.Add(AddToMenu(c));
+            m.Closed += delegate { BeginInvoke((Action)m.Dispose); };
+            return m;
+        }
+
+        private ToolStripMenuItem AddToMenu(Color c)
+        {
             ToolStripMenuItem addTo = new ToolStripMenuItem("Aggiungi alla palette");
             foreach (Palette dest in palettes)
             {
@@ -224,46 +453,21 @@ namespace CDVColori
                 Palette d = dest;
                 addTo.DropDownItems.Add(d.Nome, null, delegate { AddTo(d, c); });
             }
-            m.Items.Add(addTo);
-            m.Closed += delegate { BeginInvoke((Action)m.Dispose); };
-            return m;
+            return addTo;
         }
 
-        private Swatch MakeSwatch(Palette p, VoceColore v)
-        {
-            Swatch sw = new Swatch(v);
-            int size = Px(26);
-            sw.Size = new Size(size, size);
-            sw.Margin = new Padding(Px(2));
-            tip.SetToolTip(sw, ColorText.Describe(v));
-            sw.MouseClick += delegate (object o, MouseEventArgs e)
-            {
-                if (e.Button == MouseButtons.Left) Apply(v.ToColor(), false);
-                else if (e.Button == MouseButtons.Right) SwatchMenu(p, v).Show(sw, e.Location);
-            };
-            sw.MouseDoubleClick += delegate (object o, MouseEventArgs e)
-            {
-                if (e.Button == MouseButtons.Left) Apply(v.ToColor(), true);
-            };
-            return sw;
-        }
+        // ------------------------------------------------------------------ menu del colore
 
         private ContextMenuStrip SwatchMenu(Palette p, VoceColore v)
         {
             ContextMenuStrip m = new ContextMenuStrip();
             m.Items.Add("Applica e OK", null, delegate { Apply(v.ToColor(), true); });
+            m.Items.Add("Usa come base per le varianti", null, delegate { variants.SetBase(v.ToColor()); });
             m.Items.Add("Copia " + v.hex, null, delegate { Clipboard.SetText(v.hex); });
             m.Items.Add(new ToolStripSeparator());
             if (p.IsRecent)
             {
-                ToolStripMenuItem addTo = new ToolStripMenuItem("Aggiungi alla palette");
-                foreach (Palette dest in palettes)
-                {
-                    if (dest.IsRecent) continue;
-                    Palette d = dest;
-                    addTo.DropDownItems.Add(d.Nome, null, delegate { AddTo(d, v.ToColor()); });
-                }
-                m.Items.Add(addTo);
+                m.Items.Add(AddToMenu(v.ToColor()));
             }
             else
             {
@@ -275,12 +479,10 @@ namespace CDVColori
                     SaveOrWarn(p);
                     ShowSelected();
                 });
-                m.Items.Add("Sposta all'inizio", null, delegate
+                m.Items.Add(GroupMenu(p, v));
+                if (Searching) m.Items.Add("Mostra nella palette", null, delegate
                 {
-                    p.Colori.Remove(v);
-                    p.Colori.Insert(0, v);
-                    SaveOrWarn(p);
-                    ShowSelected();
+                    cmbPalette.SelectedItem = p; // chiude anche la ricerca
                 });
             }
             m.Items.Add("Elimina", null, delegate
@@ -293,6 +495,39 @@ namespace CDVColori
             return m;
         }
 
+        private ToolStripMenuItem GroupMenu(Palette p, VoceColore v)
+        {
+            ToolStripMenuItem g = new ToolStripMenuItem("Sposta nel gruppo");
+            Action<string> move = delegate (string gruppo)
+            {
+                p.Colori.Remove(v);
+                v.gruppo = gruppo;
+                int last = p.Colori.FindLastIndex(x => (x.gruppo ?? "") == gruppo);
+                p.Colori.Insert(last < 0 ? p.Colori.Count : last + 1, v);
+                p.Normalize();
+                SaveOrWarn(p);
+                ShowSelected();
+            };
+            foreach (string name in p.GroupNames())
+            {
+                string n = name;
+                ToolStripMenuItem it = new ToolStripMenuItem(n, null, delegate { move(n); });
+                it.Checked = n == v.gruppo;
+                g.DropDownItems.Add(it);
+            }
+            if (g.DropDownItems.Count > 0) g.DropDownItems.Add(new ToolStripSeparator());
+            g.DropDownItems.Add("Nuovo gruppo…", null, delegate
+            {
+                string n = Prompt.Show(this, "Nuovo gruppo", "Nome del gruppo:", "", s);
+                if (!string.IsNullOrWhiteSpace(n)) move(n.Trim());
+            });
+            if (!string.IsNullOrEmpty(v.gruppo))
+                g.DropDownItems.Add("Nessun gruppo", null, delegate { move(""); });
+            return g;
+        }
+
+        // ------------------------------------------------------------------ applicazione
+
         private void Apply(Color c, bool pressOk)
         {
             if (ApplyColor == null) return;
@@ -304,24 +539,22 @@ namespace CDVColori
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+            AddRecent(c);
+        }
+
+        private void AddRecent(Color c)
+        {
             Palette r = Recenti;
-            if (r != null)
-            {
-                PaletteStore.AddRecent(r, c);
-                if (Selected == r) ShowSelected();
-            }
+            if (r == null) return;
+            PaletteStore.AddRecent(r, c);
+            if (Selected == r && !Searching) ShowSelected();
         }
 
         /// <summary>Da chiamare quando il colore arriva dal contagocce.</summary>
         public void NotifyPicked(Color c)
         {
             txtValue.Text = ColorText.ToHex(c);
-            Palette r = Recenti;
-            if (r != null)
-            {
-                PaletteStore.AddRecent(r, c);
-                if (Selected == r) ShowSelected();
-            }
+            AddRecent(c);
         }
 
         private void ApplyTyped()
@@ -357,9 +590,12 @@ namespace CDVColori
             if (n == null) return;
             p.Colori.Add(new VoceColore(n.Trim(), c));
             SaveOrWarn(p);
+            txtSearch.Text = "";
             cmbPalette.SelectedItem = p;
             ShowSelected();
         }
+
+        // ------------------------------------------------------------------ gestione palette
 
         private void NewPalette()
         {
@@ -375,6 +611,14 @@ namespace CDVColori
             catch (Exception ex) { Warn(ex); }
         }
 
+        /// <summary>Seleziona la palette con questo nome (dopo averla creata da fuori, es. da un'immagine).</summary>
+        public void SelectPalette(string nome)
+        {
+            settings.ultimaPalette = nome;
+            cmbPalette.SelectedIndex = -1;
+            Reload();
+        }
+
         private void RenamePalette()
         {
             Palette p = Selected;
@@ -383,7 +627,7 @@ namespace CDVColori
             if (string.IsNullOrWhiteSpace(n)) return;
             p.Nome = n.Trim();
             SaveOrWarn(p);
-            Reload();
+            SelectPalette(p.Nome);
         }
 
         private void DeletePalette()
@@ -404,9 +648,7 @@ namespace CDVColori
             try
             {
                 Palette p = PaletteStore.CreaBase(settings.PaletteDir);
-                settings.ultimaPalette = p.Nome;
-                cmbPalette.SelectedIndex = -1;
-                Reload();
+                SelectPalette(p.Nome);
             }
             catch (Exception ex) { Warn(ex); }
         }
@@ -418,6 +660,31 @@ namespace CDVColori
             r.Colori.Clear();
             SaveOrWarn(r);
             ShowSelected();
+        }
+
+        private void ChangeFolder()
+        {
+            using (FolderBrowserDialog d = new FolderBrowserDialog())
+            {
+                d.Description = "Cartella delle palette (anche di rete, per condividerle con i colleghi)";
+                d.SelectedPath = settings.PaletteDir;
+                d.ShowNewFolderButton = true;
+                if (d.ShowDialog(this) != DialogResult.OK) return;
+                SetFolder(d.SelectedPath);
+            }
+        }
+
+        private void SetFolder(string path)
+        {
+            settings.cartellaPalette = path ?? "";
+            settings.Save();
+            cmbPalette.SelectedIndex = -1;
+            Reload();
+        }
+
+        private static string ShortPath(string p)
+        {
+            return p.Length <= 48 ? p : "…" + p.Substring(p.Length - 47);
         }
 
         private void SaveOrWarn(Palette p)
@@ -447,7 +714,8 @@ namespace CDVColori
             int x = d.Right + gap;
             if (x + w > wa.Right) x = d.Left - gap - w;
             if (x < wa.Left) x = wa.Right - w;
-            int h = Math.Max(Px(380), d.Height);
+            int h = Math.Max(Px(520), d.Height);
+            if (h > wa.Height) h = wa.Height;
             int y = d.Top;
             if (y + h > wa.Bottom) y = wa.Bottom - h;
             if (y < wa.Top) y = wa.Top;
@@ -456,19 +724,24 @@ namespace CDVColori
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { poll.Dispose(); tip.Dispose(); menuPalette.Dispose(); }
+            if (disposing) { boldFont.Dispose(); poll.Dispose(); searchDelay.Dispose(); tip.Dispose(); menuPalette.Dispose(); }
             base.Dispose(disposing);
         }
     }
 
-    /// <summary>Quadratino colore.</summary>
+    /// <summary>Quadratino colore (trascinabile per riordinare).</summary>
     internal sealed class Swatch : Control
     {
+        public readonly Palette Palette;
         public readonly VoceColore Voce;
+        public bool CanDrag;
         private bool hot;
+        private Point downAt;
+        private bool down;
 
-        public Swatch(VoceColore v)
+        public Swatch(Palette p, VoceColore v)
         {
+            Palette = p;
             Voce = v;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
                      ControlStyles.UserPaint | ControlStyles.StandardClick | ControlStyles.StandardDoubleClick, true);
@@ -482,6 +755,30 @@ namespace CDVColori
             using (SolidBrush b = new SolidBrush(Voce.ToColor())) g.FillRectangle(b, r);
             using (Pen p = new Pen(hot ? Color.FromArgb(0, 120, 215) : Color.FromArgb(140, 140, 140), hot ? 2f : 1f))
                 g.DrawRectangle(p, hot ? new Rectangle(1, 1, Width - 2, Height - 2) : r);
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left) { down = true; downAt = e.Location; }
+            base.OnMouseDown(e);
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            if (!down || !CanDrag || e.Button != MouseButtons.Left) return;
+            Size ds = SystemInformation.DragSize;
+            if (Math.Abs(e.X - downAt.X) > ds.Width || Math.Abs(e.Y - downAt.Y) > ds.Height)
+            {
+                down = false;
+                DoDragDrop(this, DragDropEffects.Move);
+            }
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            down = false;
+            base.OnMouseUp(e);
         }
 
         protected override void OnMouseEnter(EventArgs e) { hot = true; Invalidate(); base.OnMouseEnter(e); }

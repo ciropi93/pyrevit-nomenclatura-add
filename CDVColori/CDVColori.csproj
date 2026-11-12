@@ -13,7 +13,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
     <LangVersion>7.3</LangVersion>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Product>CDV Colori</Product>
     <Company>CDV</Company>
     <Description>Palette e contagocce per la finestra Colore di Revit</Description>
@@ -22,6 +22,11 @@
     <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
     <DebugType>none</DebugType>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- i test hanno il loro progetto -->
+    <Compile Remove="tests/**" />
+    <None Remove="tests/**" />
+  </ItemGroup>
   <ItemGroup>
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Drawing" />

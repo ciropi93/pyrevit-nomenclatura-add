@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Globalization;
 using System.IO;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
 namespace CDVColori
@@ -14,8 +12,10 @@ namespace CDVColori
     {
         public string nome { get; set; }
         public string hex { get; set; }
+        /// <summary>Gruppo facoltativo (es. "Anello interno"); vuoto = nessun gruppo.</summary>
+        public string gruppo { get; set; }
 
-        public VoceColore() { nome = ""; hex = "#000000"; }
+        public VoceColore() { nome = ""; hex = "#000000"; gruppo = ""; }
 
         public VoceColore(string nome, Color c)
         {
@@ -46,6 +46,41 @@ namespace CDVColori
 
         public override string ToString() { return Nome; }
 
+        public bool HasGroups { get { return Colori.Exists(v => !string.IsNullOrEmpty(v.gruppo)); } }
+
+        /// <summary>
+        /// Colori raggruppati nell'ordine in cui i gruppi compaiono (i colori senza gruppo vanno in fondo, "Altri").
+        /// </summary>
+        public List<KeyValuePair<string, List<VoceColore>>> Grouped()
+        {
+            List<KeyValuePair<string, List<VoceColore>>> res = new List<KeyValuePair<string, List<VoceColore>>>();
+            List<VoceColore> senza = new List<VoceColore>();
+            foreach (VoceColore v in Colori)
+            {
+                if (string.IsNullOrEmpty(v.gruppo)) { senza.Add(v); continue; }
+                int i = res.FindIndex(kv => kv.Key == v.gruppo);
+                if (i < 0) { res.Add(new KeyValuePair<string, List<VoceColore>>(v.gruppo, new List<VoceColore>())); i = res.Count - 1; }
+                res[i].Value.Add(v);
+            }
+            if (senza.Count > 0) res.Add(new KeyValuePair<string, List<VoceColore>>("", senza));
+            return res;
+        }
+
+        /// <summary>Riordina l'elenco come viene mostrato (gruppi contigui).</summary>
+        public void Normalize()
+        {
+            List<VoceColore> flat = new List<VoceColore>();
+            foreach (KeyValuePair<string, List<VoceColore>> kv in Grouped()) flat.AddRange(kv.Value);
+            Colori = flat;
+        }
+
+        public List<string> GroupNames()
+        {
+            List<string> res = new List<string>();
+            foreach (KeyValuePair<string, List<VoceColore>> kv in Grouped()) if (kv.Key != "") res.Add(kv.Key);
+            return res;
+        }
+
         public static Palette Load(string path)
         {
             FilePalette fp = new JavaScriptSerializer().Deserialize<FilePalette>(File.ReadAllText(path, Encoding.UTF8));
@@ -61,6 +96,7 @@ namespace CDVColori
                     {
                         v.hex = ColorText.ToHex(c);
                         if (v.nome == null) v.nome = "";
+                        if (v.gruppo == null) v.gruppo = "";
                         p.Colori.Add(v);
                     }
                 }
@@ -76,7 +112,10 @@ namespace CDVColori
             {
                 sb.Append(i == 0 ? "\n" : ",\n");
                 sb.Append("    {\"nome\": ").Append(Json.Str(Colori[i].nome))
-                  .Append(", \"hex\": ").Append(Json.Str(Colori[i].hex)).Append("}");
+                  .Append(", \"hex\": ").Append(Json.Str(Colori[i].hex));
+                if (!string.IsNullOrEmpty(Colori[i].gruppo))
+                    sb.Append(", \"gruppo\": ").Append(Json.Str(Colori[i].gruppo));
+                sb.Append("}");
             }
             sb.Append(Colori.Count > 0 ? "\n  ]\n}\n" : "]\n}\n");
             File.WriteAllText(FilePath, sb.ToString(), new UTF8Encoding(false));
@@ -163,47 +202,47 @@ namespace CDVColori
         private static readonly string[,] BaseColori =
         {
             // anello interno
-            { "Materialen", "#D4DEBB" },
-            { "Energie", "#D79E80" },
-            { "Klimaatadaptatie", "#AFB8C1" },
-            { "Stikstof", "#E8E7E3" },
+            { "Materialen", "#D4DEBB", "Anello interno" },
+            { "Energie", "#D79E80", "Anello interno" },
+            { "Klimaatadaptatie", "#AFB8C1", "Anello interno" },
+            { "Stikstof", "#E8E7E3", "Anello interno" },
             // anello medio
-            { "Stikstof (medio)", "#D2D6D7" },
-            { "Hittestress", "#BECCD7" },
-            { "Waterverwerking", "#9DB2C3" },
-            { "Energiegebruik", "#DBBCB7" },
-            { "Maximale energiebehoefte", "#F2C2AB" },
-            { "Aandeel hernieuwbare energie", "#F3D3B8" },
-            { "Opslag", "#EBDCC7" },
-            { "Milieu-impact", "#D0D3B4" },
-            { "Embodied Carbon", "#C7D1B8" },
-            { "Construction Stored Carbon", "#B8C3B5" },
-            { "Materiaalgebruik", "#ADC3B7" },
-            { "Hergebruikpotentie", "#A6BEA4" },
-            { "Losmaakbaarheid", "#A5A186" },
-            { "Aanpasbaarheid functie", "#889C90" },
-            { "Materialen scuro medio 1", "#595F53" },
-            { "Materialen scuro medio 2 (anche esterno 5)", "#5D6D62" },
-            { "Materialen scuro medio 3", "#7D876E" },
+            { "Stikstof (medio)", "#D2D6D7", "Anello medio" },
+            { "Hittestress", "#BECCD7", "Anello medio" },
+            { "Waterverwerking", "#9DB2C3", "Anello medio" },
+            { "Energiegebruik", "#DBBCB7", "Anello medio" },
+            { "Maximale energiebehoefte", "#F2C2AB", "Anello medio" },
+            { "Aandeel hernieuwbare energie", "#F3D3B8", "Anello medio" },
+            { "Opslag", "#EBDCC7", "Anello medio" },
+            { "Milieu-impact", "#D0D3B4", "Anello medio" },
+            { "Embodied Carbon", "#C7D1B8", "Anello medio" },
+            { "Construction Stored Carbon", "#B8C3B5", "Anello medio" },
+            { "Materiaalgebruik", "#ADC3B7", "Anello medio" },
+            { "Hergebruikpotentie", "#A6BEA4", "Anello medio" },
+            { "Losmaakbaarheid", "#A5A186", "Anello medio" },
+            { "Aanpasbaarheid functie", "#889C90", "Anello medio" },
+            { "Materialen scuro medio 1", "#595F53", "Anello medio" },
+            { "Materialen scuro medio 2 (anche esterno 5)", "#5D6D62", "Anello medio" },
+            { "Materialen scuro medio 3", "#7D876E", "Anello medio" },
             // anello esterno
-            { "Ammoniak", "#C3C7C8" },
-            { "Stikstofoxide", "#A2A6A9" },
-            { "Reductie drinkwaterverbruik", "#B5C9E0" },
-            { "Gebruik regen- en grijswater", "#CCD9E9" },
-            { "Materialen scuro esterno 1", "#44483E" },
-            { "Materialen scuro esterno 2", "#5C615A" },
-            { "Materialen scuro esterno 3", "#788275" },
-            { "Materialen scuro esterno 4", "#697069" },
-            { "Materialen scuro esterno 6", "#828E84" },
-            { "Materialen scuro esterno 7", "#656751" },
-            { "Materialen scuro esterno 8", "#7E8069" },
-            { "Hernieuwbaar", "#989A84" },
-            { "Hergebruik esterno (verde)", "#769863" },
-            { "Recyclebaar", "#91AC81" },
-            { "Herbruikbaar", "#C9D2C0" },
-            { "Primair grondstof", "#849B8F" },
-            { "Secundair grondstof", "#A0B8AB" },
-            { "Hernieuwbaar grondstof", "#C2D5CB" },
+            { "Ammoniak", "#C3C7C8", "Anello esterno" },
+            { "Stikstofoxide", "#A2A6A9", "Anello esterno" },
+            { "Reductie drinkwaterverbruik", "#B5C9E0", "Anello esterno" },
+            { "Gebruik regen- en grijswater", "#CCD9E9", "Anello esterno" },
+            { "Materialen scuro esterno 1", "#44483E", "Anello esterno" },
+            { "Materialen scuro esterno 2", "#5C615A", "Anello esterno" },
+            { "Materialen scuro esterno 3", "#788275", "Anello esterno" },
+            { "Materialen scuro esterno 4", "#697069", "Anello esterno" },
+            { "Materialen scuro esterno 6", "#828E84", "Anello esterno" },
+            { "Materialen scuro esterno 7", "#656751", "Anello esterno" },
+            { "Materialen scuro esterno 8", "#7E8069", "Anello esterno" },
+            { "Hernieuwbaar", "#989A84", "Anello esterno" },
+            { "Hergebruik esterno (verde)", "#769863", "Anello esterno" },
+            { "Recyclebaar", "#91AC81", "Anello esterno" },
+            { "Herbruikbaar", "#C9D2C0", "Anello esterno" },
+            { "Primair grondstof", "#849B8F", "Anello esterno" },
+            { "Secundair grondstof", "#A0B8AB", "Anello esterno" },
+            { "Hernieuwbaar grondstof", "#C2D5CB", "Anello esterno" },
         };
 
         /// <summary>
@@ -233,136 +272,23 @@ namespace CDVColori
             {
                 Color c;
                 ColorText.TryParse(BaseColori[i, 1], out c);
-                p.Colori.Add(new VoceColore(BaseColori[i, 0], c));
+                VoceColore v = new VoceColore(BaseColori[i, 0], c);
+                v.gruppo = BaseColori[i, 2];
+                p.Colori.Add(v);
             }
             p.Save();
             return p;
         }
     }
 
-    /// <summary>Conversione colore &lt;-&gt; testo. Accetta #RRGGBB, RRGGBB, #RGB, "R,G,B", "R G B", "RGB 128-128-128".</summary>
-    public static class ColorText
+    /// <summary>Parte di ColorText legata alle palette (il resto e' in ColorMath.cs).</summary>
+    public static partial class ColorText
     {
-        private static readonly Regex HexRe = new Regex(@"^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$");
-        private static readonly Regex RgbRe = new Regex(@"^(?:rgb)?\s*\(?\s*(\d{1,3})\s*[,;\-\s]\s*(\d{1,3})\s*[,;\-\s]\s*(\d{1,3})\s*\)?$",
-            RegexOptions.IgnoreCase);
-
-        public static bool TryParse(string text, out Color color)
-        {
-            color = Color.Black;
-            if (string.IsNullOrWhiteSpace(text)) return false;
-            string t = text.Trim();
-
-            Match m = HexRe.Match(t);
-            if (m.Success)
-            {
-                string h = m.Groups[1].Value;
-                if (h.Length == 3) h = new string(new[] { h[0], h[0], h[1], h[1], h[2], h[2] });
-                int v = int.Parse(h, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                color = Color.FromArgb((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF);
-                return true;
-            }
-
-            m = RgbRe.Match(t);
-            if (m.Success)
-            {
-                int r = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
-                int g = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
-                int b = int.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
-                if (r > 255 || g > 255 || b > 255) return false;
-                color = Color.FromArgb(r, g, b);
-                return true;
-            }
-            return false;
-        }
-
-        public static string ToHex(Color c)
-        {
-            return "#" + c.R.ToString("X2") + c.G.ToString("X2") + c.B.ToString("X2");
-        }
-
-        public static string ToRgb(Color c)
-        {
-            return c.R + "-" + c.G + "-" + c.B;
-        }
-
         public static string Describe(VoceColore v)
         {
             Color c = v.ToColor();
             string head = string.IsNullOrWhiteSpace(v.nome) ? "" : v.nome + "\n";
             return head + "RGB " + ToRgb(c) + "   " + ToHex(c);
-        }
-
-        /// <summary>
-        /// Varianti piu' scure e piu' chiare: stessa tinta e saturazione (HSL), luminosita' distribuita
-        /// a passi uguali verso il nero (a sinistra) e verso il bianco (a destra).
-        /// Restituisce 2*perLato+1 colori: [scuri..., colore, chiari...].
-        /// </summary>
-        public static Color[] Variants(Color c, int perLato)
-        {
-            double h, sat, l;
-            ToHsl(c, out h, out sat, out l);
-            Color[] res = new Color[perLato * 2 + 1];
-            res[perLato] = Color.FromArgb(c.R, c.G, c.B);
-            for (int i = 1; i <= perLato; i++)
-            {
-                double f = i / (double)(perLato + 1);
-                res[perLato - i] = FromHsl(h, sat, l * (1 - f));
-                res[perLato + i] = FromHsl(h, sat, l + (1 - l) * f);
-            }
-            return res;
-        }
-
-        public static void ToHsl(Color c, out double h, out double s, out double l)
-        {
-            double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
-            double max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
-            l = (max + min) / 2;
-            double d = max - min;
-            if (d < 1e-9) { h = 0; s = 0; return; }
-            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-            if (max == r) h = (g - b) / d + (g < b ? 6 : 0);
-            else if (max == g) h = (b - r) / d + 2;
-            else h = (r - g) / d + 4;
-            h /= 6;
-        }
-
-        public static Color FromHsl(double h, double s, double l)
-        {
-            double r, g, b;
-            if (s < 1e-9) { r = g = b = l; }
-            else
-            {
-                double q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-                double p = 2 * l - q;
-                r = Hue(p, q, h + 1.0 / 3);
-                g = Hue(p, q, h);
-                b = Hue(p, q, h - 1.0 / 3);
-            }
-            return Color.FromArgb(To255(r), To255(g), To255(b));
-        }
-
-        private static double Hue(double p, double q, double t)
-        {
-            if (t < 0) t += 1;
-            if (t > 1) t -= 1;
-            if (t < 1.0 / 6) return p + (q - p) * 6 * t;
-            if (t < 0.5) return q;
-            if (t < 2.0 / 3) return p + (q - p) * (2.0 / 3 - t) * 6;
-            return p;
-        }
-
-        private static int To255(double v)
-        {
-            int i = (int)Math.Round(v * 255);
-            return i < 0 ? 0 : (i > 255 ? 255 : i);
-        }
-
-        /// <summary>Colore del testo leggibile sopra al colore dato.</summary>
-        public static Color Contrast(Color c)
-        {
-            double l = 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
-            return l > 140 ? Color.Black : Color.White;
         }
     }
 }

@@ -4,3 +4,5 @@ __pycache__/
 CDVColori/bin/
 CDVColori/obj/
 CDVColori/build/
+CDVColori/tests/bin/
+CDVColori/tests/obj/
