@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    CDV Colori: pannello palette + contagocce agganciato alla finestra "Colore" di Revit.
+    .NET Framework 4.8 (gia' presente su Windows 10/11): un solo .exe, niente installazione.
+    Compilazione: ./build.sh (anche da Linux) oppure "dotnet build -c Release".
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>CDVColori</AssemblyName>
+    <RootNamespace>CDVColori</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <LangVersion>7.3</LangVersion>
+    <Version>0.1.0</Version>
+    <Product>CDV Colori</Product>
+    <Company>CDV</Company>
+    <Description>Palette e contagocce per la finestra Colore di Revit</Description>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <GenerateAppConfig>false</GenerateAppConfig>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web.Extensions" />
+  </ItemGroup>
+</Project>
