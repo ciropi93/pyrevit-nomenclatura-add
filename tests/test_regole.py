@@ -206,10 +206,7 @@ def test_valida_e_salva_codice_fabbricato(tmp_path):
     p = str(tmp_path / "x" / "progetto.json")
     R.salva_config_utente({"codice_fabbricato": "CF1234567"}, p)
     R.salva_config_utente({"servizio": "E"}, p)
-    import json
-    with open(p, encoding="utf-8") as f:
-        d = json.load(f)
-    assert d == {"codice_fabbricato": "CF1234567", "servizio": "E"}
+    assert R.leggi_config_file(p) == {"codice_fabbricato": "CF1234567", "servizio": "E"}
 
 
 # ---------------- proposte: unita' di misura e simboli ----------------
