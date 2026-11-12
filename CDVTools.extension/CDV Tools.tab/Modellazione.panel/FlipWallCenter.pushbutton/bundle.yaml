@@ -1,0 +1,4 @@
+title: "Inverti Muro\nsul Centro"
+tooltip: Inverte il lato esterno/interno del muro (flip) mantenendo fissa la posizione geometrica sul suo asse centrale, senza alcuno spostamento anche se disegnato su filo esterno, interno o nucleo.
+author: CDV Tools
+context: doc-project

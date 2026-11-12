@@ -1,0 +1,7 @@
+title: Grafica e Filtri
+layout:
+  - CopyCatProps
+  - UpdateViewTemplate
+  - CopyCropRegion
+  - ChangePlanLevel
+  - CreateFilterFromSelection

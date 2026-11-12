@@ -1,0 +1,4 @@
+title: "Inserisci in\nLegenda"
+tooltip: Rileva gli elementi selezionati (porte, finestre, muri, arredi, ecc.), estrae i rispettivi Tipi/Simboli e inserisce in modo ordinato i Componenti Legenda con relative descrizioni nella vista Legenda scelta.
+author: CDV Tools
+context: doc-project

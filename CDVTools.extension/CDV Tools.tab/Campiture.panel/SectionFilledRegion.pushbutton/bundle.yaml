@@ -1,0 +1,4 @@
+title: "Campitura per\nsezione"
+tooltip: Crea automaticamente una campitura (es. TERRENO) a partire dal bordo inferiore o superiore di uno o piu elementi 3D sezionati nella vista (pavimenti inclinati, tetti, fondazioni, link RVT), chiudendola con fondo orizzontale (da punto min/max o da Livello) o parallelo alla pendenza.
+author: CDV Tools
+context: doc-project

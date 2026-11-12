@@ -1,12 +1,24 @@
-# Nomenclatura ADD per pyRevit
+# CDV Tools per pyRevit
 
-Estensione pyRevit che **controlla** e, se serve, **corregge** i nomi di un modello Revit
+Estensione pyRevit con un solo tab, **CDV Tools**:
+
+| Pannello | Pulsanti |
+|---|---|
+| **Grafica e Filtri** | Copia proprietà grafiche categoria/elemento, Aggiorna modello di vista, Copia ritaglio di vista, Cambia livello della pianta, Crea filtro da selezione |
+| **Campiture** | Campitura da polilinea/offset, Campitura da sezione |
+| **Modellazione** | Inverti muro sull'asse centrale |
+| **Tavole e Legende** | Allinea viste su tavole, Componenti in legenda, Allinea al Nord reale |
+| **Nomenclatura** | Controllo e correzione dei nomi secondo il BIMMS ADD2024 (vedi sotto) |
+
+## Nomenclatura ADD
+
+Il pannello **Nomenclatura** **controlla** e, se serve, **corregge** i nomi di un modello Revit
 secondo le codifiche BIM dell'Agenzia del Demanio:
 
 - BIM Method Statement `ADD2024-ADD-METHODSTP-XX-MS-Z-G00001` (§4.1 Sistemi di codifica)
 - Allegato D (Codifica elementi), Allegato E (Codifica spazi), Allegato H (Codice documento), Allegato I (Codifica file)
 
-## Pulsanti (scheda *NomenclaturaADD*)
+### Pulsanti (pannello *Nomenclatura*)
 
 | Pulsante | Cosa fa |
 |---|---|
@@ -79,19 +91,21 @@ Il report di *Controlla* elenca i file di impostazioni usati.
 ## Installazione
 
 1. Installa [pyRevit](https://github.com/pyrevitlabs/pyRevit) (4.8 o successivo).
-2. Da riga di comando:
+2. Clona il repository e aggiungi la sua cartella ai percorsi delle estensioni, poi fai *Reload*:
    ```
-   pyrevit extend ui NomenclaturaADD https://github.com/ciropi93/pyrevit-nomenclatura-add.git
+   git clone https://github.com/ciropi93/pyrevit-nomenclatura-add.git
+   pyrevit extensions paths add <cartella>\pyrevit-nomenclatura-add
    ```
-   oppure copia la cartella `NomenclaturaADD.extension` in una cartella di estensioni
-   (pyRevit > Settings > Custom Extension Directories) e fai *Reload*.
+   (oppure pyRevit > Settings > Custom Extension Directories). Per aggiornare basta `git pull` e *Reload*.
 3. Apri **Impostazioni** e inserisci il codice fabbricato; controlla codice bene e fase (`P` = PFTE).
 
 ## Struttura
 
 ```
-NomenclaturaADD.extension/
-  NomenclaturaADD.tab/Nomenclatura.panel/   pulsanti (script.py + bundle.yaml + icon.png)
+CDVTools.extension/
+  CDV Tools.tab/
+    Grafica e Filtri.panel/ Campiture.panel/ Modellazione.panel/ Tavole.panel/
+    Nomenclatura.panel/   pulsanti (script.py + bundle.yaml + icon.png)
   lib/nomenclatura/
     regole.py        regole di codifica (senza API Revit, testabile)
     revit_dati.py    lettura e scrittura dei nomi in Revit

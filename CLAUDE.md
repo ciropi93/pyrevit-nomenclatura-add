@@ -1,4 +1,7 @@
-# Nomenclatura ADD (estensione pyRevit)
+# CDV Tools (estensione pyRevit)
+
+Un solo tab `CDVTools.extension/CDV Tools.tab` con i pannelli Grafica e Filtri, Campiture,
+Modellazione, Tavole e Nomenclatura. Le note qui sotto riguardano il pannello **Nomenclatura ADD**.
 
 Controlla e corregge i nomi di un modello Revit secondo il BIMMS ADD2024 dell'Agenzia del Demanio
 (progetto Sulmona, codice bene AQD0031). Utente: Ciro, scrive in italiano; risposte brevi e semplici.
@@ -13,4 +16,4 @@ Controlla e corregge i nomi di un modello Revit secondo il BIMMS ADD2024 dell'Ag
 
 ## Comandi
 - Test: `python -m pytest -q tests`
-- Lint: `python -m pyflakes NomenclaturaADD.extension tests`
+- Lint: `python -m pyflakes CDVTools.extension/lib "CDVTools.extension/CDV Tools.tab/Nomenclatura.panel" tests`

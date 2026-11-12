@@ -1,0 +1,160 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Copia Proprietà Grafiche Vista"
+        Height="760" Width="720"
+        MinHeight="600" MinWidth="600"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI"
+        Background="#F8FAFC">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#1E293B"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#1E293B"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#0F172A" CornerRadius="8" Padding="16,14" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="Copia Proprietà Grafiche Vista" FontWeight="Bold" FontSize="16" Foreground="#FFFFFF"/>
+                <TextBlock Text="Copia impostazioni di visibilità, linee, retini, colori e trasparenza da una vista/modello sorgente ad altre viste" FontSize="12" Foreground="#94A3B8" Margin="0,3,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Source Info Card -->
+        <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
+            <StackPanel>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="SORGENTE DATI" FontWeight="Bold" FontSize="11" Foreground="#64748B" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="lblSourceView" Text="Vista Sorgente: Caricamento..." FontWeight="SemiBold" FontSize="13" Foreground="#0F172A"/>
+                        <TextBlock x:Name="lblSourceCategory" Text="Categoria Rilevata: Caricamento..." FontSize="12" Foreground="#334155" Margin="0,2,0,0"/>
+                        <TextBlock x:Name="lblSourceElement" Text="Elemento Selezionato: Nessuno" FontSize="11" Foreground="#64748B" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" x:Name="btnChangeCategory" Content="Cambia Categoria..." VerticalAlignment="Top" Padding="10,5"/>
+                </Grid>
+                <Border Background="#F1F5F9" CornerRadius="6" Padding="10,8" Margin="0,4,0,0">
+                    <TextBlock x:Name="lblSourceOverrides" Text="Sovrascritture rilevate: Nessuna" FontSize="11" Foreground="#0369A1" TextWrapping="Wrap"/>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- Options Card -->
+        <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="OPZIONI DI COPIA" FontWeight="Bold" FontSize="11" Foreground="#64748B" Margin="0,0,0,6"/>
+                <WrapPanel Orientation="Horizontal">
+                    <CheckBox x:Name="chkCopyCategoryOverrides" Content="Sovrascritture Categoria / Sottocategorie" IsChecked="True" Margin="0,2,20,2"/>
+                    <CheckBox x:Name="chkCopyVisibility" Content="Stato di Visibilità (Mostra/Nascondi)" IsChecked="True" Margin="0,2,20,2"/>
+                    <CheckBox x:Name="chkCopyElementOverrides" Content="Sovrascritture Elemento Singolo (se presenti)" IsChecked="True" Margin="0,2,0,2"/>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Target Views Card -->
+        <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="VISTE DI DESTINAZIONE" FontWeight="Bold" FontSize="11" Foreground="#64748B" Margin="0,0,0,8"/>
+
+                <!-- Search and Filters -->
+                <Grid Grid.Row="1" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="txtSearch" Grid.Column="0" Height="30" VerticalContentAlignment="Center" Padding="8,0" Margin="0,0,8,0" FontSize="12"/>
+                    <ComboBox x:Name="cmbViewTypeFilter" Grid.Column="1" Height="30" Width="190" VerticalContentAlignment="Center" FontSize="12"/>
+                </Grid>
+
+                <!-- Views ListView -->
+                <ListView x:Name="lvViews" Grid.Row="2" BorderThickness="1" BorderBrush="#E2E8F0" ScrollViewer.VerticalScrollBarVisibility="Auto" Background="#FFFFFF">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="2,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="32"/>
+                                    <ColumnDefinition Width="130"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="{Binding ViewType}" Foreground="#64748B" VerticalAlignment="Center" FontSize="11"/>
+                                <TextBlock Grid.Column="2" Text="{Binding ViewName}" FontWeight="Medium" Foreground="#0F172A" VerticalAlignment="Center" FontSize="12"/>
+                                <Border Grid.Column="3" Background="{Binding TemplateBgColor}" CornerRadius="4" Padding="8,3" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding TemplateText}" Foreground="{Binding TemplateFgColor}" FontSize="11" FontWeight="Medium"/>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <!-- Quick Selection Controls -->
+                <WrapPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button x:Name="btnSelectAll" Content="Seleziona Tutte" Padding="10,4" FontSize="11" Margin="0,0,4,0"/>
+                    <Button x:Name="btnDeselectAll" Content="Deseleziona Tutte" Padding="10,4" FontSize="11" Margin="0,0,4,0"/>
+                    <Button x:Name="btnSelectNoTemplate" Content="Solo Senza Modello" Padding="10,4" FontSize="11" Margin="0,0,4,0"/>
+                    <Button x:Name="btnSelectSameType" Content="Solo Stesso Tipo Vista" Padding="10,4" FontSize="11"/>
+                </WrapPanel>
+            </Grid>
+        </Border>
+
+        <!-- Footer -->
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="lblSelectionCount" Grid.Column="0" Text="0 viste selezionate" VerticalAlignment="Center" Foreground="#64748B" FontSize="12" FontWeight="Medium"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="btnCancel" Content="Annulla" Width="90" Height="34" Margin="0,0,8,0" IsCancel="True"/>
+                <Button x:Name="btnApply" Content="Applica Sovrascritture" Background="#0284C7" Foreground="#FFFFFF" FontWeight="SemiBold" BorderThickness="0" Height="34" Padding="16,0" IsDefault="True"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
