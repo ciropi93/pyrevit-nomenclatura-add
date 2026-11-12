@@ -1,7 +1,0 @@
-/home/user/pyrevit-nomenclatura-add/CDVColori/build/CDVColori.exe.config
-/home/user/pyrevit-nomenclatura-add/CDVColori/build/CDVColori.exe
-/home/user/pyrevit-nomenclatura-add/CDVColori/obj/Release/net48/CDVColori.GeneratedMSBuildEditorConfig.editorconfig
-/home/user/pyrevit-nomenclatura-add/CDVColori/obj/Release/net48/CDVColori.AssemblyInfoInputs.cache
-/home/user/pyrevit-nomenclatura-add/CDVColori/obj/Release/net48/CDVColori.AssemblyInfo.cs
-/home/user/pyrevit-nomenclatura-add/CDVColori/obj/Release/net48/CDVColori.csproj.CoreCompileInputs.cache
-/home/user/pyrevit-nomenclatura-add/CDVColori/obj/Release/net48/CDVColori.exe
