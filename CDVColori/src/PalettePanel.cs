@@ -87,6 +87,7 @@ namespace CDVColori
             menuPalette.Items.Add("Elimina palette…", null, delegate { DeletePalette(); });
             menuPalette.Items.Add(new ToolStripSeparator());
             menuPalette.Items.Add("Svuota recenti", null, delegate { ClearRecent(); });
+            menuPalette.Items.Add("Ripristina palette di base", null, delegate { RestoreBase(); });
             menuPalette.Items.Add(new ToolStripSeparator());
             menuPalette.Items.Add("Apri cartella palette", null, delegate { OpenFolder(settings.PaletteDir); });
             menuPalette.Items.Add("Ricarica", null, delegate { Reload(); });
@@ -393,6 +394,21 @@ namespace CDVColori
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
             try { File.Delete(p.FilePath); } catch (Exception ex) { Warn(ex); }
             Reload();
+        }
+
+        private void RestoreBase()
+        {
+            if (MessageBox.Show(this, "Ripristinare la palette \"Base\" con i colori originali?\n" +
+                    "Le modifiche fatte alla palette Base andranno perse.", "CDV Colori",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            try
+            {
+                Palette p = PaletteStore.CreaBase(settings.PaletteDir);
+                settings.ultimaPalette = p.Nome;
+                cmbPalette.SelectedIndex = -1;
+                Reload();
+            }
+            catch (Exception ex) { Warn(ex); }
         }
 
         private void ClearRecent()

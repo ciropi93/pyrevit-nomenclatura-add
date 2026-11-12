@@ -97,12 +97,8 @@ namespace CDVColori
             list.Add(LoadRecenti());
             try
             {
+                EnsureBase(dir);
                 string[] files = Directory.GetFiles(dir, "*.json");
-                if (files.Length == 0)
-                {
-                    CreaEsempio(dir);
-                    files = Directory.GetFiles(dir, "*.json");
-                }
                 Array.Sort(files, StringComparer.CurrentCultureIgnoreCase);
                 foreach (string f in files)
                 {
@@ -156,25 +152,91 @@ namespace CDVColori
             return s.Length == 0 ? "Palette" : s;
         }
 
-        private static void CreaEsempio(string dir)
+        public const string BaseFile = "Base.json";
+        private const string BaseMarker = ".base_creata";
+
+        /// <summary>
+        /// Colori della palette di base (estratti dal diagramma a corona "Materialen / Energie /
+        /// Klimaatadaptatie / Stikstof"; valori letti da un'immagine JPEG, quindi approssimati di 1-3 unita').
+        /// Ordine: anello interno, anello medio, anello esterno.
+        /// </summary>
+        private static readonly string[,] BaseColori =
+        {
+            // anello interno
+            { "Materialen", "#D4DEBB" },
+            { "Energie", "#D79E80" },
+            { "Klimaatadaptatie", "#AFB8C1" },
+            { "Stikstof", "#E8E7E3" },
+            // anello medio
+            { "Stikstof (medio)", "#D2D6D7" },
+            { "Hittestress", "#BECCD7" },
+            { "Waterverwerking", "#9DB2C3" },
+            { "Energiegebruik", "#DBBCB7" },
+            { "Maximale energiebehoefte", "#F2C2AB" },
+            { "Aandeel hernieuwbare energie", "#F3D3B8" },
+            { "Opslag", "#EBDCC7" },
+            { "Milieu-impact", "#D0D3B4" },
+            { "Embodied Carbon", "#C7D1B8" },
+            { "Construction Stored Carbon", "#B8C3B5" },
+            { "Materiaalgebruik", "#ADC3B7" },
+            { "Hergebruikpotentie", "#A6BEA4" },
+            { "Losmaakbaarheid", "#A5A186" },
+            { "Aanpasbaarheid functie", "#889C90" },
+            { "Materialen scuro medio 1", "#595F53" },
+            { "Materialen scuro medio 2 (anche esterno 5)", "#5D6D62" },
+            { "Materialen scuro medio 3", "#7D876E" },
+            // anello esterno
+            { "Ammoniak", "#C3C7C8" },
+            { "Stikstofoxide", "#A2A6A9" },
+            { "Reductie drinkwaterverbruik", "#B5C9E0" },
+            { "Gebruik regen- en grijswater", "#CCD9E9" },
+            { "Materialen scuro esterno 1", "#44483E" },
+            { "Materialen scuro esterno 2", "#5C615A" },
+            { "Materialen scuro esterno 3", "#788275" },
+            { "Materialen scuro esterno 4", "#697069" },
+            { "Materialen scuro esterno 6", "#828E84" },
+            { "Materialen scuro esterno 7", "#656751" },
+            { "Materialen scuro esterno 8", "#7E8069" },
+            { "Hernieuwbaar", "#989A84" },
+            { "Hergebruik esterno (verde)", "#769863" },
+            { "Recyclebaar", "#91AC81" },
+            { "Herbruikbaar", "#C9D2C0" },
+            { "Primair grondstof", "#849B8F" },
+            { "Secundair grondstof", "#A0B8AB" },
+            { "Hernieuwbaar grondstof", "#C2D5CB" },
+        };
+
+        /// <summary>
+        /// Crea la palette di base la prima volta. Se poi l'utente la elimina non ricompare
+        /// (si ripristina dal menu del pannello).
+        /// </summary>
+        private static void EnsureBase(string dir)
+        {
+            string marker = Path.Combine(dir, BaseMarker);
+            if (File.Exists(marker) || File.Exists(Path.Combine(dir, BaseFile))) return;
+            try
+            {
+                CreaBase(dir);
+                File.WriteAllText(marker, "palette di base creata " + DateTime.Now.ToString("s"));
+                try { File.SetAttributes(marker, FileAttributes.Hidden); } catch { }
+            }
+            catch (Exception ex) { Log.Write("Creazione palette di base: " + ex.Message); }
+        }
+
+        /// <summary>Scrive (o riscrive) la palette di base.</summary>
+        public static Palette CreaBase(string dir)
         {
             Palette p = new Palette();
-            p.Nome = "Esempio";
-            p.FilePath = Path.Combine(dir, "Esempio.json");
-            string[,] voci =
-            {
-                { "Nero", "#000000" }, { "Grigio 25%", "#404040" }, { "Grigio 50%", "#808080" },
-                { "Grigio 75%", "#C0C0C0" }, { "Bianco", "#FFFFFF" },
-                { "Rosso", "#FF0000" }, { "Giallo", "#FFFF00" }, { "Verde", "#00FF00" },
-                { "Ciano", "#00FFFF" }, { "Blu", "#0000FF" }, { "Magenta", "#FF00FF" },
-            };
-            for (int i = 0; i < voci.GetLength(0); i++)
+            p.Nome = "Base";
+            p.FilePath = Path.Combine(dir, BaseFile);
+            for (int i = 0; i < BaseColori.GetLength(0); i++)
             {
                 Color c;
-                ColorText.TryParse(voci[i, 1], out c);
-                p.Colori.Add(new VoceColore(voci[i, 0], c));
+                ColorText.TryParse(BaseColori[i, 1], out c);
+                p.Colori.Add(new VoceColore(BaseColori[i, 0], c));
             }
-            try { p.Save(); } catch (Exception ex) { Log.Write("Creazione palette di esempio: " + ex.Message); }
+            p.Save();
+            return p;
         }
     }
 

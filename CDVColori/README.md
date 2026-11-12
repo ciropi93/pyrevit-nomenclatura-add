@@ -55,6 +55,10 @@ Per condividerle con i colleghi metti in `config.json` (menu → Apri impostazio
 "cartellaPalette": "\\\\server\\progetti\\CDV\\palette"
 ```
 
+Al primo avvio viene creata la palette **Base** (39 colori del diagramma a corona Materialen / Energie /
+Klimaatadaptatie / Stikstof). Se la modifichi o la elimini, dal menu "…" del pannello c'è
+"Ripristina palette di base".
+
 I **Recenti** sono personali (`%APPDATA%\CDVColori\recenti.json`).
 
 Altre impostazioni in `config.json`: `programmi` (default `["Revit"]`, `"*"` = tutti i programmi
