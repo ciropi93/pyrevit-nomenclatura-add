@@ -14,10 +14,8 @@ Controlla e corregge i nomi di un modello Revit secondo il BIMMS ADD2024 dell'Ag
 - Esiti: ERRORE = non conforme al BIMMS; AVVISO = ammesso ma da dichiarare nel pGI.
 - Dati ufficiali in `lib/nomenclatura/data/codici_add2024.json` e `proprieta_add2024.json`; fonti, incoerenze e lacune in `docs/knowledge-base.md`. Non inventare codici: se non sono nei documenti dell'Agenzia, sono AVVISO "da pGI".
 
-## CDV Colori (cartella `CDVColori/`)
-Programma Windows separato (C#, .NET Framework 4.8, non pyRevit): contagocce + palette agganciati alla
-finestra Colore di Revit, osservandola da fuori (SetWinEventHook, nessuna iniezione in Revit).
-Compilazione: `CDVColori/build.sh` (dotnet SDK, anche su Linux). Dettagli in `CDVColori/README.md`.
+## CDV Colori
+Il color picker per Revit (contagocce + palette) ha un repository suo: `ciropi93/revit-color-picker`.
 
 ## Comandi
 - Test: `python -m pytest -q tests`
