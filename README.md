@@ -12,8 +12,9 @@ secondo le codifiche BIM dell'Agenzia del Demanio:
 |---|---|
 | **Controlla** | Scegli cosa controllare, ottieni un report con link agli elementi e, se vuoi, un CSV. |
 | **Correggi** | Applica solo le correzioni sicure (spazi, accenti, maiuscole, progressivo a 2 cifre, contrassegno tipo, nome locale da Allegato E). Prima mostra l'elenco da confermare. Una sola transazione: si annulla con Ctrl+Z. |
+| **Suggerisci** | Propone il nome codificato dai dati: categoria Revit → codice (MUR, SOL, POR...), funzione del muro → EST/INT, strati → categorie dei materiali + spessore totale, porte/finestre → larghezza x altezza, progressivo libero. Per i materiali usa la classe Revit (Calcestruzzo → CLC...). Lavora sulla selezione o su tutti i tipi usati. |
 | **Importa CSV** | Rinomina in blocco: esporti il CSV con *Controlla*, compili la colonna `NuovoValore` in Excel, lo reimporti. |
-| **Impostazioni** | Apre `%APPDATA%\NomenclaturaADD\progetto.json` (codice bene, codici fabbricato, fase, esclusioni). |
+| **Impostazioni** | Finestra per inserire **codice fabbricato** (CF + 7 cifre), codice bene e fase; il file completo `%APPDATA%\NomenclaturaADD\progetto.json` resta apribile per le altre opzioni. Il codice fabbricato viene usato nei controlli di file modello e tavole (segnaposto `CFNNNNNNN` o codice diverso = errore, con correzione proposta per le tavole). |
 
 ## Regole controllate
 
@@ -27,6 +28,16 @@ secondo le codifiche BIM dell'Agenzia del Demanio:
 | Materiali | `Dettaglio-CATEGORIA-[SOTTOCATEGORIA-]Descrizione` | `1-CLC-STR-CA_C32/40_XC4_XF1_250mm` | BIMMS §4.1.4 |
 | Locali | Numero `USO-NNN`, Nome = Nome uso dell'Allegato E | `BOX-001` / `Box auto` | BIMMS §4.1.5.1, All. E |
 | Tavole | Numero = codice elaborato a 7 campi | `AQD0031-ADD-PLANGENER-ZZ-DR-Z-P00001` | BIMMS §4.1.2, All. H |
+
+## Controlli incrociati (ambito "Coerenza")
+
+| Controllo | Esempio di errore |
+|---|---|
+| Spessore nel nome = spessore reale della stratigrafia | `MUR-EST-..._300mm-01` ma il muro è 290 mm |
+| Strati nel nome = categorie dei materiali degli strati (esterno → interno) | `INC_MRT_INC` ma gli strati sono `VER_INC_CLC_INC_VER` |
+| Spessore nel nome del materiale = spessore dello strato | `1-CLC-STR-CA_C32/40_250mm` in uno strato da 300 mm |
+| Sottotipo EST/INT = parametro Funzione del muro | `MUR-INT-...` con Funzione = Esterno |
+| Dimensioni porte/finestre nel nome = larghezza x altezza del tipo | `POR-ADB-REI120_800x2100mm-01` ma larghezza 900 |
 
 Esiti: **ERRORE** = non conforme al BIMMS; **AVVISO** = ammesso ma da dichiarare nel pGI
 (es. sottotipo non presente nell'Allegato D come `POR-SEZ`, suffisso livello, `/` nelle classi del cls,
@@ -43,7 +54,7 @@ Viste e schede di vista non sono normate dal BIMMS e per ora non vengono control
    ```
    oppure copia la cartella `NomenclaturaADD.extension` in una cartella di estensioni
    (pyRevit > Settings > Custom Extension Directories) e fai *Reload*.
-3. Apri **Impostazioni** e controlla codice bene, codici fabbricato/area e fase (`servizio`: `P` = PFTE).
+3. Apri **Impostazioni** e inserisci il codice fabbricato; controlla codice bene e fase (`P` = PFTE).
 
 ## Struttura
 

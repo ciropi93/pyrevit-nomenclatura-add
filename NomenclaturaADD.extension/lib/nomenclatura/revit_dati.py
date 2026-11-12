@@ -9,6 +9,9 @@ import re
 from Autodesk.Revit import DB
 
 from nomenclatura import regole as R
+from nomenclatura import suggerimenti as SG
+
+MM = 304.8  # piedi -> mm
 
 # Ambiti di controllo (chiave -> etichetta mostrata all'utente)
 AMBITI = [
@@ -20,6 +23,7 @@ AMBITI = [
     ("materiali", u"Materiali"),
     ("locali", u"Locali (numero e nome)"),
     ("tavole", u"Tavole (numero)"),
+    ("coerenza", u"Coerenza nome / dati (spessori, strati, funzione muro, dimensioni porte e finestre)"),
 ]
 
 # Campi modificabili
@@ -32,6 +36,8 @@ CAMPO_MATERIALE = u"NomeMateriale"
 CAMPO_NUM_LOCALE = u"NumeroLocale"
 CAMPO_NOME_LOCALE = u"NomeLocale"
 CAMPO_TAVOLA = u"NumeroTavola"
+
+_FUNZIONE_MURO = {0: "INT", 1: "EST", 2: "EST", 3: "EST", 4: "EST", 5: "INT"}
 
 
 class Voce(object):
@@ -132,6 +138,53 @@ def nome_file_modello(doc):
 
 
 # --------------------------------------------------------------------------
+# Dati del tipo per i controlli incrociati
+# --------------------------------------------------------------------------
+def _param_mm(el, bips):
+    for b in bips:
+        bip = getattr(DB.BuiltInParameter, b, None)
+        p = el.get_Parameter(bip) if bip is not None else None
+        if p is not None and p.HasValue and p.StorageType == DB.StorageType.Double:
+            return p.AsDouble() * MM
+    return None
+
+
+def dati_tipo(t, doc):
+    """Dizionario con i dati che servono a suggerimenti.py."""
+    cat = t.Category
+    d = {"bic": bic_nome(cat), "nome": leggi_nome(t)}
+    cs = None
+    try:
+        cs = t.GetCompoundStructure()
+    except Exception:
+        cs = None
+    if cs is not None:
+        strati = []
+        for ly in cs.GetLayers():
+            mid = ly.MaterialId
+            mat = doc.GetElement(mid) if mid != DB.ElementId.InvalidElementId else None
+            strati.append({"materiale": leggi_nome(mat) if mat is not None else None,
+                           "spessore": ly.Width * MM})
+        d["strati"] = strati
+        d["spessore"] = cs.GetWidth() * MM
+    if d["bic"] == "OST_Walls":
+        p = t.get_Parameter(DB.BuiltInParameter.FUNCTION_PARAM)
+        if p is not None and p.HasValue:
+            d["funzione"] = _FUNZIONE_MURO.get(p.AsInteger())
+    if d["bic"] in SG.APERTURE:
+        d["larghezza"] = _param_mm(t, ["DOOR_WIDTH", "WINDOW_WIDTH", "FAMILY_WIDTH_PARAM"])
+        d["altezza"] = _param_mm(t, ["DOOR_HEIGHT", "WINDOW_HEIGHT", "FAMILY_HEIGHT_PARAM"])
+    return d
+
+
+def classe_materiale(m):
+    try:
+        return m.MaterialClass
+    except Exception:
+        return None
+
+
+# --------------------------------------------------------------------------
 # Raccolta
 # --------------------------------------------------------------------------
 def _tipi_usati(doc):
@@ -178,7 +231,7 @@ def raccogli(doc, ambiti, ctx=None):
                              R.controlla_livello(leggi_nome(lv), ctx)))
 
     tipi = None
-    if set(ambiti) & set(["tipi", "famiglie", "contrassegni"]):
+    if set(ambiti) & set(["tipi", "famiglie", "contrassegni", "coerenza"]):
         tipi = _tipi_modello(doc, ctx)
 
     if "tipi" in ambiti:
@@ -186,6 +239,16 @@ def raccogli(doc, ambiti, ctx=None):
             fam = getattr(t, "FamilyName", u"") or u""
             voci.append(Voce(t, u"Tipi", CAMPO_TIPO, catnome,
                              R.controlla_elemento(leggi_nome(t), ctx, categoria=bic), fam))
+
+    if "coerenza" in ambiti:
+        for t, bic, catnome in tipi:
+            if bic not in SG.STRATIFICATI and bic not in SG.APERTURE:
+                continue
+            r = SG.controlla_coerenza(dati_tipo(t, doc), ctx)
+            if r.ok or (len(r.problemi) == 1 and u"non codificato" in r.messaggio()):
+                continue  # i nomi non codificati sono gia' segnalati da 'Tipi'
+            voci.append(Voce(t, u"Coerenza", CAMPO_TIPO, catnome, r,
+                             getattr(t, "FamilyName", u"") or u""))
 
     if "contrassegni" in ambiti and ctx.cfg.get("tipi", {}).get("contrassegno_tipo", True):
         for t, bic, catnome in tipi:

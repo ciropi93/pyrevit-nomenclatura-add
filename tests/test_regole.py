@@ -156,3 +156,55 @@ def test_tavole(ctx):
     assert R.controlla_tavola("A101", ctx).ha_errori
     assert R.controlla_tavola("AQD0031-ADD-NUOVOCODX-ZZ-DR-A-P00001", ctx).livello == R.AVVISO
     assert R.controlla_tavola("AQD0031-ADD-PLANGENER-ZZ-DR-Z-E00001", ctx).livello == R.AVVISO
+
+
+# ---------------- verifiche aggiunte con la revisione della knowledge base ----------------
+def test_livello_disciplina_non_a_s_e_avviso(ctx):
+    assert R.controlla_livello("GF-U", ctx).livello == R.AVVISO
+    assert R.controlla_livello("01-A", ctx).ok
+
+
+def test_modello_federato_tipo_file(ctx):
+    assert R.controlla_file_modello("AQD0031-ADD-CF1234567-ZZ-M3-K-S00001", ctx).ha_errori
+    assert not R.controlla_file_modello("AQD0031-ADD-CF1234567-ZZ-MR-K-P00001", ctx).ha_errori
+    assert R.controlla_file_modello("AQD0031-ADD-MFEDERATO-ZZ-M3-A-P00001", ctx).ha_errori
+    assert R.controlla_file_modello("AQD0031-ADD-CF1234567-ZZ-MR-Y-P00001", ctx).ha_errori
+    assert not R.controlla_file_modello("AQD0031-ADD-MFEDERATO-ZZ-MR-Y-P00001", ctx).ha_errori
+
+
+def test_codici_aggiunti_dalla_revisione(ctx):
+    assert "SPK" in ctx.sottotipi("ANT")
+    assert "RIM" in ctx.sottotipi("FCO")
+    assert "REM" in ctx.sottotipi("ELR") and "RES" in ctx.sottotipi("ELR")
+    assert "PNT" in ctx.tipi
+    assert R.controlla_tavola("AQD0031-ADD-RELBARARC-ZZ-RT-A-P00001", ctx).livello != R.ERRORE
+
+
+# ---------------- codice fabbricato dalle Impostazioni ----------------
+def _ctx_con_cf(ctx, cf):
+    cfg = dict(ctx.cfg)
+    cfg["codice_fabbricato"] = cf
+    return R.Contesto(codici=ctx.codici, config=cfg)
+
+
+def test_codice_fabbricato_usato_nei_controlli(ctx):
+    c = _ctx_con_cf(ctx, "CF7654321")
+    assert R.controlla_file_modello("AQD0031-ADD-CF7654321-ZZ-M3-U-PN0001", c).ok
+    assert R.controlla_file_modello("AQD0031-ADD-CF1234567-ZZ-M3-U-PN0001", c).ha_errori
+    assert R.controlla_file_modello("AQD0031-ADD-CFNNNNNNN-ZZ-M3-U-PN0001", c).ha_errori
+    r = R.controlla_tavola("AQD0031-ADD-CFNNNNNNN-GF-DR-A-P00001", c)
+    assert r.proposta == "AQD0031-ADD-CF7654321-GF-DR-A-P00001"
+    assert R.controlla_tavola("AQD0031-ADD-PLANGENER-ZZ-DR-Z-P00001", c).ok
+
+
+def test_valida_e_salva_codice_fabbricato(tmp_path):
+    assert R.valida_codice_fabbricato("CF1234567")
+    assert R.valida_codice_fabbricato("")
+    assert not R.valida_codice_fabbricato("CF12")
+    p = str(tmp_path / "x" / "progetto.json")
+    R.salva_config_utente({"codice_fabbricato": "CF1234567"}, p)
+    R.salva_config_utente({"servizio": "E"}, p)
+    import json
+    with open(p, encoding="utf-8") as f:
+        d = json.load(f)
+    assert d == {"codice_fabbricato": "CF1234567", "servizio": "E"}

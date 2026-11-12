@@ -1,6 +1,7 @@
 {
   "_nota": "Impostazioni del progetto. Modificabili dal pulsante 'Impostazioni'.",
   "codice_bene": "AQD0031",
+  "codice_fabbricato": "",
   "codici_fabbricato_area": [],
   "servizio": "P",
   "lunghezza_max": 50,

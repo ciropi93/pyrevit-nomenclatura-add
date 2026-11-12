@@ -63,6 +63,30 @@ def carica_config():
     return _leggi_json("progetto.json")
 
 
+def valida_codice_fabbricato(cod):
+    """'' (vuoto) oppure CF + 7 cifre (fabbricato) o CA + 4 cifre (area)."""
+    return cod == u"" or bool(_RE_CF.match(cod) or _RE_CA.match(cod))
+
+
+def salva_config_utente(valori, percorso=None):
+    """Aggiorna solo le chiavi indicate nella copia personale delle impostazioni."""
+    percorso = percorso or percorso_config_utente()
+    cfg = {}
+    if os.path.exists(percorso):
+        with io.open(percorso, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    cfg.update(valori)
+    cartella = os.path.dirname(percorso)
+    if not os.path.isdir(cartella):
+        os.makedirs(cartella)
+    testo = json.dumps(cfg, ensure_ascii=False, indent=2)
+    if not isinstance(testo, type(u"")):
+        testo = testo.decode("utf-8")
+    with io.open(percorso, "w", encoding="utf-8") as f:
+        f.write(testo)
+    return percorso
+
+
 class Contesto(object):
     """Codici ufficiali + impostazioni di progetto."""
 
@@ -374,6 +398,8 @@ def controlla_livello(nome, ctx):
         r.errore(u"codice livello '%s' non valido (GF, 01, 02, M1, G1...)" % cod)
     if disc not in ctx.codici["discipline"]:
         r.errore(u"disciplina '%s' non in Tab. 15" % disc)
+    elif disc not in (u"A", u"S"):
+        r.avviso(u"il BIMMS (§4.1.5.2) prevede solo A o S per i livelli: '%s' va dichiarato nel pGI" % disc)
     if suff:
         rx = ctx.cfg.get("livelli", {}).get("suffisso_regex")
         if rx and re.match(rx, suff):
@@ -440,13 +466,23 @@ def _controlla_bene(r, bene, ctx):
         r.errore(u"codice bene '%s' diverso da quello di progetto %s" % (bene, atteso))
 
 
+def codici_fabbricato(ctx):
+    """Codice fabbricato principale (Impostazioni) + eventuali altri codici fabbricato/area."""
+    principale = (ctx.cfg.get("codice_fabbricato") or u"").strip()
+    altri = [c for c in (ctx.cfg.get("codici_fabbricato_area") or []) if c]
+    return ([principale] if principale else []) + [c for c in altri if c != principale]
+
+
 def _controlla_cf(r, cod, ctx):
+    noti = codici_fabbricato(ctx)
     if cod in (u"CFNNNNNNN", u"CANNNN"):
-        r.avviso(u"'%s' e' ancora un segnaposto: inserire il codice fabbricato/area" % cod)
+        if noti:
+            r.errore(u"'%s' e' un segnaposto: usare il codice fabbricato %s" % (cod, noti[0]))
+        else:
+            r.avviso(u"'%s' e' un segnaposto: inserire il codice fabbricato nelle Impostazioni" % cod)
         return
-    noti = ctx.cfg.get("codici_fabbricato_area") or []
     if noti and cod not in noti:
-        r.avviso(u"codice fabbricato/area '%s' non tra quelli di progetto" % cod)
+        r.errore(u"codice fabbricato/area '%s' diverso da quello di progetto (%s)" % (cod, u", ".join(noti)))
 
 
 def controlla_file_modello(nome, ctx):
@@ -471,6 +507,17 @@ def controlla_file_modello(nome, ctx):
         r.errore(u"tipo file '%s' non valido per un modello (M2, M3, MR, PC)" % tf)
     if disc not in ctx.codici["discipline"]:
         r.errore(u"disciplina '%s' non in Tab. 15" % disc)
+    # Coerenze da BIMMS §4.1.1.4 (N.B.) e Allegato I
+    if disc in (u"C", u"K", u"Y") and tf not in (u"M2", u"MR"):
+        r.errore(u"i modelli federati (disciplina %s) devono essere M2 o MR" % disc)
+    if fab == u"MFEDERATO" and tf not in (u"M2", u"MR", u"PC"):
+        r.errore(u"MFEDERATO ammette solo M2, MR o PC (Allegato I)")
+    if fab == u"MGENERALE" and tf not in (u"M3", u"MR", u"PC"):
+        r.errore(u"MGENERALE ammette solo M3, MR o PC (Allegato I)")
+    if disc == u"Y" and fab != u"MFEDERATO":
+        r.errore(u"la disciplina Y (federato di sintesi) richiede MFEDERATO come terzo campo")
+    if tf == u"PC" and alfa[:1] not in (u"S", u"G", u""):
+        r.avviso(u"le nuvole di punti sono di norma Stato di fatto (S)")
     m = re.match(r"^([A-Z])([A-Z0])(\d{4})$", alfa)
     if not m:
         r.errore(u"codice alfanumerico '%s' non valido (es. PN0001, S00001)" % alfa)
@@ -516,6 +563,10 @@ def controlla_tavola(numero, ctx):
             r.avviso(u"tipo file %s insolito per una tavola (atteso %s)" % (tf, u", ".join(ammessi)))
     if disc not in ctx.codici["discipline"]:
         r.errore(u"disciplina '%s' non in Tab. 15" % disc)
+    noti = codici_fabbricato(ctx)
+    if noti and r.ha_errori and (_RE_CF.match(doc) or _RE_CA.match(doc) or doc in (u"CFNNNNNNN", u"CANNNN")) \
+            and doc not in noti:
+        _proponi(r, u"-".join([bene, add, noti[0], liv, tf, disc, alfa]), lambda p: controlla_tavola(p, ctx))
     m = re.match(r"^([A-Z])(\d)(\d{4})$", alfa)
     if not m:
         r.errore(u"codice alfanumerico '%s' non valido (es. P00001)" % alfa)

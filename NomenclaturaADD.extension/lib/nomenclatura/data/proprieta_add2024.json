@@ -1,0 +1,2383 @@
+{
+ "_fonte": "Allegato A (ProprietàModello) e Allegato B (Proprietà ACDat) del BIMMS ADD2024, estratti automaticamente. Allegato C non estratto (tabella ruotata).",
+ "allegato_A": [
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiAnagrafici",
+   "proprieta": "CodiceBene",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Codice Bene"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiAnagrafici",
+   "proprieta": "Comune",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Comune"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiAnagrafici",
+   "proprieta": "Denominazione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Denominazione Immobile"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiAnagrafici",
+   "proprieta": "DestinazioneUso",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Destinazione d'uso prevalente"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiAnagrafici",
+   "proprieta": "Elevazione",
+   "tipo": "IfcReal",
+   "um": "m",
+   "descrizione": "Elevazione sul livello del mare del Punto di Rilievo"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiAnagrafici",
+   "proprieta": "Indirizzo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Indirizzo"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiAnagrafici",
+   "proprieta": "Latitudine",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Latitudine del fabbricato"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiAnagrafici",
+   "proprieta": "Longitudine",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Longitudine del fabbricato"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiAnagrafici",
+   "proprieta": "Provincia",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Provincia"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiAnagrafici",
+   "proprieta": "Regione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Regione"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiMobilita",
+   "proprieta": "DistanzaServiziInterscambio",
+   "tipo": "IfcReal",
+   "um": "m",
+   "descrizione": "prossimità di nodi di scambio ed interesse"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiMobilita",
+   "proprieta": "DistanzaServiziPubblici",
+   "tipo": "IfcReal",
+   "um": "m",
+   "descrizione": "IfcSite"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiMobilita",
+   "proprieta": "DistanzaStazioneFerroviaria",
+   "tipo": "IfcReal",
+   "um": "m",
+   "descrizione": "CAM 2.3.6: Distanza in linea d'aria di stazioni ferroviarie. ≤2000 m"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiMobilita",
+   "proprieta": "DistanzaStazioneMetropolitana",
+   "tipo": "IfcReal",
+   "um": "m",
+   "descrizione": "CAM 2.3.6: Distanza in linea d'aria di stazioni metropolitane. ≤800 m"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiMobilita",
+   "proprieta": "ServiziInterscambio",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "IfcSite"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiMobilita",
+   "proprieta": "ServiziPubblici",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "IfcSite"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiMobilita",
+   "proprieta": "StazioneFerroviaria",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "CAM 2.3.6: Presenza di stazioni ferroviarie in prossimità"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiMobilita",
+   "proprieta": "StazioneMetropolitana",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "CAM 2.3.6: Presenza di stazioni metropolitane in prossimità"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQualitativi",
+   "proprieta": "CategoriaTopografica",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Categoria topografica definita secondo la NTC 2018"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQualitativi",
+   "proprieta": "DistanzaDiscarica",
+   "tipo": "IfcReal",
+   "um": "Lunghezza",
+   "descrizione": "Distanza della discarica dove avviene lo smaltimento"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQualitativi",
+   "proprieta": "TipoVincolo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipologia di vincolo presente sull'interno immobile o sull'area"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQualitativi",
+   "proprieta": "Vincolo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "artt.136; artt. 142; artt. 157; artt.10"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQualitativi",
+   "proprieta": "ZonaClimatica",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Zone climaticha definita secondo il D.P.R. 412/1993"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQualitativi",
+   "proprieta": "ZonaSismica",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Zone sismica definita secondo il D.P.R. 380/2001"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQuantitativi",
+   "proprieta": "SupCalpestabile",
+   "tipo": "IfcReal",
+   "um": "m2",
+   "descrizione": "Superficie Calpestabile del Bene"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQuantitativi",
+   "proprieta": "SupCoperta",
+   "tipo": "IfcReal",
+   "um": "m2",
+   "descrizione": "Superficie Coperta del Bene"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQuantitativi",
+   "proprieta": "SupLorda",
+   "tipo": "IfcReal",
+   "um": "m2",
+   "descrizione": "Superficie Lorda del Bene"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQuantitativi",
+   "proprieta": "SupRiscaldata",
+   "tipo": "IfcReal",
+   "um": "m2",
+   "descrizione": "Superficie Riscaldata del Bene"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQuantitativi",
+   "proprieta": "SupScoperta",
+   "tipo": "IfcReal",
+   "um": "m2",
+   "descrizione": "Superficie Scoperta del Bene"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQuantitativi",
+   "proprieta": "VolumeLordo",
+   "tipo": "IfcReal",
+   "um": "m3",
+   "descrizione": "Volume Lordo del Bene"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQuantitativi",
+   "proprieta": "VolumeNetto",
+   "tipo": "IfcReal",
+   "um": "m3",
+   "descrizione": "Volume Netto del Bene"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDatiQuantitativi",
+   "proprieta": "VolumeRiscaldato",
+   "tipo": "IfcReal",
+   "um": "m3",
+   "descrizione": "Volume Riscaldato del Bene"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDocumenti",
+   "proprieta": "EsitiRilievi",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Esiti rilievi"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDocumenti",
+   "proprieta": "InfoScavo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Informazioni relative a terre e rocce da scavo"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDocumenti",
+   "proprieta": "PianoEvacuazione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Piano di evacuazione"
+  },
+  {
+   "concetto": "Bene",
+   "pset": "BeneDocumenti",
+   "proprieta": "RapportoStatoAmbiente",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "IfcSite"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "CodiceFabbricato",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Codice Fabbricato"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "ComuneAmministrativo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Comune Amministrativo Trentino Alto Adige"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "ComuneCatastale",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Suddivisione del Comune Trentino-Alto Adige"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "Denominazione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Denominazione Immobile"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "DestinazioneUso",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Destinazione d'uso del fabbricato"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "Foglio",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Foglio Catastale"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "ParticellaEdificiale",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Particella edificiale Trentino-Alto Adige"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "ParticellaFondiaria",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Particella amministrativa Trentino-Alto Adige"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "Particelle",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Particelle Catastale"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "PartitaTavolare",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Partita tavolare Trentino-Alto Adige"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "PorzioneMateriale",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Particella materiale Trentino-Alto Adige"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "Sezione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Sezione Catastale"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiAnagrafici",
+   "proprieta": "Sub",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Subalterno Catastale"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "Classe Energetica Complessiva",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Classe energetica del fabbricato"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "ConsumoAnnuoElettrico",
+   "tipo": "IfcReal",
+   "um": "kWh",
+   "descrizione": "Consumo annuo energia elettrica"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "ConsumoAnnuoGPL",
+   "tipo": "IfcReal",
+   "um": "m³",
+   "descrizione": "Consumo annuo gas GPL"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "ConsumoAnnuoIdrico",
+   "tipo": "IfcReal",
+   "um": "m³",
+   "descrizione": "Consumo annuo idrico"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "ConsumoAnnuoMetano",
+   "tipo": "IfcReal",
+   "um": "m³",
+   "descrizione": "Consumo annuo gas metano"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EfficienzaGlobaleStagionaleACS",
+   "tipo": "IfcReal",
+   "um": "N.A.",
+   "descrizione": "PRODUZIONE ACS: Efficienza globale stagionale ηW;tot"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EfficienzaGlobaleStagionaleEstiva",
+   "tipo": "IfcReal",
+   "um": "N.A.",
+   "descrizione": "CLIMATIZZAZIONE ESTIVA: Efficienza globale stagionale ηH;tot"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EfficienzaGlobaleStagionaleInvernale",
+   "tipo": "IfcReal",
+   "um": "N.A.",
+   "descrizione": "CLIMATIZZAZIONE INVERNALE: Efficienza globale stagionale ηH;tot"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPCnd",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPCnren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPCren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPCtot",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "CLIMATIZZAZIONE ESTIVA: Indice di prestazione totale"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPGLnren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "FABBISOGNO GLOBALE: Indice di prestazione non rinnovabile"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPGLren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "FABBISOGNO GLOBALE: Indice di prestazione rinnovabile"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPGLtot",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "FABBISOGNO GLOBALE: Indice di prestazione totale"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPH",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPHnren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPHren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "CLIMATIZZAZIONE INVERNALE: Indice di prestazione rinnovabile"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPHtot",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "CLIMATIZZAZIONE INVERNALE: Indice di prestazione totale"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPInren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPIren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPItot",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPT",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "trasporto di persone e cose (impianti ascensori, marciapiedi e scale"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPVnren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPVren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPVtot",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPW",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPWnren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "PRODUZIONE ACS: Indice di prestazione non rinnovabile"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPWren",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "PRODUZIONE ACS: Indice di prestazione rinnovabile"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "EPWtot",
+   "tipo": "IfcReal",
+   "um": "kWh/m²",
+   "descrizione": "PRODUZIONE ACS: Indice di prestazione totale"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "Ht",
+   "tipo": "IfcReal",
+   "um": "W/m²K",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "IndicatorePrestazioneInvolucro",
+   "tipo": "IfcReal",
+   "um": "%",
+   "descrizione": "termico H'T dell'edificio in esame e quello"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "QuotaRinnovabileACS",
+   "tipo": "IfcReal",
+   "um": "%",
+   "descrizione": "energetica per la produzione di ACS rinnovabile ed analogo"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "QuotaRinnovabileEstiva",
+   "tipo": "IfcReal",
+   "um": "%",
+   "descrizione": "prestazione energetica per la climatizzazione estiva rinnovabile ed"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "QuotaRinnovabileGlobale",
+   "tipo": "IfcReal",
+   "um": "%",
+   "descrizione": "prestazione energetica globale dell'edificio rinnovabile ed analogo"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiEnergetici",
+   "proprieta": "QuotaRinnovabileInvernale",
+   "tipo": "IfcReal",
+   "um": "%",
+   "descrizione": "prestazione energetica per la climatizzazione invernale rinnovabile"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "AccessibilitaDisabili",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Accessibile da persone disabili; anche se di sole parti dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "AnnoProgettazione",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Anno in cui l'edifico è stato progettato"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "AnnoRealizzazione",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Anno in cui l'edifico è stato realizzato"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "AttualmenteUtilizzato",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Attualmente utilizzato"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "DemolizioneSelettiva",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Demolizione del manufatto ai sensi dell'UNI/PdR 75:2020"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "ImmobileCieloTerra",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Immobile Cielo Terra"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "nZEB",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "PianiFuoriTerra",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Numero piani fuori terra dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "PianiInterrati",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Numero piani interrati dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "PianiTotali",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Numero piani totali dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "TecnicaDemolizione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "IfcBuilding"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "TipologiaDemolizione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Incontrollata; Controllata"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "TipologiaEdilizia",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipologia edilizia"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "TipoVincolo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipologia di vincolo presente sul fabbricato"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQualitativi",
+   "proprieta": "Vincolo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "artt.136; artt. 142; artt. 157"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQuantitativi",
+   "proprieta": "FruitoriPotenziali",
+   "tipo": "IfcInteger",
+   "um": "Carico Urbanistico",
+   "descrizione": ""
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQuantitativi",
+   "proprieta": "SupCalpestabile",
+   "tipo": "IfcReal",
+   "um": "m2",
+   "descrizione": "Superficie Calpestabile in metri quadrati dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQuantitativi",
+   "proprieta": "SupCoperta",
+   "tipo": "IfcReal",
+   "um": "m2",
+   "descrizione": "Superficie Coperta in metri quadrati dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQuantitativi",
+   "proprieta": "SupLorda",
+   "tipo": "IfcReal",
+   "um": "m2",
+   "descrizione": "Superficie Lorda dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQuantitativi",
+   "proprieta": "SupLordaFuoriTerra",
+   "tipo": "IfcReal",
+   "um": "m2",
+   "descrizione": "Superficie lorda della porzione fuori terra dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQuantitativi",
+   "proprieta": "SupLordaInterrata",
+   "tipo": "IfcReal",
+   "um": "m2",
+   "descrizione": "Superficie lorda della porzione interrata dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQuantitativi",
+   "proprieta": "SupRiscaldata",
+   "tipo": "IfcReal",
+   "um": "m2",
+   "descrizione": "Superficie Riscaldata in metri quadrati dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQuantitativi",
+   "proprieta": "VolumeLordo",
+   "tipo": "IfcReal",
+   "um": "m3",
+   "descrizione": "Volume Lordo dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQuantitativi",
+   "proprieta": "VolumeNetto",
+   "tipo": "IfcReal",
+   "um": "m3",
+   "descrizione": "Volume Netto dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiQuantitativi",
+   "proprieta": "VolumeRiscaldato",
+   "tipo": "IfcReal",
+   "um": "m3",
+   "descrizione": "Volume Riscaldato dell'edificio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiStrutturali",
+   "proprieta": "CapacitaPGA",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Capacità (PGA)"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiStrutturali",
+   "proprieta": "ClasseDiRischioSismico",
+   "tipo": "IfcReal",
+   "um": "N.A.",
+   "descrizione": "Indicatore di vulnerabilità sismica"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiStrutturali",
+   "proprieta": "ClasseUso",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Classe d'uso"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiStrutturali",
+   "proprieta": "DomandaPGA",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Domanda (PGA)"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiStrutturali",
+   "proprieta": "MetodoAnalisi",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Metodo di Analisi"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiStrutturali",
+   "proprieta": "RitornoStatiLimite",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Periodo di ritorno stati limite"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiStrutturali",
+   "proprieta": "SicurezzaGlobaleStatico",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Livello di Sicurezza Globale dell'edificio in condizione statica"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiStrutturali",
+   "proprieta": "TecnologiaCostruttiva",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipologia costruttiva"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiStrutturali",
+   "proprieta": "TipologiaFondazioni",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Analisi strutturale - Tipologia costruttiva fondazioni"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDatiStrutturali",
+   "proprieta": "TipologiaStrutturale",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Analisi strutturale - Tipologia stuttura"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDocumenti",
+   "proprieta": "DiagnosiEnergetica",
+   "tipo": "IfcText",
+   "um": "N.A",
+   "descrizione": "Ex:CBENNN-ADD-AUDITENER-RT-Z-D00001"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDocumenti",
+   "proprieta": "EsitiProveLab",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Esiti prove in laboratorio"
+  },
+  {
+   "concetto": "Fabbricato",
+   "pset": "FabbricatoDocumenti",
+   "proprieta": "EsitiProveSitu",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Esiti prove in situ effettuate con strumentazione in loco"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDatiElettrico",
+   "proprieta": "Fvpotenza",
+   "tipo": "IfcReal",
+   "um": "kW",
+   "descrizione": "calcolo del Coefficiente K; K= Potenza installata FV /sup. coperta; K>"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioCodifica",
+   "proprieta": "CodiceSpazio",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "IfcSpace"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiAnagrafici",
+   "proprieta": "Foglio",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Foglio Catastale"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiAnagrafici",
+   "proprieta": "Particella",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Particella catastale di riferimento della singola spaziale"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiAnagrafici",
+   "proprieta": "Sub",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Subalterno Catastale"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQualitativi",
+   "proprieta": "AccessibilitaDisabili",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Spazio accesibile opppure no"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQualitativi",
+   "proprieta": "CaricoIncendio",
+   "tipo": "IfcReal",
+   "um": "MJ",
+   "descrizione": "Antincendio - Carico Incendio"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQualitativi",
+   "proprieta": "SuperficieUso",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Individua la superficie suddivisa per destinazione d'uso"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQualitativi",
+   "proprieta": "VMC",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "IfcSpace"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQualitativi",
+   "proprieta": "BenessereTermicoPMV",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "CAM 2.4.6: Voto Medio Previsto per CAM classe minima B"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQualitativi",
+   "proprieta": "BenessereTermicoPPD",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "classe A; classe B; classe C"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQuantitativi",
+   "proprieta": "FattoreMedioLuce",
+   "tipo": "IfcReal",
+   "um": "%",
+   "descrizione": "IfcSpace"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQuantitativi",
+   "proprieta": "IlluminazioneNaturale",
+   "tipo": "IfcReal",
+   "um": "lux",
+   "descrizione": "IfcSpace"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQuantitativi",
+   "proprieta": "Persone",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Numero persone all'interno dello spazio"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQuantitativi",
+   "proprieta": "TenutaAria",
+   "tipo": "IfcReal",
+   "um": "N.A.",
+   "descrizione": "IfcSpace"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQuantitativi",
+   "proprieta": "VMCPortatePersona",
+   "tipo": "IfcText",
+   "um": "l/s/persona",
+   "descrizione": "da CAM minimo Classe II (Valorizzare la proprietà solo in caso ci sia Qualora non sia valorizzabile la proprietà inserire il valore NP IfcSpace"
+  },
+  {
+   "concetto": "Spazio",
+   "pset": "SpazioDatiQuantitativi",
+   "proprieta": "VMCPortateVol",
+   "tipo": "IfcText",
+   "um": "Vol/h",
+   "descrizione": "solo in caso ci sia nello spazio la presenza di ventilazione meccanica Qualora non sia valorizzabile la proprietà inserire il valore NP IfcSpace"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDatiIdrotermico",
+   "proprieta": "TipoProduzioneACS",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipologia impianto porduzione ACS dell'impianto idrotermico"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDatiMeccanico",
+   "proprieta": "FluidoTermovettore",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Fluido termovettore dell'impianto meccanico"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDatiMeccanico",
+   "proprieta": "PotenzaNominale_HVAC",
+   "tipo": "IfcReal",
+   "um": "kW",
+   "descrizione": "Potenza Nominale dell'impianto meccanico"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDatiMeccanico",
+   "proprieta": "PressioneDisponibile",
+   "tipo": "IfcReal",
+   "um": "bar",
+   "descrizione": "Pressione disponibile a monte dell'impianto meccanico"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDatiMeccanico",
+   "proprieta": "PressioneMinima",
+   "tipo": "IfcReal",
+   "um": "bar",
+   "descrizione": "Pressione minima all'apparecchio dell'impianto meccanico"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDatiMeccanico",
+   "proprieta": "TipoClimEstate",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipologia impianto di raffrescamento estivo dell'impianto meccanico"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDatiMeccanico",
+   "proprieta": "TipoClimInverno",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "IfcSystem"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDatiQualitativi",
+   "proprieta": "FonteEnergia",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Fonte di energia utilizzata dall'impianto"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDatiQualitativi",
+   "proprieta": "Tipologia",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipologia dell'impianto"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "CertOmo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Nome codificato del documento Certificato di omologazione"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "CertProd",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Nome codificato del documento Certificazione di prodotto"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "CertSupl",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Certificazioni supplementari"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "Collaudo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Nome codificato del documento Certificato di collaudo"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "DOP",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Dichiarazione di prestazione Regolamento UE n. 305/2011 (CPR)"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "Installazione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Modalità di installazione"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "MatSupp",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Nome codificato del documento Materiale di supporto"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "MU",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Nome codificato del documento Manuale d'uso"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "MUM",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Nome codificato del documento Manuale di uso e manutenzione"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "PortataNominale",
+   "tipo": "IfcReal",
+   "um": "l/s",
+   "descrizione": "Portata Nominale dell'impianto meccanico"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "SchedaMontaggio",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Scheda di montaggio"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "SchedaTecnica",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Nome codificato del documento Scheda tecnica prodotto"
+  },
+  {
+   "concetto": "Impianto",
+   "pset": "ImpiantoDocumenti",
+   "proprieta": "Website",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Sito web produttore"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoCodifica",
+   "proprieta": "ClasseElementoTecnico",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "UNI 8290 - Campo 3"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoCodifica",
+   "proprieta": "CodiceCER",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "IfcReinforcingBar; IfcReinforcingMesh; IfcTendon; IfcFooting; IfcPile;"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoCodifica",
+   "proprieta": "DescrizioneElementoTecnico",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "UNI 8290 - Descrizione Campo 3"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiAnagrafici",
+   "proprieta": "Descrizione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Descrizione generica dell'elemento"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiAnagrafici",
+   "proprieta": "Fornitore",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Fornitore componente installato"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiAnagrafici",
+   "proprieta": "Installatore",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Fornitore che si occupa di eseguire l'installazione"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiAnagrafici",
+   "proprieta": "Modello",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Modello di elemento appartenete ad un produttore specifico"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiAnagrafici",
+   "proprieta": "NumeroDiSerie",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Numero di serie del componente installato"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiAnagrafici",
+   "proprieta": "Produttore",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Produttore dell'elemento"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiAntincendio",
+   "proprieta": "ClassePropagazioneFiamma",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Classificazione europea di propagazione al fuoco"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiAntincendio",
+   "proprieta": "Combustibile",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Materiale combustibile"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiAntincendio",
+   "proprieta": "REI",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Antincendio - Classe di resistenza al fuoco"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiAntincendio",
+   "proprieta": "UscitaEmergenza",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Elemento collaborante alle vie d'esodo dall'edificio"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiEnergetici",
+   "proprieta": "FattoreTrasmissioneSolareTot",
+   "tipo": "IfcReal",
+   "um": "N.A.",
+   "descrizione": "del valore schermante del vetro con quello del dispositivo di"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiEnergetici",
+   "proprieta": "ResistenzaTermica",
+   "tipo": "IfcReal",
+   "um": "K/W",
+   "descrizione": "Analisi Energetica - Resistenza Termica"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiEnergetici",
+   "proprieta": "TrasmittanzaTermica",
+   "tipo": "IfcReal",
+   "um": "W/(m2K)",
+   "descrizione": "IfcCovering; IfcSlab; IfcCurtainWall; IfcDoor; IfcRoof; IfcWindow; IfcWall"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiEnergetici",
+   "proprieta": "TrasmittanzaTermicaPeriodica",
+   "tipo": "IfcReal",
+   "um": "W/mq°K",
+   "descrizione": "W/mq°K - pareti verticali);(Yie<0,16 W/mq°K pareti orizzontali-"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiIdagini",
+   "proprieta": "CodiceCampione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "IfcReinforcingBar; IfcReinforcingMesh; IfcTendon; IfcFooting; IfcMember;"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiIdagini",
+   "proprieta": "ResistenzaCompressione",
+   "tipo": "IfcReal",
+   "um": "MPa",
+   "descrizione": "Resistenza a compressione dell'elemento nello stato di fatto"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiIdagini",
+   "proprieta": "ResistenzaTrazione",
+   "tipo": "IfcReal",
+   "um": "MPa",
+   "descrizione": "Resistenza a trazione dell'elemento (Rm) nello stato di fatto"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiIdagini",
+   "proprieta": "Tipo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "termografia; Georadar acciaio per armature; Analisi"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "AccessibilitaDisabili",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Fruibilità dell'elemento dall'utenza diversamente abile"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "AnomaliaGeometrica",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Fuori piombo; NP; Fuori squadro"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "AnomaliaMaterica",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Disomogeneità materiale; NP"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "AnomaliaVolumetrica",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Vuoti; Cavità; Elementi interrati; Anomalie orografiche"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "CicloVita",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Riuso; Riciclo; Smaltimento"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "CriticitaRiscontrata",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": ""
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "Degrado",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "specificandone lo stato di degrado attraverso il lessico UNI 11182"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "Esterno",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Posizione dell'elemento"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "IndicePrestazioneAcustica",
+   "tipo": "IfcText",
+   "um": "αw",
+   "descrizione": "Indica la capacità di assorbimento acustico dell'elemento"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "InterventoRestauro",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": ""
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "Portante",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Indica se l'elemento è portante"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "Pregio",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "IfcRamp; IfcStair; IfcBeam; IfcPlate; IfcColumn; IfcTransportElement;"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "ResistenzaCompressione",
+   "tipo": "IfcReal",
+   "um": "MPa",
+   "descrizione": "Resistenza a compressione dell'elemento"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "ResistenzaTrazione",
+   "tipo": "IfcReal",
+   "um": "MPa",
+   "descrizione": "Resistenza a trazione dell'elemento (Rm)"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "RubinetteriaTempEle",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "IfcFlowTerminal"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "SanitarioScaricoCompleto",
+   "tipo": "IfcReal",
+   "um": "l",
+   "descrizione": "IfcFlowTerminal"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "SanitarioScaricoRidotto",
+   "tipo": "IfcReal",
+   "um": "l",
+   "descrizione": "IfcFlowTerminal"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "StatoManutentivo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Evidenzia lo stato di manutenzione dell'elemento"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "SuperficiePermeabile",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "CAM 2.3.3: Indicare se la superficie è permeabile."
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "TecnicaDemolizione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tecnica di demolizione controllata"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "TipologiaCopertura",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "CAM 2.3.3.g: Descrizione della tipologia di tetto"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "TipologiaCostruttiva",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Caratteristiche tipologiche dell'elemento"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "TipologiaSuperficieDrenante",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "inquinante; non inquinante"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "TipologiaSuperficieEssenza",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "TipologiaSuperficieVerde è valorizzata, Associare il nome"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "TipologiaSuperficieEsterna",
+   "tipo": "IfcText",
+   "um": "N.A",
+   "descrizione": "CAM 2.3.3: Descrive la tipologia di superficie esterna."
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQualitativi",
+   "proprieta": "TipologiaSuperficieVerde",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "prativo; arbustivo; arboreo; NP"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "AcusticaIndiceCalpestio",
+   "tipo": "IfcReal",
+   "um": "dB",
+   "descrizione": "normalizzato tra ambienti di differenti unità immobiliare (per CAM ≤"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "AcusticaIsolamentoFacciata",
+   "tipo": "IfcReal",
+   "um": "dB",
+   "descrizione": "CAM 2.4.11: D2m,nT,w - Isolamento acustico facciata"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "AcusticaLivSonoroImpiantoFC",
+   "tipo": "IfcReal",
+   "um": "dB",
+   "descrizione": "IfcFlowMovingDevice ; IfcFlowSegment; IfcFlowStorageDevice;"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "AcusticaLivSonoroImpiantoFD",
+   "tipo": "IfcReal",
+   "um": "dB",
+   "descrizione": "funzionamento discontinuo (ascensori,scarichi idraulici, bagni,"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "AcusticaPotereFonoisolante",
+   "tipo": "IfcReal",
+   "um": "dB",
+   "descrizione": "Caratterizza la capacità di una partizione di limitare il passaggio di"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "CoefficienteDeflusso",
+   "tipo": "IfcReal",
+   "um": "N.A.",
+   "descrizione": "stratigrafico. Compilare il campo solo in caso di superfice"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "ConsumoAcquaRubinetteria",
+   "tipo": "IfcReal",
+   "um": "l/min",
+   "descrizione": "bidet; 8 l/min per docce) misurati secondo le norme UNI EN 816,"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "FVpotenzaPannello",
+   "tipo": "IfcReal",
+   "um": "Watt",
+   "descrizione": "Potenza fotovoltaico pannello"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "IncidenzaArmatura",
+   "tipo": "IfcReal",
+   "um": "Kg/m³",
+   "descrizione": ""
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "MassaSuperficiale",
+   "tipo": "IfcReal",
+   "um": "kg/mq",
+   "descrizione": ""
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "Peso",
+   "tipo": "IfcReal",
+   "um": "Kg",
+   "descrizione": "Peso dell'elemento"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "SovraccaricoAccidentale",
+   "tipo": "IfcReal",
+   "um": "kN/m²",
+   "descrizione": "Sovraccarico accientale massimo delle strutture orizzontali"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDatiQuantitativi",
+   "proprieta": "SRI",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": ""
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "CertOmo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Certificato di omologazione"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "CertProd",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Certificazione di prodotto"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "CertSupl",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Certificazioni supplementari"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "Collaudo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Certificato di collaudo"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "DOP",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Dichiarazione di prestazione Regolamento UE n. 305/2011 (CPR)"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "Installazione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Modalità di installazione"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "MatSupp",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Materiale di supporto"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "MUM",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Manuale di uso e manutenzione"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "SchedaMontaggio",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Scheda di montaggio"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "SchedaRestauro",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": ""
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "SchedaTecnica",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Scheda tecnica prodotto"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoDocumenti",
+   "proprieta": "Website",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Sito web produttore"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoFase",
+   "proprieta": "Stato",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Fase di costruzione dell'elemento"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoSicurezza",
+   "proprieta": "PericolositaLavorazione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Eventuali rischi a cui l'elemento in base alla lavorazione"
+  },
+  {
+   "concetto": "Elemento",
+   "pset": "ElementoSicurezza",
+   "proprieta": "PericolositaMateriale",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Eventuali rischi prodotti dal materiale dell'elemento"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAmministrativi",
+   "proprieta": "DataBolletta",
+   "tipo": "IfcText",
+   "um": "Tempo",
+   "descrizione": "Data di consegna elemento"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAmministrativi",
+   "proprieta": "DataProtocollo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Data del protocollo del decreto"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAmministrativi",
+   "proprieta": "NumBolletta",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Numero della bolletta di consegna"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAmministrativi",
+   "proprieta": "NumProtocollo",
+   "tipo": "IfcInteger",
+   "um": "N.A.",
+   "descrizione": "Numero del protocollo del decreto"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAmministrativi",
+   "proprieta": "Valore",
+   "tipo": "IfcReal",
+   "um": "Euro",
+   "descrizione": "Valore dell'elemento"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAnagrafici",
+   "proprieta": "Categoria",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Categoria di appartenenza dell'elemento"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAnagrafici",
+   "proprieta": "Descrizione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Descrizione generica dell'oggetto"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAnagrafici",
+   "proprieta": "Note",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Note di carattere generale legate all'elemento sia di pregio che non"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAnagrafici",
+   "proprieta": "NumInvent",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Numero di inventario dell'elemento"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAnagrafici",
+   "proprieta": "Oggetto",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipo di elemento appartenete ad una tipologia"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAnagrafici",
+   "proprieta": "Tipologia",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipologia dell'elemento"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiAnagrafici",
+   "proprieta": "Ubicazione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Collocazione spaziale dell'elemento in base alla stanza"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiBeniArtistici",
+   "proprieta": "Autore",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Autore del manufatto"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiBeniArtistici",
+   "proprieta": "Data",
+   "tipo": "IfcText",
+   "um": "Data",
+   "descrizione": "Data di realizzazione dell'elemento"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiBeniArtistici",
+   "proprieta": "Soggetto",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Nome o tipo di soggetto raffigurante l'elemento"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiBeniArtistici",
+   "proprieta": "Tecnica",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tecnica costruttiva dell'elemento"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiQualitativi",
+   "proprieta": "BeneArtistico",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": ""
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDatiQualitativi",
+   "proprieta": "StatoConservativo",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Stato di conservazione dell'elemento"
+  },
+  {
+   "concetto": "Oggetto",
+   "pset": "OggettoDocumenti",
+   "proprieta": "SchedaInventario",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Nome codificato del documento scheda di inventario"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiAnagrafici",
+   "proprieta": "AnnoPiantumazione",
+   "tipo": "IfcText",
+   "um": "Data",
+   "descrizione": "Data di piantumazione dell’essenza specifica"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiAnagrafici",
+   "proprieta": "Caduco",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Vegetazione con tipologia a foglia caduca"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiAnagrafici",
+   "proprieta": "CodiceEssenza",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Codice identificativo della tipologia di essenza"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiAnagrafici",
+   "proprieta": "CodicePianta",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Codice univoco dell'essenza"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiAnagrafici",
+   "proprieta": "Famiglia",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": ""
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiAnagrafici",
+   "proprieta": "Fioritura",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Descrizione del periodo e tipo di fioritura"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiAnagrafici",
+   "proprieta": "Frutti",
+   "tipo": "IfcBoolean",
+   "um": "N.A.",
+   "descrizione": "Pianta con produzione di frutto"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiAnagrafici",
+   "proprieta": "Genere",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Categoria che raggruppa le specie aventi caratteristiche comuni"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiAnagrafici",
+   "proprieta": "NomeComune",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Nome identificativo della specie di uso comune"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiAnagrafici",
+   "proprieta": "Note",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Note di carattere generale e descrittivo dell’essenza"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiAnagrafici",
+   "proprieta": "Specie",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Base della classificazione degli organismi vegetativi"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiManutenzione",
+   "proprieta": "Stabilita",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "IfcFurnishingElement"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiManutenzione",
+   "proprieta": "Trattamento",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": ""
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiQualitativi",
+   "proprieta": "Esposizione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Collocazione rilevata dell’essenza"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiQualitativi",
+   "proprieta": "Irrigazione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipologia di irrigazione presente"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiQualitativi",
+   "proprieta": "Irrigazione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipologia di irrigazione presente"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiQualitativi",
+   "proprieta": "Portamento",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipo di portamento in levato"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiQualitativi",
+   "proprieta": "Riproduzione",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Tipologia di riproduzione"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiQualitativi",
+   "proprieta": "Terreno",
+   "tipo": "IfcText",
+   "um": "N.A.",
+   "descrizione": "Descrizione del tipo di sottofondo"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiQuantitativi",
+   "proprieta": "DiametroChioma",
+   "tipo": "IfcReal",
+   "um": "m",
+   "descrizione": "Lunghezza media del diametro della chioma"
+  },
+  {
+   "concetto": "Vegetazione",
+   "pset": "VegetazioneDatiQuantitativi",
+   "proprieta": "DiametroFusto",
+   "tipo": "IfcReal",
+   "um": "m",
+   "descrizione": "Lunghezza media del diametro del fusto"
+  }
+ ],
+ "allegato_B": [
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoManutenzione.StoricoM",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoManutenzione",
+   "proprieta": "StoricoM",
+   "tipo": "IfcText",
+   "descrizione": "Storico delle manutenzioni"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoManutenzione.PianoM",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoManutenzione",
+   "proprieta": "PianoM",
+   "tipo": "IfcText",
+   "descrizione": "Piano di manutenzione"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoManutenzione.FuoriProduzione",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoManutenzione",
+   "proprieta": "FuoriProduzione",
+   "tipo": "IfcBoolean",
+   "descrizione": "Riservato al Team di DL"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoEstioneDL.Equivalente",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoEstioneDL",
+   "proprieta": "Equivalente",
+   "tipo": "IfcText",
+   "descrizione": "Riservato al Team di DL"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoestioneDL.Identificazione",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoestioneDL",
+   "proprieta": "Identificazione",
+   "tipo": "IfcBoolean",
+   "descrizione": "Riservato alla DL"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoestioneDL.Qualificazione",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoestioneDL",
+   "proprieta": "Qualificazione",
+   "tipo": "IfcBoolean",
+   "descrizione": "Riservato alla DL"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoestioneDL.Accettazione",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoestioneDL",
+   "proprieta": "Accettazione",
+   "tipo": "IfcBoolean",
+   "descrizione": "Riservato alla DL"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoestioneDL.MarcaturaCE",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoestioneDL",
+   "proprieta": "MarcaturaCE",
+   "tipo": "IfcBoolean",
+   "descrizione": "Riservato alla DL"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoestioneDL.DichiarazioneDiPrestazione",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoestioneDL",
+   "proprieta": "DichiarazioneDiPrestazione",
+   "tipo": "IfcText",
+   "descrizione": "Riservato alla DL"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoestioneDL.StoricoValidazioni",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoestioneDL",
+   "proprieta": "StoricoValidazioni",
+   "tipo": "IfcText",
+   "descrizione": "Riservato alla DL"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoestioneDL.Validazione",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoestioneDL",
+   "proprieta": "Validazione",
+   "tipo": "IfcText",
+   "descrizione": "Riservato alla DL"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoestioneDL.Installazione",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoestioneDL",
+   "proprieta": "Installazione",
+   "tipo": "IfcBoolean",
+   "descrizione": "Indica se un componente è già stato installato"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoestioneDL.Avanzamento_Data",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoestioneDL",
+   "proprieta": "Avanzamento_Data",
+   "tipo": "IfcString",
+   "descrizione": "Indica la posa in opera alla data gg/mm/aaaa"
+  },
+  {
+   "mapping": "IfcBuilding.Pset_CDE_FabbricatoestioneDL.Avanzamento",
+   "concetto": "Fabbricato",
+   "pset": "CDE_FabbricatoestioneDL",
+   "proprieta": "Avanzamento",
+   "tipo": "IfcInteger",
+   "descrizione": "Indica la percentuale di avanzamento della posa in opera (0-100)"
+  },
+  {
+   "mapping": "IfcSystem.Pset_CDE_ImpiantoManutenzione.StoricoM",
+   "concetto": "Impianto",
+   "pset": "CDE_ImpiantoManutenzione",
+   "proprieta": "StoricoM",
+   "tipo": "IfcText",
+   "descrizione": "Storico delle manutenzioni"
+  },
+  {
+   "mapping": "IfcSystem.Pset_CDE_ImpiantoManutenzione.PianoM",
+   "concetto": "Impianto",
+   "pset": "CDE_ImpiantoManutenzione",
+   "proprieta": "PianoM",
+   "tipo": "IfcText",
+   "descrizione": "Piano di manutenzione"
+  },
+  {
+   "mapping": "IfcElement.Pset_CDE_ElementoManutenzione.COD1",
+   "concetto": "Elemento",
+   "pset": "CDE_ElementoManutenzione",
+   "proprieta": "COD1",
+   "tipo": "IfcText",
+   "descrizione": "UNI 11257 - Tipo di intervento di Manutenzione"
+  },
+  {
+   "mapping": "IfcElement.Pset_CDE_ElementoManutenzione.M1",
+   "concetto": "Elemento",
+   "pset": "CDE_ElementoManutenzione",
+   "proprieta": "M1",
+   "tipo": "IfcText",
+   "descrizione": "UNI 11257 - Descrizione Manutenzione"
+  },
+  {
+   "mapping": "IfcElement.Pset_CDE_ElementoManutenzione.F1",
+   "concetto": "Elemento",
+   "pset": "CDE_ElementoManutenzione",
+   "proprieta": "F1",
+   "tipo": "IfcInteger",
+   "descrizione": "UNI 10951 - UNI 11257 - Frequenza Manutenzione"
+  },
+  {
+   "mapping": "IfcElement.Pset_CDE_ElementoManutenzione.C1",
+   "concetto": "Elemento",
+   "pset": "CDE_ElementoManutenzione",
+   "proprieta": "C1",
+   "tipo": "IfcInteger",
+   "descrizione": "Costo Manutenzione EPU"
+  }
+ ]
+}
