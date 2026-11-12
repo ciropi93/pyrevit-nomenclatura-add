@@ -10,6 +10,11 @@ import json
 import os
 import re
 
+try:
+    import unicodedata
+except ImportError:  # pragma: no cover - alcune build di IronPython
+    unicodedata = None
+
 ERRORE = "ERRORE"
 AVVISO = "AVVISO"
 
@@ -21,8 +26,18 @@ VIETATI = set(u". , / \\ & $ € ? ! \" ” “ ' ^ * + ° § @ = ÷ < > [ ] { }
 
 _ACCENTI = {u"à": u"a", u"á": u"a", u"è": u"e", u"é": u"e", u"ì": u"i",
             u"í": u"i", u"ò": u"o", u"ó": u"o", u"ù": u"u", u"ú": u"u",
-            u"À": u"A", u"È": u"E", u"É": u"E", u"Ì": u"I", u"Ò": u"O",
-            u"Ù": u"U"}
+            u"À": u"A", u"Á": u"A", u"È": u"E", u"É": u"E", u"Ì": u"I",
+            u"Í": u"I", u"Ò": u"O", u"Ó": u"O", u"Ù": u"U", u"Ú": u"U"}
+
+# Simboli non ASCII con un equivalente sicuro (usati solo nelle proposte)
+_SIMBOLI = {u"×": u"x", u"²": u"2", u"³": u"3", u"ß": u"ss", u"ø": u"o", u"Ø": u"O",
+            u"æ": u"ae", u"Æ": u"AE", u"œ": u"oe", u"Œ": u"OE", u"–": u"_", u"—": u"_"}
+
+# Unita' di misura che restano minuscole quando seguono un numero (100 mm -> 100mm)
+_UNITA = set([u"mm", u"cm", u"dm", u"m", u"km", u"m2", u"m3", u"mq", u"mc", u"kg",
+              u"kn", u"knm", u"kw", u"kva", u"x"])
+
+NOME_CONFIG_PROGETTO = "NomenclaturaADD.json"
 
 _RE_TRE = re.compile(r"^[A-Z]{3}$")
 _RE_CF = re.compile(r"^CF\d{7}$")
@@ -42,6 +57,10 @@ def carica_codici():
     return _leggi_json("codici_add2024.json")
 
 
+def config_predefinita():
+    return _leggi_json("progetto.json")
+
+
 def percorso_config_default():
     return os.path.join(_DATA, "progetto.json")
 
@@ -52,15 +71,68 @@ def percorso_config_utente():
     return os.path.join(base, "NomenclaturaADD", "progetto.json")
 
 
-def carica_config():
-    p = percorso_config_utente()
-    if os.path.exists(p):
-        with io.open(p, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        base = _leggi_json("progetto.json")
-        base.update(cfg)
-        return base
-    return _leggi_json("progetto.json")
+def percorso_config_progetto(cartella):
+    """Impostazioni della commessa: file accanto al modello (None se il modello non ha cartella)."""
+    if not cartella:
+        return None
+    return os.path.join(cartella, NOME_CONFIG_PROGETTO)
+
+
+# Chiavi copiate nel file di progetto quando lo si crea
+CHIAVI_PROGETTO = ("codice_bene", "codice_fabbricato", "codici_fabbricato_area", "servizio")
+
+
+class ConfigErrore(Exception):
+    """File di impostazioni illeggibile (JSON non valido)."""
+
+
+def unisci(base, agg):
+    """Unione ricorsiva: i dizionari si fondono, gli altri valori (liste comprese) si sostituiscono."""
+    out = dict(base)
+    for k, v in agg.items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = unisci(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def leggi_config_file(percorso):
+    try:
+        with io.open(percorso, "r", encoding="utf-8-sig") as f:
+            dati = json.load(f)
+    except ValueError as ex:
+        raise ConfigErrore(u"Impostazioni non valide in\n%s\n\n%s" % (percorso, ex))
+    if not isinstance(dati, dict):
+        raise ConfigErrore(u"Impostazioni non valide in\n%s\n\nIl file deve contenere un oggetto {...}"
+                           % percorso)
+    return dati
+
+
+def scrivi_json(percorso, dati):
+    testo = json.dumps(dati, indent=2, ensure_ascii=False, sort_keys=True)
+    if not isinstance(testo, type(u"")):
+        testo = testo.decode("utf-8")
+    with io.open(percorso, "w", encoding="utf-8") as f:
+        f.write(testo + u"\n")
+
+
+def fonti_config(cartella_progetto=None):
+    """File di impostazioni in ordine di precedenza crescente (solo quelli esistenti)."""
+    fonti = [percorso_config_default()]
+    for p in (percorso_config_utente(), percorso_config_progetto(cartella_progetto)):
+        if p and os.path.exists(p):
+            fonti.append(p)
+    return fonti
+
+
+def carica_config(cartella_progetto=None):
+    """Predefinite del plugin < personali (%APPDATA%) < di progetto (accanto al modello)."""
+    fonti = fonti_config(cartella_progetto)
+    cfg = config_predefinita()
+    for p in fonti[1:]:
+        cfg = unisci(cfg, leggi_config_file(p))
+    return cfg
 
 
 def valida_codice_fabbricato(cod):
@@ -71,10 +143,7 @@ def valida_codice_fabbricato(cod):
 def salva_config_utente(valori, percorso=None):
     """Aggiorna solo le chiavi indicate nella copia personale delle impostazioni."""
     percorso = percorso or percorso_config_utente()
-    cfg = {}
-    if os.path.exists(percorso):
-        with io.open(percorso, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
+    cfg = leggi_config_file(percorso) if os.path.exists(percorso) else {}
     cfg.update(valori)
     cartella = os.path.dirname(percorso)
     if not os.path.isdir(cartella):
@@ -90,9 +159,13 @@ def salva_config_utente(valori, percorso=None):
 class Contesto(object):
     """Codici ufficiali + impostazioni di progetto."""
 
-    def __init__(self, codici=None, config=None):
+    def __init__(self, codici=None, config=None, cartella_progetto=None):
         self.codici = codici if codici is not None else carica_codici()
-        self.cfg = config if config is not None else carica_config()
+        if config is not None:
+            self.cfg, self.fonti = config, []
+        else:
+            self.cfg = carica_config(cartella_progetto)
+            self.fonti = fonti_config(cartella_progetto)
 
     @property
     def tipi(self):
@@ -150,8 +223,34 @@ class Risultato(object):
 # --------------------------------------------------------------------------
 # Utilita' sul testo
 # --------------------------------------------------------------------------
+def _base_ascii(c):
+    """Lettera senza segni diacritici (es. Ü -> U), o None se non ricavabile."""
+    if unicodedata is None:
+        return None
+    try:
+        base = u"".join(x for x in unicodedata.normalize("NFD", c) if not unicodedata.combining(x))
+    except Exception:
+        return None
+    if base and base != c and all(ord(x) < 128 for x in base):
+        return base
+    return None
+
+
 def togli_accenti(s):
-    return u"".join(_ACCENTI.get(c, c) for c in s)
+    out = []
+    for c in s:
+        if c in _ACCENTI:
+            out.append(_ACCENTI[c])
+        elif ord(c) > 127:
+            out.append(_base_ascii(c) or c)
+        else:
+            out.append(c)
+    return u"".join(out)
+
+
+def non_ascii(s):
+    """Caratteri non ASCII rimasti dopo aver tolto gli accenti (esclusi quelli gia' vietati)."""
+    return sorted(set(c for c in togli_accenti(s) if ord(c) > 127 and c not in VIETATI))
 
 
 def caratteri_vietati(s, consenti=u""):
@@ -163,13 +262,17 @@ def pascal(s):
     parole = [p for p in re.split(r"\s+", s.strip()) if p]
     out = []
     for p in parole:
-        out.append(p[0].upper() + p[1:] if p[0].isalpha() else p)
+        dopo_numero = bool(out) and out[-1][-1].isdigit()
+        if p[0].isalpha() and not (dopo_numero and p.lower() in _UNITA):
+            p = p[0].upper() + p[1:]
+        out.append(p)
     return u"".join(out)
 
 
 def pulisci_descrizione(s):
-    """Correzioni sicure: accenti, spazi -> PascalCase, iniziale maiuscola."""
-    s = pascal(togli_accenti(s))
+    """Correzioni sicure: accenti, simboli, spazi -> PascalCase, iniziale maiuscola."""
+    s = u"".join(_SIMBOLI.get(c, c) for c in togli_accenti(s))
+    s = pascal(s)
     if s and s[0].isalpha() and s[0].islower():
         s = s[0].upper() + s[1:]
     return s
@@ -183,6 +286,9 @@ def _controlla_descrizione(r, descr, consenti=u""):
         r.errore(u"spazi nella descrizione: usare PascalCase o _")
     if togli_accenti(descr) != descr:
         r.errore(u"lettere accentate")
+    altri = non_ascii(descr)
+    if altri:
+        r.errore(u"caratteri non ASCII: %s" % u" ".join(altri))
     vietati = caratteri_vietati(descr, consenti)
     if vietati:
         r.errore(u"caratteri vietati: %s" % u" ".join(vietati))
@@ -197,11 +303,33 @@ def _proponi(r, proposta, ricontrolla):
             r.proposta = proposta
 
 
+def _spazi_esterni(valore, controlla):
+    """Nome con spazi iniziali/finali: errore, poi controllo del nome ripulito.
+
+    Ritorna None se non ci sono spazi esterni (si prosegue col controllo normale).
+    """
+    pulito = (valore or u"").strip()
+    if pulito == (valore or u"") or not pulito:
+        return None
+    r2 = controlla(pulito)
+    r = Risultato(valore)
+    r.errore(u"spazi all'inizio o alla fine")
+    r.problemi.extend(r2.problemi)
+    if r2.proposta:
+        r.proposta = r2.proposta
+    elif not r2.ha_errori:
+        r.proposta = pulito
+    return r
+
+
 # --------------------------------------------------------------------------
 # Elementi (nome TIPO in Revit) - BIMMS §4.1.3 + Allegato D
 #   TIPO-[SOTTOTIPO-]Descrizione-NN
 # --------------------------------------------------------------------------
 def controlla_elemento(nome, ctx, categoria=None):
+    s = _spazi_esterni(nome, lambda p: controlla_elemento(p, ctx, categoria))
+    if s is not None:
+        return s
     r = Risultato(nome)
     parti = nome.split(u"-")
     if len(parti) < 3:
@@ -271,6 +399,9 @@ def prefisso_codice(nome_tipo, ctx):
 #   TIPO-[SOTTOTIPO-]Descrizione   (senza progressivo)
 # --------------------------------------------------------------------------
 def controlla_famiglia(nome, ctx, prefissi_tipi=None):
+    s = _spazi_esterni(nome, lambda p: controlla_famiglia(p, ctx, prefissi_tipi))
+    if s is not None:
+        return s
     r = Risultato(nome)
     parti = nome.split(u"-")
     if len(parti) not in (2, 3):
@@ -313,6 +444,37 @@ def contrassegno_atteso(nome_tipo, ctx):
     return u"-".join(parti[:-2] + [parti[-1]])
 
 
+def progressivi_doppi(nomi_tipi, ctx):
+    """Tipi che darebbero lo stesso contrassegno TIPO-[SOTTOTIPO-]NN.
+
+    nomi_tipi: lista di nomi (anche ripetuti, se lo stesso nome compare in piu' famiglie).
+    Ritorna {nome: [altri nomi con lo stesso codice]} solo per i nomi in conflitto.
+    """
+    gruppi = {}
+    for n in nomi_tipi:
+        c = contrassegno_atteso(n, ctx)
+        if c:
+            gruppi.setdefault(c, []).append(n)
+    out = {}
+    for nomi in gruppi.values():
+        if len(nomi) < 2:
+            continue
+        for i, n in enumerate(nomi):
+            altri = nomi[:i] + nomi[i + 1:]
+            out.setdefault(n, [])
+            out[n].extend(a for a in altri if a not in out[n])
+    return out
+
+
+def segnala_progressivo_doppio(r, altri, ctx):
+    atteso = contrassegno_atteso(r.valore, ctx)
+    if any(a == r.valore for a in altri):
+        r.errore(u"lo stesso nome tipo esiste in piu' famiglie: contrassegno %s non univoco" % atteso)
+    else:
+        r.errore(u"progressivo gia' usato da %s: contrassegno %s non univoco"
+                 % (u", ".join(sorted(set(altri))), atteso))
+
+
 def controlla_contrassegno(valore, nome_tipo, ctx):
     r = Risultato(valore or u"")
     atteso = contrassegno_atteso(nome_tipo, ctx)
@@ -336,6 +498,9 @@ def materiale_escluso(nome, ctx):
 
 
 def controlla_materiale(nome, ctx):
+    s = _spazi_esterni(nome, lambda p: controlla_materiale(p, ctx))
+    if s is not None:
+        return s
     r = Risultato(nome)
     parti = nome.split(u"-")
     if len(parti) not in (3, 4):
@@ -384,6 +549,9 @@ def _livello_valido(cod, ctx):
 
 
 def controlla_livello(nome, ctx):
+    s = _spazi_esterni(nome, lambda p: controlla_livello(p, ctx))
+    if s is not None:
+        return s
     r = Risultato(nome)
     m = re.match(r"^([A-Z0-9]{2})-([A-Z])(.*)$", nome)
     if not m:
@@ -438,9 +606,12 @@ def controlla_nome_locale(nome, numero, ctx):
     else:
         uso = m.group(1)
     nomi = ctx.codici["codici_uso"].get(uso) if uso else None
+    if not (nome or u"").strip():
+        r.errore(u"nome mancante")
+        if nomi and len(nomi) == 1:
+            r.proposta = nomi[0]
+        return r
     if not nomi:
-        if not nome:
-            r.errore(u"nome mancante")
         return r
     if nome in nomi:
         return r
@@ -486,6 +657,9 @@ def _controlla_cf(r, cod, ctx):
 
 
 def controlla_file_modello(nome, ctx):
+    s = _spazi_esterni(nome, lambda p: controlla_file_modello(p, ctx))
+    if s is not None:
+        return s
     r = Risultato(nome)
     parti = nome.split(u"-")
     if len(parti) != 7:

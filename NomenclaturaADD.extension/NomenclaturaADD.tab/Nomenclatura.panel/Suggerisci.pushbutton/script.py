@@ -10,7 +10,7 @@ from nomenclatura import ui
 
 doc = revit.doc
 out = script.get_output()
-ctx = R.Contesto()
+ctx = ui.contesto(doc)
 
 scelta = forms.CommandSwitchWindow.show(
     [u"Tipi", u"Materiali", u"Tipi e materiali"],

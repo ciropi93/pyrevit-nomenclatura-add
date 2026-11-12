@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
 import os
 import sys
 
@@ -208,3 +210,120 @@ def test_valida_e_salva_codice_fabbricato(tmp_path):
     with open(p, encoding="utf-8") as f:
         d = json.load(f)
     assert d == {"codice_fabbricato": "CF1234567", "servizio": "E"}
+
+
+# ---------------- proposte: unita' di misura e simboli ----------------
+@pytest.mark.parametrize("testo, atteso", [
+    ("lana di roccia 100 mm", "LanaDiRoccia100mm"),
+    ("pilastro 500 x 700 mm", "Pilastro500x700mm"),
+    ("IPE 140 rinforzato", "IPE140Rinforzato"),
+    ("carico 10 kN", "Carico10kN"),
+])
+def test_pulisci_descrizione_unita(testo, atteso):
+    assert R.pulisci_descrizione(testo) == atteso
+
+
+def test_elemento_proposta_con_unita(ctx):
+    r = R.controlla_elemento("MUR-EST-muro 300 mm-1", ctx)
+    assert r.proposta == "MUR-EST-Muro300mm-01"
+
+
+def test_elemento_lettere_non_ascii(ctx):
+    r = R.controlla_elemento("MUR-EST-Ü_Wand-01", ctx)
+    assert r.ha_errori and r.proposta == "MUR-EST-U_Wand-01"
+    r = R.controlla_elemento("CLN-CLC_500×700mm-03", ctx)
+    assert r.ha_errori and "non ASCII" in r.messaggio()
+    assert r.proposta == "CLN-CLC_500x700mm-03"
+
+
+# ---------------- spazi iniziali/finali ----------------
+def test_spazi_esterni(ctx):
+    r = R.controlla_elemento(" MUR-EST-Muro-01", ctx)
+    assert r.ha_errori and r.proposta == "MUR-EST-Muro-01"
+    r = R.controlla_elemento("MUR-EST-muro 300 mm-1 ", ctx)
+    assert r.proposta == "MUR-EST-Muro300mm-01"
+    assert R.controlla_livello("GF-A ", ctx).proposta == "GF-A"
+    assert R.controlla_famiglia("POR-AVV-Serranda ", ctx).proposta == "POR-AVV-Serranda"
+    assert R.controlla_materiale(" 0-CLC-Magrone", ctx).proposta == "0-CLC-Magrone"
+    r = R.controlla_file_modello("AQD0031-ADD-CF1234567-ZZ-M3-U-PN0001 ", ctx)
+    assert r.ha_errori
+
+
+# ---------------- locali: nome vuoto ----------------
+def test_nome_locale_vuoto(ctx):
+    r = R.controlla_nome_locale("", "BOX-001", ctx)
+    assert r.ha_errori and r.proposta == "Box auto"
+    r = R.controlla_nome_locale("  ", "AUL-001", ctx)
+    assert r.ha_errori and r.proposta is None
+    assert R.controlla_nome_locale("", "", ctx).ha_errori
+
+
+# ---------------- progressivi doppi ----------------
+def test_progressivi_doppi(ctx):
+    nomi = ["MUR-EST-Muro_A-01", "MUR-EST-Muro_B-01", "MUR-EST-Muro_C-02",
+            "MUR-INT-Muro_A-01", "CLN-CLC_500mm-01", "Muro di base"]
+    doppi = R.progressivi_doppi(nomi, ctx)
+    assert doppi == {"MUR-EST-Muro_A-01": ["MUR-EST-Muro_B-01"],
+                     "MUR-EST-Muro_B-01": ["MUR-EST-Muro_A-01"]}
+
+
+def test_progressivo_doppio_segnalato(ctx):
+    r = R.controlla_elemento("MUR-EST-Muro_A-01", ctx)
+    R.segnala_progressivo_doppio(r, ["MUR-EST-Muro_B-01"], ctx)
+    assert r.ha_errori and "MUR-EST-01" in r.messaggio()
+    r = R.controlla_elemento("POR-ASB-Porta-01", ctx)
+    R.segnala_progressivo_doppio(r, ["POR-ASB-Porta-01"], ctx)
+    assert "piu' famiglie" in r.messaggio()
+
+
+# ---------------- impostazioni ----------------
+def test_unisci_ricorsivo():
+    base = {"a": 1, "tipi": {"solo_tipi_usati": True, "categorie_escluse": ["X", "Y"]}}
+    agg = {"tipi": {"categorie_escluse": ["Z"]}, "b": 2}
+    assert R.unisci(base, agg) == {"a": 1, "b": 2,
+                                   "tipi": {"solo_tipi_usati": True, "categorie_escluse": ["Z"]}}
+    assert base["tipi"]["categorie_escluse"] == ["X", "Y"]  # base non modificata
+
+
+@pytest.fixture
+def appdata(tmp_path, monkeypatch):
+    cartella = tmp_path / "appdata"
+    cartella.mkdir()
+    monkeypatch.setenv(str("APPDATA"), str(cartella))
+    return cartella
+
+
+def test_config_progetto_prevale(appdata, tmp_path):
+    (appdata / "NomenclaturaADD").mkdir()
+    R.scrivi_json(str(appdata / "NomenclaturaADD" / "progetto.json"),
+                  {"codice_bene": "AAA0001", "tipi": {"solo_tipi_usati": False}})
+    progetto = tmp_path / "commessa"
+    progetto.mkdir()
+    R.scrivi_json(R.percorso_config_progetto(str(progetto)), {"codice_bene": "BBB0002", "servizio": "E"})
+
+    cfg = R.carica_config(str(progetto))
+    assert cfg["codice_bene"] == "BBB0002"
+    assert cfg["servizio"] == "E"
+    assert cfg["tipi"]["solo_tipi_usati"] is False          # dalle personali
+    assert "OST_Levels" in cfg["tipi"]["categorie_escluse"]  # dalle predefinite (unione ricorsiva)
+    assert cfg["materiali"]["escludi_regex"]
+
+    ctx = R.Contesto(cartella_progetto=str(progetto))
+    assert len(ctx.fonti) == 3
+    assert R.Contesto(cartella_progetto=None).cfg["codice_bene"] == "AAA0001"
+
+
+def test_config_json_non_valido(appdata, tmp_path):
+    progetto = tmp_path / "commessa"
+    progetto.mkdir()
+    with open(R.percorso_config_progetto(str(progetto)), "w") as f:
+        f.write('{"codice_bene": "AQD0031",}')
+    with pytest.raises(R.ConfigErrore) as info:
+        R.carica_config(str(progetto))
+    assert R.NOME_CONFIG_PROGETTO in "%s" % info.value
+
+
+def test_scrivi_json_accenti(tmp_path):
+    p = str(tmp_path / "x.json")
+    R.scrivi_json(p, {"_nota": "Città", "codici_fabbricato_area": ["CF1234567"]})
+    assert R.leggi_config_file(p) == {"_nota": "Città", "codici_fabbricato_area": ["CF1234567"]}

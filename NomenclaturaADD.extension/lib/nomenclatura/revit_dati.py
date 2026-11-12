@@ -122,8 +122,8 @@ def param_contrassegno(tipo):
     return _param(tipo, bip, [u"Contrassegno tipo", u"Type Mark"])
 
 
-def nome_file_modello(doc):
-    """Nome del file senza estensione; per i modelli condivisi usa il file centrale."""
+def _percorso_modello(doc):
+    """Percorso del file (per i modelli condivisi quello del file centrale)."""
     percorso = u""
     try:
         if doc.IsWorkshared:
@@ -131,10 +131,28 @@ def nome_file_modello(doc):
             percorso = DB.ModelPathUtils.ConvertModelPathToUserVisiblePath(mp)
     except Exception:
         percorso = u""
-    if not percorso:
-        percorso = doc.PathName or doc.Title
+    return percorso or doc.PathName or u""
+
+
+def nome_file_modello(doc):
+    """Nome del file senza estensione; per i modelli condivisi usa il file centrale."""
+    percorso = _percorso_modello(doc) or doc.Title
     nome = os.path.splitext(os.path.basename(percorso.replace(u"\\", u"/")))[0]
     return nome
+
+
+def cartella_modello(doc):
+    """Cartella che contiene il modello (o il centrale), None se non salvato o su cloud."""
+    cartella = os.path.dirname(_percorso_modello(doc))
+    try:
+        return cartella if cartella and os.path.isdir(cartella) else None
+    except Exception:
+        return None
+
+
+def crea_contesto(doc):
+    """Contesto con le impostazioni del progetto del modello aperto (vedi regole.carica_config)."""
+    return R.Contesto(cartella_progetto=cartella_modello(doc))
 
 
 # --------------------------------------------------------------------------
@@ -235,10 +253,17 @@ def raccogli(doc, ambiti, ctx=None):
         tipi = _tipi_modello(doc, ctx)
 
     if "tipi" in ambiti:
+        voci_tipi = []
         for t, bic, catnome in tipi:
             fam = getattr(t, "FamilyName", u"") or u""
-            voci.append(Voce(t, u"Tipi", CAMPO_TIPO, catnome,
-                             R.controlla_elemento(leggi_nome(t), ctx, categoria=bic), fam))
+            voci_tipi.append(Voce(t, u"Tipi", CAMPO_TIPO, catnome,
+                                  R.controlla_elemento(leggi_nome(t), ctx, categoria=bic), fam))
+        # Lo stesso TIPO-[SOTTOTIPO-]NN su piu' tipi rende ambiguo il contrassegno
+        doppi = R.progressivi_doppi([v.valore for v in voci_tipi], ctx)
+        for v in voci_tipi:
+            if v.valore in doppi:
+                R.segnala_progressivo_doppio(v.risultato, doppi[v.valore], ctx)
+        voci.extend(voci_tipi)
 
     if "coerenza" in ambiti:
         for t, bic, catnome in tipi:
@@ -346,8 +371,130 @@ def applica_lista(doc, modifiche, titolo=u"Correzione nomenclatura ADD"):
     return ok, errori
 
 
+def leggi_valore(el, campo):
+    """Valore attuale del campo nel modello, None se l'elemento non e' del tipo giusto."""
+    try:
+        if campo == CAMPO_TIPO and isinstance(el, DB.ElementType):
+            return leggi_nome(el)
+        if campo == CAMPO_FAMIGLIA and isinstance(el, DB.Family):
+            return leggi_nome(el)
+        if campo == CAMPO_MATERIALE and isinstance(el, DB.Material):
+            return leggi_nome(el)
+        if campo == CAMPO_LIVELLO and isinstance(el, DB.Level):
+            return leggi_nome(el)
+        if campo == CAMPO_CONTRASSEGNO and isinstance(el, DB.ElementType):
+            p = param_contrassegno(el)
+            return (p.AsString() or u"") if p is not None else None
+        if campo in (CAMPO_NUM_LOCALE, CAMPO_NOME_LOCALE) and isinstance(el, DB.Architecture.Room):
+            bip = DB.BuiltInParameter.ROOM_NUMBER if campo == CAMPO_NUM_LOCALE \
+                else DB.BuiltInParameter.ROOM_NAME
+            return el.get_Parameter(bip).AsString() or u""
+        if campo == CAMPO_TAVOLA and isinstance(el, DB.ViewSheet):
+            return el.SheetNumber
+    except Exception:
+        return None
+    return None
+
+
+# --------------------------------------------------------------------------
+# Nomi doppi
+# --------------------------------------------------------------------------
+def spazio_nomi(el, campo):
+    """Ambito in cui il valore deve essere unico (None = duplicati ammessi).
+
+    Tipi caricabili: unici dentro la famiglia; tipi di sistema: dentro la loro classe
+    (WallType, FloorType...); famiglie, materiali, livelli e tavole: in tutto il modello.
+    Numeri dei locali e contrassegni: Revit li accetta doppi, ma la codifica li vuole univoci.
+    """
+    if campo == CAMPO_TIPO:
+        if isinstance(el, DB.FamilySymbol):
+            return (campo, id_valore(el.Family.Id))
+        return (campo, el.GetType().Name)
+    if campo in (CAMPO_FAMIGLIA, CAMPO_MATERIALE, CAMPO_LIVELLO, CAMPO_TAVOLA,
+                 CAMPO_NUM_LOCALE, CAMPO_CONTRASSEGNO):
+        return (campo,)
+    return None
+
+
+def _chiave(valore):
+    return (valore or u"").strip().lower()
+
+
+def nomi_in_uso(doc, campi):
+    """{spazio_nomi: {valore minuscolo: set(id elementi)}} per i campi indicati."""
+    uso = {}
+
+    def aggiungi(el, campo, valore):
+        ns = spazio_nomi(el, campo)
+        if ns is not None and valore:
+            uso.setdefault(ns, {}).setdefault(_chiave(valore), set()).add(id_valore(el.Id))
+
+    if CAMPO_TIPO in campi or CAMPO_CONTRASSEGNO in campi:
+        for t in DB.FilteredElementCollector(doc).WhereElementIsElementType():
+            if CAMPO_TIPO in campi:
+                aggiungi(t, CAMPO_TIPO, leggi_nome(t))
+            if CAMPO_CONTRASSEGNO in campi:
+                cat = t.Category
+                if cat is None or cat.CategoryType != DB.CategoryType.Model:
+                    continue
+                p = param_contrassegno(t)
+                if p is not None:
+                    aggiungi(t, CAMPO_CONTRASSEGNO, p.AsString())
+    if CAMPO_FAMIGLIA in campi:
+        for f in DB.FilteredElementCollector(doc).OfClass(DB.Family):
+            aggiungi(f, CAMPO_FAMIGLIA, leggi_nome(f))
+    if CAMPO_MATERIALE in campi:
+        for m in DB.FilteredElementCollector(doc).OfClass(DB.Material):
+            aggiungi(m, CAMPO_MATERIALE, leggi_nome(m))
+    if CAMPO_LIVELLO in campi:
+        for lv in DB.FilteredElementCollector(doc).OfClass(DB.Level):
+            aggiungi(lv, CAMPO_LIVELLO, leggi_nome(lv))
+    if CAMPO_TAVOLA in campi:
+        for sh in DB.FilteredElementCollector(doc).OfClass(DB.ViewSheet):
+            aggiungi(sh, CAMPO_TAVOLA, sh.SheetNumber)
+    if CAMPO_NUM_LOCALE in campi:
+        locali = DB.FilteredElementCollector(doc).OfCategory(DB.BuiltInCategory.OST_Rooms) \
+            .WhereElementIsNotElementType()
+        for rm in locali:
+            aggiungi(rm, CAMPO_NUM_LOCALE, rm.get_Parameter(DB.BuiltInParameter.ROOM_NUMBER).AsString())
+    return uso
+
+
+NOME_IN_USO = u"NOME GIA' IN USO"
+NOME_DOPPIO = u"NOME DOPPIO"
+
+
+def conflitti_nomi(doc, modifiche):
+    """modifiche: lista di (elemento, campo, valore).
+
+    Ritorna una lista parallela: NOME_IN_USO se il valore appartiene gia' a un altro elemento,
+    NOME_DOPPIO se piu' modifiche portano allo stesso valore, u"" altrimenti.
+    """
+    uso = nomi_in_uso(doc, set(c for _, c, _ in modifiche))
+    chiavi, conteggio = [], {}
+    for el, campo, val in modifiche:
+        ns = spazio_nomi(el, campo)
+        k = (ns, _chiave(val)) if ns is not None else None
+        chiavi.append(k)
+        if k is not None:
+            conteggio[k] = conteggio.get(k, 0) + 1
+    esiti = []
+    for (el, campo, val), k in zip(modifiche, chiavi):
+        if k is None:
+            esiti.append(u"")
+            continue
+        altri = uso.get(k[0], {}).get(k[1], set()) - set([id_valore(el.Id)])
+        if altri:
+            esiti.append(NOME_IN_USO)
+        elif conteggio[k] > 1:
+            esiti.append(NOME_DOPPIO)
+        else:
+            esiti.append(u"")
+    return esiti
+
+
 def ricontrolla(campo, valore, el, ctx):
-    """Esito sintetico ('OK', 'AVVISO: ...', 'ERRORE: ...') del nuovo valore."""
+    """Esito del nuovo valore: (livello, testo) con livello 'OK', AVVISO o ERRORE."""
     if campo == CAMPO_TIPO:
         r = R.controlla_elemento(valore, ctx, categoria=bic_nome(el.Category))
     elif campo == CAMPO_FAMIGLIA:
@@ -366,8 +513,8 @@ def ricontrolla(campo, valore, el, ctx):
     elif campo == CAMPO_TAVOLA:
         r = R.controlla_tavola(valore, ctx)
     else:
-        return u"campo sconosciuto"
-    return r.livello if r.ok else u"%s: %s" % (r.livello, r.messaggio())
+        return R.ERRORE, u"campo sconosciuto"
+    return r.livello, (r.livello if r.ok else u"%s: %s" % (r.livello, r.messaggio()))
 
 
 def valido_per_revit(valore):

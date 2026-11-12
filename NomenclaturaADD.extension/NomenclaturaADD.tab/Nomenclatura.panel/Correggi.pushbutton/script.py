@@ -9,29 +9,31 @@ from nomenclatura import ui
 doc = revit.doc
 out = script.get_output()
 
+ctx = ui.contesto(doc)
 ambiti = ui.scegli_ambiti(u"Cosa vuoi correggere?", escludi=("file",))
 if not ambiti:
     script.exit()
 
-ctx = R.Contesto()
 voci = [v for v in RD.raccogli(doc, ambiti, ctx) if v.proposta and v.elemento is not None]
 if not voci:
     forms.alert(u"Nessuna correzione automatica disponibile.\n"
                 u"I nomi da rifare a mano si vedono con 'Controlla' (e si correggono in blocco con 'Importa CSV').")
     script.exit()
 
-# Evita due proposte identiche nello stesso ambito (Revit rifiuterebbe il nome doppio)
-viste = {}
-for v in voci:
-    viste.setdefault((v.campo, v.categoria, v.proposta), []).append(v)
+# Nomi gia' usati da altri elementi o proposti due volte: Revit li rifiuterebbe
+# (o, per numeri locale e contrassegni, la codifica non sarebbe piu' univoca).
+conflitti = RD.conflitti_nomi(doc, [(v.elemento, v.campo, v.proposta) for v in voci])
 
 righe = []
-for v in voci:
-    doppio = len(viste[(v.campo, v.categoria, v.proposta)]) > 1 and v.campo != RD.CAMPO_NOME_LOCALE
-    testo = u"[%s] %s  ->  %s%s" % (v.ambito, v.valore, v.proposta, u"   (NOME DOPPIO)" if doppio else u"")
-    righe.append((v, testo))
+for v, conflitto in zip(voci, conflitti):
+    avviso = v.risultato.livello == R.AVVISO
+    note = [n for n in (conflitto, u"da AVVISO: verifica" if avviso else u"") if n]
+    testo = u"[%s] %s  ->  %s%s" % (v.ambito, v.valore, v.proposta,
+                                     u"   (%s)" % u"; ".join(note) if note else u"")
+    # Spuntate solo le correzioni di errori senza conflitti
+    righe.append((v, testo, not conflitto and not avviso))
 
-scelte = ui.scegli_righe(righe, u"Correzioni proposte: togli la spunta a quelle da non applicare",
+scelte = ui.scegli_righe(righe, u"Correzioni proposte: quelle non spuntate sono da verificare",
                          u"Applica correzioni")
 if not scelte:
     script.exit()
