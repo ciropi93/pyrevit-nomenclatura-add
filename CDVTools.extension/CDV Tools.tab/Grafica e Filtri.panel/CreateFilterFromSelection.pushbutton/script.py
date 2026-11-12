@@ -20,6 +20,7 @@ from System.Collections.Generic import List
 from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventArgs
 
 from pyrevit import revit, DB, UI, forms, script
+from Autodesk.Revit.Exceptions import OperationCanceledException
 
 # ==============================================================================
 # UTILITY FUNCTIONS
@@ -645,7 +646,7 @@ def main():
             )
             if refs:
                 elements = [doc.GetElement(r) for r in refs if doc.GetElement(r)]
-        except Autodesk.Revit.Exceptions.OperationCanceledException:
+        except OperationCanceledException:
             forms.alert(u"Selezione annullata.", exitscript=True)
         except Exception as ex:
             print("Errore selezione: {}".format(ex))

@@ -21,6 +21,7 @@ from System.Collections.ObjectModel import ObservableCollection
 from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventArgs
 
 from pyrevit import revit, DB, UI, forms, script
+from Autodesk.Revit.Exceptions import OperationCanceledException
 
 # ==============================================================================
 # UTILITY FUNCTIONS
@@ -559,7 +560,7 @@ def main():
             if ref:
                 target_element = doc.GetElement(ref)
                 categories = extract_element_categories(doc, target_element)
-        except Autodesk.Revit.Exceptions.OperationCanceledException:
+        except OperationCanceledException:
             # Utente ha premuto ESC: mostra elenco categorie
             all_cats = get_all_project_categories(doc)
             names = [x[0] for x in all_cats]
