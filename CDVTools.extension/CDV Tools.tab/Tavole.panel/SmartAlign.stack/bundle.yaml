@@ -1,0 +1,5 @@
+title: Allinea Viste
+layout:
+  - DistribuisciViste
+  - AllineaVisteOrizz
+  - AllineaVisteVert

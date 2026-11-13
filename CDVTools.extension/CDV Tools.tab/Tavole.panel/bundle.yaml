@@ -1,5 +1,7 @@
 title: Tavole e Legende
 layout:
   - AlignViewports
+  - SmartAlign
+  - AlignTitles
   - CreateLegendComponents
   - AlignTrueNorth

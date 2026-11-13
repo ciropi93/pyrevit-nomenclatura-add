@@ -4,10 +4,10 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 
 | Pannello | Pulsanti |
 |---|---|
-| **Grafica e Filtri** | Copia proprietà grafiche categoria/elemento, Aggiorna modello di vista, Copia ritaglio di vista, Cambia livello della pianta, Crea filtro da selezione |
+| **Grafica e Filtri** | Copia proprietà grafiche categoria/elemento, Aggiorna modello di vista, Copia ritaglio di vista, Cambia livello della pianta, Crea filtro da selezione, Profondità sezione (sfondo vettoriale) |
 | **Campiture** | Campitura da polilinea/offset, Campitura da sezione |
 | **Modellazione** | Inverti muro sull'asse centrale |
-| **Tavole e Legende** | Allinea viste su tavole, Componenti in legenda, Allinea al Nord reale |
+| **Tavole e Legende** | Allinea viste su tavole, Allinea Viste (stack: Distribuisci Viste, Allinea Viste Orizz., Allinea Viste Vert. sul puro CropBox), Allinea Titoli, Componenti in legenda, Allinea al Nord reale |
 | **Nomenclatura** | Controllo e correzione dei nomi secondo il BIMMS ADD2024 (vedi sotto) |
 
 ## Nomenclatura ADD

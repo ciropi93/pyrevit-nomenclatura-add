@@ -1,0 +1,7 @@
+title: "Allinea Viste Orizz."
+layout:
+  - AllineaSinistra
+  - AllineaCentroX
+  - AllineaDestra
+  - ---
+  - AllineaModelloX

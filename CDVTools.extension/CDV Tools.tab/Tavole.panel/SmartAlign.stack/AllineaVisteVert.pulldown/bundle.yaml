@@ -1,0 +1,7 @@
+title: "Allinea Viste Vert."
+layout:
+  - AllineaAlto
+  - AllineaCentroY
+  - AllineaBasso
+  - ---
+  - AllineaModelloY

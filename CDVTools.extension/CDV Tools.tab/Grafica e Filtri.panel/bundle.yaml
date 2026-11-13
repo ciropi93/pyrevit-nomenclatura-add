@@ -5,3 +5,4 @@ layout:
   - CopyCropRegion
   - ChangePlanLevel
   - CreateFilterFromSelection
+  - SectionDepth

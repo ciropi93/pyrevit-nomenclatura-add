@@ -1,0 +1,4 @@
+title: "Allinea Ritaglio a Destra"
+tooltip: Allinea il bordo destro del ritaglio di vista (CropBox) al riferimento, ignorando le annotazioni.
+author: CDV Tools
+context: doc-project
