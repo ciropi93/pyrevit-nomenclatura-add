@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Avvio di CDV Tools: accende i tasti in sovraimpressione (sezioni e allineamenti in tavola)."""
+"""Avvio di CDV Tools: accende la palette contestuale e i tasti in sovraimpressione."""
 import os
 import sys
 

@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Tasti in sovraimpressione che cambiano con la selezione.
+"""Palette contestuale (stile ArchiCAD) e tasti in sovraimpressione.
 
-Sul bordo superiore della selezione compare una fila di tastini con icona
-(il nome completo e' nel suggerimento al passaggio del mouse):
+Selezionando qualcosa nella vista, accanto al cursore compare una palette di icone
+(il nome completo e' nel suggerimento al passaggio del mouse), una riga per gruppo:
+  - Modifica / Selezione / Visibilita': comandi scelti per categoria in palette.py
+    (configurabili, file personale in %APPDATA%); Sposta, Copia, ... sono i comandi
+    di Revit lanciati con PostCommand, gli altri stanno in palette_azioni.py;
+  - strumenti CDV legati al contesto (tasti_contestuali.py):
   - linea di sezione (in pianta) o riquadro di una sezione con Profondita' attiva:
     "Profondita' sezione" e "Sincronizza sfondo"; se non e' ancora attiva, solo
     "Attiva profondita' sezione" (apre la finestra per creare lo sfondo);
@@ -11,7 +15,8 @@ Sul bordo superiore della selezione compare una fila di tastini con icona
   - tre o piu': anche distribuzione;
   - uno o piu' muri: "Inverti muro sul centro", e accanto a ogni muro le lettere
     E (esterno) e I (interno) sui due lati, in pianta e in sezione.
-Quali tasti mostrare lo decide tasti_contestuali.py (senza API Revit).
+Se la selezione arriva dal browser di progetto (cursore fuori dalla vista) la palette
+sta sul bordo superiore della selezione. Il pulsante "Palette On/Off" la spegne tutta.
 
 Viene attivato da startup.py dell'estensione. Usa l'evento SelectionChanged
 (Revit 2023+) e l'evento Idling, che rilegge la selezione nelle versioni precedenti
@@ -35,7 +40,7 @@ import System
 from System import Double, EventHandler, IntPtr, TimeSpan
 from System.Windows import Size, Thickness, Visibility
 from System.Windows import CornerRadius, FontWeights, HorizontalAlignment, VerticalAlignment
-from System.Windows.Controls import Border, Button, Canvas, TextBlock
+from System.Windows.Controls import Border, Button, Canvas, Orientation, StackPanel, TextBlock
 from System.Windows.Input import Keyboard, ModifierKeys
 from System.Windows.Interop import WindowInteropHelper
 from System.Windows.Markup import XamlReader
@@ -50,6 +55,8 @@ from Autodesk.Revit import DB, UI
 import allinea_in_tavola as AIT
 import profondita_sezione as PS
 import tasti_contestuali as TC
+import palette as PAL
+import palette_azioni as PA
 
 
 # Stessa chiave della prima versione: al Reload spegne anche il vecchio pannello
@@ -64,6 +71,7 @@ SCRIPT_INVERTI_MURO = os.path.join(
     u"CDV Tools.tab", u"Modellazione.panel", u"FlipWallCenter.pushbutton", u"script.py",
 )
 DIM_TASTO = 22
+TASTI_PER_RIGA = 10
 DIM_ICONA = 14
 DIM_LETTERA = 14          # cerchietto della lettera E / I
 DISTACCO_LETTERA = 10     # pixel tra la faccia del muro e il centro della lettera
@@ -110,7 +118,7 @@ XAML = u"""
     <Border.Effect>
       <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.2"/>
     </Border.Effect>
-    <StackPanel x:Name="pnlTasti" Orientation="Horizontal"/>
+    <StackPanel x:Name="pnlTasti" Orientation="Vertical"/>
   </Border>
 </Window>
 """
@@ -204,20 +212,37 @@ def _vista_da_attivare(doc, voce, viewports):
     return None
 
 
-def _analizza_selezione(doc, ids):
-    """Ritorna (titolo, gruppi, madre_uid) oppure None se non c'e' nulla da proporre.
+_NOMI_OST = {}
 
-    Considera solo selezioni fatte di soli riquadri di vista (in tavola) oppure di
-    una sola linea di sezione/prospetto.
-    """
-    if doc is None or doc.IsFamilyDocument or not ids:
+
+def _nome_ost(el):
+    """Nome OST_* della categoria dell'elemento (None se non e' una categoria di Revit)."""
+    cat = el.Category
+    if cat is None:
         return None
-    elementi = [doc.GetElement(i) for i in ids]
+    v = PS._id_val(cat.Id)
+    if v not in _NOMI_OST:
+        nome = None
+        try:
+            tipo = clr.GetClrType(DB.BuiltInCategory)
+            bic = System.Enum.ToObject(tipo, v)
+            if System.Enum.IsDefined(tipo, bic):
+                nome = str(bic)
+        except Exception:
+            nome = None
+        _NOMI_OST[v] = nome
+    return _NOMI_OST[v]
+
+
+def _gruppi_cdv(doc, elementi):
+    """Strumenti CDV legati al contesto: (gruppi, madre_uid).
+
+    Muri: Inverti sul centro. Soli riquadri di vista (in tavola) o una sola linea di
+    sezione/prospetto: Profondita' Sezione e allineamenti in tavola.
+    """
     muri = [e for e in elementi if isinstance(e, DB.Wall)]
     if muri and len(muri) == len(elementi):
-        gruppi = TC.comandi_per_selezione(0, in_tavola=False, n_muri=len(muri))
-        titolo = u"Muro" if len(muri) == 1 else u"%d muri selezionati" % len(muri)
-        return titolo, gruppi, None
+        return TC.comandi_per_selezione(0, in_tavola=False, n_muri=len(muri)), None
     viewports = [e for e in elementi if isinstance(e, DB.Viewport)]
     viewers = [e for e in elementi if _e_viewer(e)]
 
@@ -226,7 +251,7 @@ def _analizza_selezione(doc, ids):
     elif len(viewers) == 1 and len(elementi) == 1:
         voci = [(u"viewer", viewers[0].Name)]
     else:
-        return None
+        return [], None
 
     coppie, _, sfondo_to_madre = PS.trova_coppie_sezioni(doc)
     madri = dict((PS._id_val(c["madre"].Id), c["madre"]) for c in coppie)
@@ -252,19 +277,29 @@ def _analizza_selezione(doc, ids):
 
     gruppi = TC.comandi_per_selezione(n, in_tavola=in_tavola, sezione_con_sfondo=madre is not None,
                                       sezione_senza_sfondo=da_attivare is not None)
-    if not gruppi:
-        return None
     if madre is None:
         madre = da_attivare
-    if n == 1:
-        if madre is not None:
-            titolo = madre.Name
-        else:
-            vista = doc.GetElement(viewports[0].ViewId)
-            titolo = vista.Name if vista is not None else u"Vista"
-    else:
-        titolo = u"%d viste selezionate" % n
-    return titolo, gruppi, (madre.UniqueId if madre is not None else None)
+    return gruppi, (madre.UniqueId if madre is not None else None)
+
+
+def _analizza_selezione(doc, ids, cfg, disponibili):
+    """Ritorna (gruppi, madre_uid) oppure None se non c'e' nulla da proporre.
+
+    gruppi: prima i comandi della palette per le categorie selezionate, poi gli
+    strumenti CDV legati al contesto.
+    """
+    if doc is None or doc.IsFamilyDocument or not ids or not cfg.get(u"attiva", True):
+        return None
+    elementi = [e for e in (doc.GetElement(i) for i in ids) if e is not None]
+    if not elementi:
+        return None
+    chiavi = set(PAL.chiave_categoria(_nome_ost(e), e.GetType().Name) for e in elementi)
+    gruppi = PAL.palette_per_selezione(chiavi, len(elementi), cfg, disponibili)
+    cdv, madre_uid = _gruppi_cdv(doc, elementi)
+    gruppi = gruppi + cdv
+    if not gruppi:
+        return None
+    return gruppi, madre_uid
 
 
 # ==============================================================================
@@ -281,6 +316,25 @@ def _inverti_muri(maiuscolo):
     modulo = imp.load_source("cdv_flipwallcenter_script", SCRIPT_INVERTI_MURO)
     modulo.__shiftclick__ = bool(maiuscolo)
     modulo.main()
+
+
+def _comandi_disponibili():
+    """Id della palette utilizzabili in questa versione di Revit."""
+    out = set()
+    for c in PAL.CATALOGO:
+        if c.esecuzione != PAL.REVIT or getattr(UI.PostableCommand, c.postable, None) is not None:
+            out.add(c.id)
+    return out
+
+
+def _posta_comando(uiapp, nome):
+    """Lancia un comando nativo di Revit: parte dopo l'ExternalEvent, con la selezione attuale."""
+    pc = getattr(UI.PostableCommand, nome, None)
+    cid = UI.RevitCommandId.LookupPostableCommandId(pc) if pc is not None else None
+    if cid is None or not uiapp.CanPostCommand(cid):
+        _avvisa(u"Il comando di Revit non si può avviare adesso.")
+        return
+    uiapp.PostCommand(cid)
 
 
 def _sincronizza(doc, madre_uid):
@@ -335,7 +389,18 @@ class _GestoreAzione(UI.IExternalEventHandler):
             uidoc = uiapp.ActiveUIDocument
             if uidoc is None or not comando:
                 return
-            if comando == TC.SEZIONE_APRI:
+            cmd = PAL.PER_ID.get(comando)
+            if cmd is not None and cmd.esecuzione == PAL.REVIT:
+                _posta_comando(uiapp, cmd.postable)
+            elif cmd is not None:
+                try:
+                    msg = PA.esegui(uidoc, comando)
+                except PA.AzioneErrore as ex:
+                    _avvisa(u"%s" % ex)
+                    return
+                if msg:
+                    _toast(msg)
+            elif comando == TC.SEZIONE_APRI:
                 _apri_profondita(uid)
             elif comando == TC.SEZIONE_SINCRONIZZA:
                 _sincronizza(uidoc.Document, uid)
@@ -660,6 +725,11 @@ class TastiOverlay(object):
         self.cache_muri = {}
         self.timer = None
         self.gancio = None
+        self.cfg = PAL.config_predefinita()
+        self.cfg_data = -1          # data del file palette.json letto (None = non esiste)
+        self.disponibili = None
+        self.ancora = None          # punto del clic, in coordinate della vista
+        self.sospesa = False        # comando di Revit in corso: palette via fino alla fine
 
     # --- finestra -------------------------------------------------------------
     def _crea_finestra(self):
@@ -780,7 +850,9 @@ class TastiOverlay(object):
 
     def _tasto(self, comando, etichetta, suggerimento, gruppo):
         icona = Path()
-        icona.Data = Geometry.Parse(TC.ICONE.get(comando) or u"M2,2 H14 V14 H2 Z")
+        cmd = PAL.PER_ID.get(comando)
+        tracciato = cmd.icona if cmd is not None else TC.ICONE.get(comando)
+        icona.Data = Geometry.Parse(tracciato or u"M2,2 H14 V14 H2 Z")
         icona.Fill = _colore("#0369A1")
         icona.Width = DIM_ICONA
         icona.Height = DIM_ICONA
@@ -792,23 +864,33 @@ class TastiOverlay(object):
         return b
 
     def _riempi(self, gruppi):
+        """Una riga per gruppo (Modifica, Selezione, Visibilita', CDV), separate da una linea."""
         pnl = self.win.FindName("pnlTasti")
         pnl.Children.Clear()
         for n, (nome, tasti) in enumerate(gruppi):
             if n > 0:
                 sep = Border()
-                sep.Width = 1
-                sep.Margin = Thickness(3, 3, 3, 3)
+                sep.Height = 1
+                sep.Margin = Thickness(2, 2, 2, 2)
                 sep.Background = _colore("#CBD5E1")
                 pnl.Children.Add(sep)
-            for comando, etichetta, suggerimento in tasti:
-                pnl.Children.Add(self._tasto(comando, etichetta, suggerimento, nome))
+            for i in range(0, len(tasti), TASTI_PER_RIGA):
+                riga = StackPanel()
+                riga.Orientation = Orientation.Horizontal
+                for comando, etichetta, suggerimento in tasti[i:i + TASTI_PER_RIGA]:
+                    riga.Children.Add(self._tasto(comando, etichetta, suggerimento, nome))
+                pnl.Children.Add(riga)
         self.win.Content.Measure(Size(Double.PositiveInfinity, Double.PositiveInfinity))
         self.ultima_pos = None
 
     def riposiziona(self, uidoc):
-        """Mette la fila sul bordo superiore della selezione (o la nasconde se e' fuori vista)."""
+        """Mette la palette accanto al punto del clic (o sul bordo superiore della selezione
+        se e' stata fatta fuori dalla vista); la nasconde se e' fuori vista."""
         if self.win is None or not self.attivo:
+            return
+        if self.sospesa:
+            self._nascondi_finestra()
+            self._nascondi_lettere()
             return
         try:
             self._aggiorna_lettere(uidoc)
@@ -819,13 +901,19 @@ class TastiOverlay(object):
             self._nascondi_finestra()
             return
         pos = None
-        if uidoc is not None:
+        dim = self.win.Content.DesiredSize
+        larg, alt = dim.Width * self.scala, dim.Height * self.scala
+        if uidoc is not None and self.ancora is not None:
+            ctx = _contesto_vista(uidoc)
+            if ctx is not None:
+                _vista, _uv, zoom, finestra = ctx
+                punto = TC.proietta(self.ancora, zoom, finestra)
+                pos = PAL.posizione_palette(punto, finestra, larg, alt)
+        elif uidoc is not None:
             esito = _riquadro_selezione(uidoc, self.ids)
             if esito is not None:
                 riquadro, finestra = esito
-                dim = self.win.Content.DesiredSize
-                pos = TC.posizione_striscia(riquadro, finestra,
-                                            dim.Width * self.scala, dim.Height * self.scala)
+                pos = TC.posizione_striscia(riquadro, finestra, larg, alt)
         if pos is None:
             self._nascondi_finestra()
             return
@@ -844,11 +932,27 @@ class TastiOverlay(object):
         self.muri = any(c == TC.MURO_INVERTI for _, tasti in gruppi for c, _, _ in tasti)
         self.ultime_lettere = None
         self.cache_muri = {}
+        self.ancora = self._ancora_cursore(uidoc)
         self.attivo = True
         if self.timer is not None and not self.timer.IsEnabled:
             self.timer.Start()
         self._riempi(gruppi)
         self.riposiziona(uidoc)
+
+    def _ancora_cursore(self, uidoc):
+        """Punto del cursore in coordinate della vista, se il cursore e' dentro la vista."""
+        try:
+            ctx = _contesto_vista(uidoc)
+            if ctx is None:
+                return None
+            _vista, _uv, zoom, finestra = ctx
+            mp = Control.MousePosition
+            cursore = (float(mp.X), float(mp.Y))
+            if not PAL.dentro(cursore, finestra):
+                return None
+            return PAL.schermo_a_vista(cursore, zoom, finestra)
+        except Exception:
+            return None
 
     def _nascondi_finestra(self):
         if self.win is not None and self.win.Visibility == Visibility.Visible:
@@ -872,7 +976,14 @@ class TastiOverlay(object):
             self.gestore.maiuscolo = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift
         except Exception:
             self.gestore.maiuscolo = False
-        if comando == TC.SEZIONE_APRI:
+        cmd = PAL.PER_ID.get(comando)
+        if cmd is not None and cmd.esecuzione == PAL.REVIT:
+            # Sposta, Copia, ...: la palette si toglie e torna a comando finito
+            # (DocumentChanged) o quando cambia la selezione.
+            self.sospesa = True
+            self._nascondi_finestra()
+            self._nascondi_lettere()
+        elif comando == TC.SEZIONE_APRI:
             # Si apre una finestra: i tasti si tolgono di mezzo e tornano dopo
             # (chiave azzerata = la selezione viene riletta al prossimo Idling).
             self.nascondi()
@@ -880,8 +991,22 @@ class TastiOverlay(object):
         self.evento.Raise()
 
     # --- selezione ------------------------------------------------------------
+    def _rileggi_config(self):
+        """Rilegge palette.json solo se e' cambiato (es. Palette On/Off)."""
+        percorso = PAL.percorso_config()
+        try:
+            data = os.path.getmtime(percorso) if os.path.exists(percorso) else None
+        except Exception:
+            data = None
+        if data == self.cfg_data:
+            return
+        self.cfg_data = data
+        self.cfg = PAL.carica_config(percorso)
+        self.chiave_sel = None   # la selezione si rianalizza con la nuova configurazione
+
     def aggiorna(self, uidoc, ids):
         try:
+            self._rileggi_config()
             ids = list(ids)
             doc = uidoc.Document if uidoc is not None else None
             if doc is None:
@@ -892,11 +1017,12 @@ class TastiOverlay(object):
             if chiave == self.chiave_sel:
                 return
             self.chiave_sel = chiave
-            esito = _analizza_selezione(doc, ids)
+            self.sospesa = False
+            esito = _analizza_selezione(doc, ids, self.cfg, self.disponibili)
             if esito is None:
                 self.nascondi()
             else:
-                _titolo, gruppi, madre_uid = esito
+                gruppi, madre_uid = esito
                 self.mostra(uidoc, ids, gruppi, madre_uid)
         except Exception:
             # Un errore qui non deve mai disturbare il lavoro in Revit
@@ -924,6 +1050,14 @@ class TastiOverlay(object):
         self.chiave_sel = None
         self.nascondi()
 
+    def _su_modifica(self, sender, args):
+        # Comando di Revit finito (es. Sposta): la palette torna, sul bordo della
+        # selezione perche' gli elementi si sono spostati dal punto del clic.
+        if self.sospesa:
+            self.sospesa = False
+            self.ancora = None
+            self.ultima_pos = None
+
     # --- attivazione ----------------------------------------------------------
     def accendi(self):
         tipo_args = getattr(UI.Events, "SelectionChangedEventArgs", None)
@@ -937,6 +1071,13 @@ class TastiOverlay(object):
         d = EventHandler[DB.Events.DocumentClosingEventArgs](self._su_chiusura)
         self.uiapp.Application.DocumentClosing += d
         self.delegati.append(("DocumentClosing", d))
+        d = EventHandler[DB.Events.DocumentChangedEventArgs](self._su_modifica)
+        self.uiapp.Application.DocumentChanged += d
+        self.delegati.append(("DocumentChanged", d))
+        try:
+            self.disponibili = _comandi_disponibili()
+        except Exception:
+            self.disponibili = None
         try:
             gancio = _GancioMouse(self._su_mouse)
             if gancio.attacca():
@@ -955,6 +1096,8 @@ class TastiOverlay(object):
                     self.uiapp.Idling -= d
                 elif nome == "DocumentClosing":
                     self.uiapp.Application.DocumentClosing -= d
+                elif nome == "DocumentChanged":
+                    self.uiapp.Application.DocumentChanged -= d
             except Exception:
                 pass
         self.delegati = []
@@ -977,7 +1120,7 @@ class TastiOverlay(object):
 
 
 def attiva(uiapp):
-    """Accende i tasti in sovraimpressione (spegne quelli di un caricamento precedente)."""
+    """Accende palette e tasti in sovraimpressione (spegne quelli di un caricamento precedente)."""
     dominio = System.AppDomain.CurrentDomain
     vecchio = dominio.GetData(CHIAVE_APPDOMAIN)
     if vecchio is not None:

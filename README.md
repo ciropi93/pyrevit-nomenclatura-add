@@ -6,13 +6,27 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 |---|---|
 | **Grafica e Filtri** | Copia proprietà grafiche categoria/elemento, Aggiorna modello di vista, Copia ritaglio di vista, Cambia livello della pianta, Crea filtro da selezione, Profondità sezione (sfondo vettoriale) |
 | **Campiture** | Campitura da polilinea/offset, Campitura da sezione |
-| **Modellazione** | Inverti muro sull'asse centrale |
+| **Modellazione** | Inverti muro sull'asse centrale, Palette On/Off |
 | **Tavole e Legende** | Allinea viste su tavole, Allinea Viste (stack: Distribuisci Viste, Allinea Viste Orizz., Allinea Viste Vert. sul puro CropBox), Allinea Titoli, Componenti in legenda, Allinea al Nord reale |
 | **Nomenclatura** | Controllo e correzione dei nomi secondo il BIMMS ADD2024 (vedi sotto) |
 
-**Tasti in sovraimpressione.** Quando selezioni qualcosa, sul bordo superiore della selezione
-compare una fila di tastini con icona; il nome è nel suggerimento al passaggio del mouse.
-Seguono zoom e pan, spariscono deselezionando (in tavola, cliccare il titolo seleziona la vista):
+**Palette contestuale (stile ArchiCAD).** Quando selezioni qualcosa nella vista, accanto al
+cursore compare una palette di icone (il nome è nel suggerimento al passaggio del mouse),
+una riga per gruppo, con i comandi adatti alla categoria selezionata:
+- **Modifica**: Sposta, Copia, Ruota, Specchia, Serie, Allinea, Blocca/Sblocca; per muri, linee
+  e travi anche Offset, Dividi, Taglia/Estendi; Crea simile con un solo elemento.
+  Sono i comandi di Revit, partono con la selezione già fatta; a comando finito la palette torna;
+- **Selezione**: stesso tipo nella vista / nel progetto, stessa categoria nella vista;
+- **Visibilità** (vista attiva): nascondi elementi o categoria, isola temporaneo elementi o
+  categoria, ripristina, mezzitoni (si annullano con Ctrl+Z);
+- **strumenti CDV** legati al contesto (vedi sotto).
+
+Con una selezione mista compaiono solo i comandi comuni. Se la selezione arriva dal browser di
+progetto la palette va sul bordo superiore della selezione. Il pulsante **Palette On/Off**
+(pannello Modellazione) la spegne o la riaccende tutta; lo stato resta dopo il riavvio. La scelta
+dei comandi per categoria sta in `%APPDATA%\pyRevit\CDVTools\palette.json`.
+
+Strumenti CDV in fondo alla palette (in tavola, cliccare il titolo seleziona la vista):
 - linea di sezione o riquadro di una sezione con sfondo attivo: **Profondità sezione**
   (apre la finestra già su quella sezione) e **Sincronizza sfondo**; se lo sfondo non c'è
   ancora, solo **Attiva profondità sezione** (apre la finestra per crearlo);
@@ -23,9 +37,9 @@ Seguono zoom e pan, spariscono deselezionando (in tavola, cliccare il titolo sel
 - uno o più muri: **Inverti muro sul centro** (Maiusc+clic: linea di ubicazione su Asse del muro);
   accanto a ogni muro selezionato compaiono le lettere **E** (esterno, rossa) e **I** (interno, blu)
   sui due lati, in pianta e in sezione, così si vede subito come è girata la stratigrafia.
-- mentre sposti la vista (rotellina premuta) tasti e lettere spariscono e tornano al rilascio.
+- mentre sposti o zoomi la vista (rotellina) palette e lettere spariscono e tornano al loro posto.
 
-Il pannello resta aperto, quindi puoi fare più allineamenti di fila; ogni tasto si annulla con
+La palette resta aperta, quindi puoi fare più allineamenti di fila; ogni tasto si annulla con
 Ctrl+Z. Lo sfondo di una sezione si sposta sempre insieme alla sua madre. Si accende da solo
 all'avvio (`startup.py`); su Revit 2023+ usa l'evento di selezione, prima controlla la
 selezione a riposo.
