@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import io
 import os
 import sys
 
@@ -30,7 +31,9 @@ def test_catalogo_valido():
 
 def test_azioni_api_hanno_una_funzione():
     # palette_azioni usa le API Revit: qui si controlla solo che i nomi combacino
-    testo = open(os.path.join(os.path.dirname(__file__), "..", "lib", "palette_azioni.py")).read()
+    percorso = os.path.join(os.path.dirname(__file__), "..", "lib", "palette_azioni.py")
+    with io.open(percorso, encoding="utf-8") as f:
+        testo = f.read()
     for c in PAL.CATALOGO:
         if c.esecuzione == PAL.API:
             assert u'u"%s":' % c.id in testo, c.id
