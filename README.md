@@ -10,8 +10,9 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 | **Tavole e Legende** | Allinea viste su tavole, Allinea Viste (stack: Distribuisci Viste, Allinea Viste Orizz., Allinea Viste Vert. sul puro CropBox), Allinea Titoli, Componenti in legenda, Allinea al Nord reale |
 | **Nomenclatura** | Controllo e correzione dei nomi secondo il BIMMS ADD2024 (vedi sotto) |
 
-**Tasti in sovraimpressione.** Quando selezioni qualcosa, vicino al cursore compare un
-pannellino con i tasti utili (in tavola, cliccare il titolo seleziona la vista):
+**Tasti in sovraimpressione.** Quando selezioni qualcosa, sul bordo superiore della selezione
+compare una fila di tastini con icona; il nome è nel suggerimento al passaggio del mouse.
+Seguono zoom e pan, spariscono deselezionando (in tavola, cliccare il titolo seleziona la vista):
 - linea di sezione o riquadro di una sezione con sfondo attivo: **Profondità sezione**
   (apre la finestra già su quella sezione) e **Sincronizza sfondo**;
 - una vista in tavola: titolo a filo del ritaglio, linea del titolo = larghezza del ritaglio;

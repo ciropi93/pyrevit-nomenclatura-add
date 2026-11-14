@@ -74,3 +74,90 @@ def comandi_per_selezione(n_viste, in_tavola=True, sezione_con_sfondo=False):
     if in_tavola and n_viste >= 3:
         gruppi.append((u"Distribuisci", list(_DISTRIBUISCI)))
     return gruppi
+
+
+# ==============================================================================
+# ICONE (tracciati WPF in un quadrato 16x16) E POSIZIONE DEI TASTINI
+# ==============================================================================
+
+# Geometrie in sintassi "Path Markup" di WPF. F1 = riempimento pieno anche dove le
+# forme si sovrappongono; senza F1 (pari/dispari) un rettangolo dentro l'altro fa un buco.
+ICONE = {
+    SEZIONE_APRI: u"F1 M1,2 H3 V14 H1 Z M4,7 H10 V4 L15,8 L10,12 V9 H4 Z",
+    SEZIONE_SINCRONIZZA: (u"F1 M8,2 A6,6 0 1 0 14,8 H12 A4,4 0 1 1 8,4 V6.5 "
+                          u"L11.5,3 L8,-0.5 Z"),
+    u"titolo_bordo_sinistro": (u"M1,1 H15 V9 H1 Z M2.5,2.5 V7.5 H13.5 V2.5 Z "
+                               u"M1,11 H9 V12.5 H1 Z M1,14 H11 V15 H1 Z"),
+    u"titolo_larghezza_vista": (u"M1,1 H15 V9 H1 Z M2.5,2.5 V7.5 H13.5 V2.5 Z "
+                                u"M1,11 H8 V12.5 H1 Z M1,14 H15 V15.5 H1 Z"),
+    u"titolo_colonna": (u"M1,1 H2.5 V15 H1 Z M4,3 H10 V4.5 H4 Z M4,5.5 H14 V6.5 H4 Z "
+                        u"M4,10 H10 V11.5 H4 Z M4,12.5 H12 V13.5 H4 Z"),
+    u"titolo_riga": (u"M1,13.5 H15 V15 H1 Z M1,8 H5.5 V9.5 H1 Z M1,10.5 H7 V11.5 H1 Z "
+                     u"M9,8 H13.5 V9.5 H9 Z M9,10.5 H15 V11.5 H9 Z"),
+    u"titolo_distanza_y": (u"M1,1 H7 V8 H1 Z M2.2,2.2 V6.8 H5.8 V2.2 Z "
+                           u"M9,1 H15 V8 H9 Z M10.2,2.2 V6.8 H13.8 V2.2 Z "
+                           u"M1,12.5 H7 V14 H1 Z M9,12.5 H15 V14 H9 Z"),
+    u"titolo_lunghezza_rif": u"F1 M1,4 H12 V5.5 H1 Z M1,10.5 H12 V12 H1 Z M12.5,2 H14 V14 H12.5 Z",
+    u"box_sinistra": u"F1 M1,1 H2.5 V15 H1 Z M4,3 H14 V7 H4 Z M4,9 H10 V13 H4 Z",
+    u"box_centro_x": u"F1 M7.25,1 H8.75 V15 H7.25 Z M2,3 H14 V7 H2 Z M4,9 H12 V13 H4 Z",
+    u"box_destra": u"F1 M13.5,1 H15 V15 H13.5 Z M2,3 H12 V7 H2 Z M6,9 H12 V13 H6 Z",
+    u"box_modello_x": (u"F1 M7.25,1 H8.75 V15 H7.25 Z M5.6,4 A2.4,2.4 0 1 1 10.4,4 "
+                       u"A2.4,2.4 0 1 1 5.6,4 Z M5.6,12 A2.4,2.4 0 1 1 10.4,12 "
+                       u"A2.4,2.4 0 1 1 5.6,12 Z"),
+    u"box_alto": u"F1 M1,1 V2.5 H15 V1 Z M3,4 V14 H7 V4 Z M9,4 V10 H13 V4 Z",
+    u"box_centro_y": u"F1 M1,7.25 V8.75 H15 V7.25 Z M3,2 V14 H7 V2 Z M9,4 V12 H13 V4 Z",
+    u"box_basso": u"F1 M1,13.5 V15 H15 V13.5 Z M3,2 V12 H7 V2 Z M9,6 V12 H13 V6 Z",
+    u"box_modello_y": (u"F1 M1,7.25 V8.75 H15 V7.25 Z M4,5.6 A2.4,2.4 0 1 1 4,10.4 "
+                       u"A2.4,2.4 0 1 1 4,5.6 Z M12,5.6 A2.4,2.4 0 1 1 12,10.4 "
+                       u"A2.4,2.4 0 1 1 12,5.6 Z"),
+    u"distribuisci_x": u"F1 M1,3 H4 V13 H1 Z M6.5,3 H9.5 V13 H6.5 Z M12,3 H15 V13 H12 Z",
+    u"distribuisci_y": u"F1 M3,1 V4 H13 V1 Z M3,6.5 V9.5 H13 V6.5 Z M3,12 V15 H13 V12 Z",
+}
+
+
+def proietta(punto_uv, zoom_uv, finestra):
+    """Punto in coordinate della vista (u, v) -> pixel sullo schermo (x, y).
+
+    zoom_uv: ((u0, v0), (u1, v1)) angoli in basso a sinistra e in alto a destra
+    dell'area visibile; finestra: (sinistra, alto, destra, basso) in pixel.
+    """
+    (u0, v0), (u1, v1) = zoom_uv
+    sx, alto, dx, basso = finestra
+    du = (u1 - u0) or 1e-9
+    dv = (v1 - v0) or 1e-9
+    x = sx + (punto_uv[0] - u0) / du * (dx - sx)
+    y = basso - (punto_uv[1] - v0) / dv * (basso - alto)
+    return x, y
+
+
+def riquadro_schermo(punti_uv, zoom_uv, finestra):
+    """Rettangolo (sinistra, alto, destra, basso) in pixel che contiene tutti i punti."""
+    if not punti_uv:
+        return None
+    pts = [proietta(p, zoom_uv, finestra) for p in punti_uv]
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def posizione_striscia(riquadro, finestra, larghezza, altezza, distacco=3):
+    """Angolo in alto a sinistra (x, y) della fila di tastini, in pixel.
+
+    La fila sta appena sopra il bordo superiore della selezione, allineata al suo
+    bordo sinistro; se sopra non c'e' posto va sotto, altrimenti dentro in alto.
+    Ritorna None se la selezione e' fuori dall'area visibile della vista.
+    """
+    if riquadro is None:
+        return None
+    r_sx, r_alto, r_dx, r_basso = riquadro
+    f_sx, f_alto, f_dx, f_basso = finestra
+    if r_dx < f_sx or r_sx > f_dx or r_basso < f_alto or r_alto > f_basso:
+        return None
+    x = max(r_sx, f_sx)
+    x = max(min(x, f_dx - larghezza), f_sx)
+    y = r_alto - altezza - distacco
+    if y < f_alto:
+        y = r_basso + distacco
+        if y + altezza > f_basso:
+            y = max(r_alto, f_alto) + distacco
+    return x, y

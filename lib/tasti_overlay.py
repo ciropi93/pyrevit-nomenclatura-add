@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Tasti in sovraimpressione che cambiano con la selezione.
 
-Vicino al cursore compare un piccolo pannello:
+Sul bordo superiore della selezione compare una fila di tastini con icona
+(il nome completo e' nel suggerimento al passaggio del mouse):
   - linea di sezione (in pianta) o riquadro di una sezione con Profondita' attiva:
     "Profondita' sezione" e "Sincronizza sfondo";
   - una vista in tavola: allineamento del suo titolo;
@@ -10,8 +11,9 @@ Vicino al cursore compare un piccolo pannello:
 Quali tasti mostrare lo decide tasti_contestuali.py (senza API Revit).
 
 Viene attivato da startup.py dell'estensione. Usa l'evento SelectionChanged
-(Revit 2023+) oppure, nelle versioni precedenti, il controllo della selezione
-nell'evento Idling. I tasti lavorano tramite ExternalEvent (contesto API valido).
+(Revit 2023+) e l'evento Idling, che rilegge la selezione nelle versioni precedenti
+e rimette i tasti sul bordo dopo zoom e pan. La posizione si ricava da
+UIView.GetZoomCorners / GetWindowRectangle. I tasti lavorano tramite ExternalEvent.
 """
 import os
 import imp
@@ -27,13 +29,13 @@ clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 
 import System
-from System import EventHandler, IntPtr
-from System.Windows import Visibility, Thickness, FontWeights
-from System.Windows.Controls import Button, TextBlock, WrapPanel
-from System.Windows.Input import Cursors
+from System import Double, EventHandler, IntPtr
+from System.Windows import Size, Thickness, Visibility
+from System.Windows.Controls import Border, Button
 from System.Windows.Interop import WindowInteropHelper
 from System.Windows.Markup import XamlReader
-from System.Windows.Media import BrushConverter
+from System.Windows.Media import BrushConverter, Geometry, Stretch
+from System.Windows.Shapes import Path
 from Autodesk.Revit import DB, UI
 
 # Import qui, all'avvio: quando poi scatta l'ExternalEvent la cartella lib
@@ -50,7 +52,8 @@ SCRIPT_PROFONDITA = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     u"CDV Tools.tab", u"Grafica e Filtri.panel", u"SectionDepth.pushbutton", u"script.py",
 )
-LARGHEZZA_MAX = 330
+DIM_TASTO = 22
+DIM_ICONA = 14
 
 XAML = u"""
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -58,21 +61,39 @@ XAML = u"""
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
         SizeToContent="WidthAndHeight" FontFamily="Segoe UI" FontSize="11">
-  <Border Margin="8" CornerRadius="6" Background="#FFFFFF" BorderBrush="#CBD5E1"
-          BorderThickness="1" Padding="6,4,6,6">
+  <Window.Resources>
+    <Style TargetType="Button">
+      <Setter Property="Width" Value="22"/>
+      <Setter Property="Height" Value="22"/>
+      <Setter Property="Margin" Value="1,0,1,0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="sfondo" Background="{TemplateBinding Background}" CornerRadius="3">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="sfondo" Property="Background" Value="#E0F2FE"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="sfondo" Property="Background" Value="#BAE6FD"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+  <Border Margin="0,0,3,3" CornerRadius="4" Background="#F2FFFFFF" BorderBrush="#CBD5E1"
+          BorderThickness="1" Padding="2">
     <Border.Effect>
-      <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.25"/>
+      <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.2"/>
     </Border.Effect>
-    <StackPanel>
-      <DockPanel LastChildFill="True">
-        <Button x:Name="btnChiudi" DockPanel.Dock="Right" Content="×" Width="20" Cursor="Hand"
-                FontSize="13" Padding="0" Background="Transparent" Foreground="#64748B"
-                BorderThickness="0" ToolTip="Nascondi"/>
-        <TextBlock x:Name="lblTitolo" Foreground="#334155" FontWeight="SemiBold"
-                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="300"/>
-      </DockPanel>
-      <StackPanel x:Name="pnlGruppi"/>
-    </StackPanel>
+    <StackPanel x:Name="pnlTasti" Orientation="Horizontal"/>
   </Border>
 </Window>
 """
@@ -261,7 +282,71 @@ class _GestoreAzione(UI.IExternalEventHandler):
 
 
 # ==============================================================================
-# PANNELLO IN SOVRAIMPRESSIONE
+# POSIZIONE SULLO SCHERMO
+# ==============================================================================
+
+def _scala_dpi():
+    """Pixel fisici per unita' WPF (1.0 a 96 dpi)."""
+    from System.Drawing import Graphics
+    g = Graphics.FromHwnd(IntPtr.Zero)
+    try:
+        return g.DpiX / 96.0
+    finally:
+        g.Dispose()
+
+
+def _riquadro_selezione(uidoc, ids):
+    """(riquadro, finestra) in pixel fisici, oppure None.
+
+    riquadro: ingombro sullo schermo degli elementi selezionati (riquadri di vista
+    in tavola o linea di sezione in pianta); finestra: area della vista attiva.
+    """
+    doc = uidoc.Document
+    vista = doc.ActiveView
+    if vista is None:
+        return None
+    uiview = None
+    for v in uidoc.GetOpenUIViews():
+        if PS._id_val(v.ViewId) == PS._id_val(vista.Id):
+            uiview = v
+            break
+    if uiview is None:
+        return None
+    r = uiview.GetWindowRectangle()
+    finestra = (float(r.Left), float(r.Top), float(r.Right), float(r.Bottom))
+    destra, alto = vista.RightDirection, vista.UpDirection
+
+    def uv(p):
+        return (p.DotProduct(destra), p.DotProduct(alto))
+
+    angoli = list(uiview.GetZoomCorners())
+    zoom = (uv(angoli[0]), uv(angoli[1]))
+
+    punti = []
+    for eid in ids:
+        el = doc.GetElement(eid)
+        if el is None:
+            continue
+        if isinstance(el, DB.Viewport):
+            o = el.GetBoxOutline()
+            punti.append(uv(o.MinimumPoint))
+            punti.append(uv(o.MaximumPoint))
+        else:
+            bb = el.get_BoundingBox(vista)
+            if bb is None:
+                continue
+            for x in (bb.Min.X, bb.Max.X):
+                for y in (bb.Min.Y, bb.Max.Y):
+                    for z in (bb.Min.Z, bb.Max.Z):
+                        punti.append(uv(bb.Transform.OfPoint(DB.XYZ(x, y, z))))
+    riquadro = TC.riquadro_schermo(punti, zoom, finestra)
+    if riquadro is None:
+        return None
+    return riquadro, finestra
+
+
+# ==============================================================================
+# FILA DI TASTINI AI BORDI DELLA SELEZIONE
 # ==============================================================================
 
 class TastiOverlay(object):
@@ -272,6 +357,10 @@ class TastiOverlay(object):
         self.evento = None
         self.madre_uid = None
         self.chiave_sel = None
+        self.ids = []
+        self.attivo = False
+        self.ultima_pos = None
+        self.scala = 1.0
         self.delegati = []
 
     # --- finestra -------------------------------------------------------------
@@ -282,82 +371,82 @@ class TastiOverlay(object):
         except Exception:
             win.Topmost = True
         _non_attivabile(win)
-        win.FindName("btnChiudi").Click += lambda s, a: self.nascondi()
         self.win = win
+        try:
+            self.scala = _scala_dpi()
+        except Exception:
+            self.scala = 1.0
         # ExternalEvent va creato in contesto API (qui siamo in un evento di Revit)
         self.gestore = _GestoreAzione()
         self.evento = UI.ExternalEvent.Create(self.gestore)
 
-    def _tasto(self, comando, etichetta, suggerimento, primario):
+    def _tasto(self, comando, etichetta, suggerimento, gruppo):
+        icona = Path()
+        icona.Data = Geometry.Parse(TC.ICONE.get(comando) or u"M2,2 H14 V14 H2 Z")
+        icona.Fill = _colore("#0369A1")
+        icona.Width = DIM_ICONA
+        icona.Height = DIM_ICONA
+        icona.Stretch = Stretch.Uniform
         b = Button()
-        b.Content = etichetta
-        b.ToolTip = suggerimento
-        b.Padding = Thickness(7, 2, 7, 2)
-        b.Margin = Thickness(0, 0, 3, 3)
-        b.BorderThickness = Thickness(0)
-        b.Cursor = Cursors.Hand
-        b.Focusable = False
-        if primario:
-            b.Background = _colore("#0369A1")
-            b.Foreground = _colore("#FFFFFF")
-            b.FontWeight = FontWeights.SemiBold
-        else:
-            b.Background = _colore("#E0F2FE")
-            b.Foreground = _colore("#0369A1")
+        b.Content = icona
+        b.ToolTip = u"%s: %s\n%s" % (gruppo, etichetta, suggerimento)
         b.Click += lambda s, a: self._esegui(comando)
         return b
 
-    def _riempi(self, titolo, gruppi):
-        self.win.FindName("lblTitolo").Text = titolo
-        pnl = self.win.FindName("pnlGruppi")
+    def _riempi(self, gruppi):
+        pnl = self.win.FindName("pnlTasti")
         pnl.Children.Clear()
-        for nome, tasti in gruppi:
-            lbl = TextBlock()
-            lbl.Text = nome
-            lbl.Foreground = _colore("#64748B")
-            lbl.FontSize = 10
-            lbl.Margin = Thickness(0, 4, 0, 2)
-            pnl.Children.Add(lbl)
-            riga = WrapPanel()
-            riga.MaxWidth = LARGHEZZA_MAX
+        for n, (nome, tasti) in enumerate(gruppi):
+            if n > 0:
+                sep = Border()
+                sep.Width = 1
+                sep.Margin = Thickness(3, 3, 3, 3)
+                sep.Background = _colore("#CBD5E1")
+                pnl.Children.Add(sep)
             for comando, etichetta, suggerimento in tasti:
-                primario = comando == TC.SEZIONE_APRI
-                riga.Children.Add(self._tasto(comando, etichetta, suggerimento, primario))
-            pnl.Children.Add(riga)
+                pnl.Children.Add(self._tasto(comando, etichetta, suggerimento, nome))
+        self.win.Content.Measure(Size(Double.PositiveInfinity, Double.PositiveInfinity))
+        self.ultima_pos = None
 
-    def _posiziona(self):
-        """Mette il pannello in basso a destra del cursore, dentro lo schermo."""
-        from System.Drawing import Graphics
-        from System.Windows.Forms import Cursor, Screen
-        pos = Cursor.Position
-        area = Screen.FromPoint(pos).WorkingArea
-        g = Graphics.FromHwnd(IntPtr.Zero)
-        try:
-            scala = g.DpiX / 96.0
-        finally:
-            g.Dispose()
-        w = self.win.ActualWidth or 260.0
-        h = self.win.ActualHeight or 80.0
-        x = (pos.X + 16) / scala
-        y = (pos.Y + 16) / scala
-        x = min(x, area.Right / scala - w)
-        y = min(y, area.Bottom / scala - h)
-        self.win.Left = max(x, area.Left / scala)
-        self.win.Top = max(y, area.Top / scala)
+    def riposiziona(self, uidoc):
+        """Mette la fila sul bordo superiore della selezione (o la nasconde se e' fuori vista)."""
+        if self.win is None or not self.attivo:
+            return
+        pos = None
+        if uidoc is not None:
+            esito = _riquadro_selezione(uidoc, self.ids)
+            if esito is not None:
+                riquadro, finestra = esito
+                dim = self.win.Content.DesiredSize
+                pos = TC.posizione_striscia(riquadro, finestra,
+                                            dim.Width * self.scala, dim.Height * self.scala)
+        if pos is None:
+            self._nascondi_finestra()
+            return
+        pos = (round(pos[0] / self.scala), round(pos[1] / self.scala))
+        if pos != self.ultima_pos:
+            self.win.Left, self.win.Top = pos
+            self.ultima_pos = pos
+        if self.win.Visibility != Visibility.Visible:
+            self.win.Show()
 
-    def mostra(self, titolo, gruppi, madre_uid):
+    def mostra(self, uidoc, ids, gruppi, madre_uid):
         if self.win is None:
             self._crea_finestra()
         self.madre_uid = madre_uid
-        self._riempi(titolo, gruppi)
-        if self.win.Visibility != Visibility.Visible:
-            self.win.Show()
-        self.win.UpdateLayout()
-        self._posiziona()
+        self.ids = list(ids)
+        self.attivo = True
+        self._riempi(gruppi)
+        self.riposiziona(uidoc)
 
-    def nascondi(self):
+    def _nascondi_finestra(self):
         if self.win is not None and self.win.Visibility == Visibility.Visible:
             self.win.Hide()
+
+    def nascondi(self):
+        self.attivo = False
+        self.ids = []
+        self._nascondi_finestra()
 
     def _esegui(self, comando):
         if self.evento is None:
@@ -365,19 +454,22 @@ class TastiOverlay(object):
         self.gestore.comando = comando
         self.gestore.madre_uid = self.madre_uid
         if comando == TC.SEZIONE_APRI:
-            # Si apre una finestra: il pannello si toglie di mezzo.
-            # Per gli allineamenti resta, cosi' si possono fare piu' passaggi di fila.
+            # Si apre una finestra: i tasti si tolgono di mezzo e tornano dopo
+            # (chiave azzerata = la selezione viene riletta al prossimo Idling).
             self.nascondi()
+            self.chiave_sel = None
         self.evento.Raise()
 
     # --- selezione ------------------------------------------------------------
-    def aggiorna(self, doc, ids):
+    def aggiorna(self, uidoc, ids):
         try:
             ids = list(ids)
+            doc = uidoc.Document if uidoc is not None else None
             if doc is None:
                 chiave = None
             else:
-                chiave = (doc.PathName or doc.Title, tuple(sorted(PS._id_val(i) for i in ids)))
+                chiave = (doc.PathName or doc.Title, PS._id_val(doc.ActiveView.Id),
+                          tuple(sorted(PS._id_val(i) for i in ids)))
             if chiave == self.chiave_sel:
                 return
             self.chiave_sel = chiave
@@ -385,21 +477,28 @@ class TastiOverlay(object):
             if esito is None:
                 self.nascondi()
             else:
-                self.mostra(*esito)
+                _titolo, gruppi, madre_uid = esito
+                self.mostra(uidoc, ids, gruppi, madre_uid)
         except Exception:
             # Un errore qui non deve mai disturbare il lavoro in Revit
             self.nascondi()
 
     def _su_selezione(self, sender, args):
-        self.aggiorna(args.GetDocument(), args.GetSelectedElements())
+        self.aggiorna(self.uiapp.ActiveUIDocument, args.GetSelectedElements())
 
     def _su_idling(self, sender, args):
-        uidoc = sender.ActiveUIDocument if sender is not None else None
-        if uidoc is None:
-            self.chiave_sel = None
-            self.nascondi()
-            return
-        self.aggiorna(uidoc.Document, uidoc.Selection.GetElementIds())
+        # Rilegge la selezione (Revit < 2023 non ha SelectionChanged) e rimette
+        # i tasti al loro posto dopo zoom, pan o spostamento delle viste.
+        try:
+            uidoc = self.uiapp.ActiveUIDocument
+            if uidoc is None:
+                self.chiave_sel = None
+                self.nascondi()
+                return
+            self.aggiorna(uidoc, uidoc.Selection.GetElementIds())
+            self.riposiziona(uidoc)
+        except Exception:
+            self._nascondi_finestra()
 
     def _su_chiusura(self, sender, args):
         self.chiave_sel = None
@@ -412,13 +511,13 @@ class TastiOverlay(object):
             d = EventHandler[tipo_args](self._su_selezione)
             self.uiapp.SelectionChanged += d
             self.delegati.append(("SelectionChanged", d))
-        else:
-            d = EventHandler[UI.Events.IdlingEventArgs](self._su_idling)
-            self.uiapp.Idling += d
-            self.delegati.append(("Idling", d))
+        d = EventHandler[UI.Events.IdlingEventArgs](self._su_idling)
+        self.uiapp.Idling += d
+        self.delegati.append(("Idling", d))
         d = EventHandler[DB.Events.DocumentClosingEventArgs](self._su_chiusura)
         self.uiapp.Application.DocumentClosing += d
         self.delegati.append(("DocumentClosing", d))
+
 
     def spegni(self):
         for nome, d in self.delegati:

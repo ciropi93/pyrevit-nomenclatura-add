@@ -60,3 +60,44 @@ def test_comandi_esistono_negli_strumenti_di_allineamento():
                    TC.comandi_per_selezione(1, sezione_con_sfondo=True)):
         for c in _comandi(gruppi):
             assert c in validi, c
+
+
+def test_ogni_comando_ha_la_sua_icona():
+    for n in (1, 3):
+        for gruppi in (TC.comandi_per_selezione(n, sezione_con_sfondo=True),
+                       TC.comandi_per_selezione(n, in_tavola=False, sezione_con_sfondo=True)):
+            for c in _comandi(gruppi):
+                assert TC.ICONE.get(c), c
+
+
+FINESTRA = (100, 50, 900, 650)          # area della vista sullo schermo (pixel)
+ZOOM = ((0.0, 0.0), (8.0, 6.0))          # 1 unita' = 100 pixel
+
+
+def test_proietta_angoli_e_asse_y_rovesciato():
+    assert TC.proietta((0.0, 0.0), ZOOM, FINESTRA) == (100, 650)
+    assert TC.proietta((8.0, 6.0), ZOOM, FINESTRA) == (900, 50)
+    assert TC.riquadro_schermo([(1.0, 1.0), (3.0, 4.0)], ZOOM, FINESTRA) == (200, 250, 400, 550)
+    assert TC.riquadro_schermo([], ZOOM, FINESTRA) is None
+
+
+def test_striscia_sopra_il_bordo_superiore():
+    assert TC.posizione_striscia((200, 250, 400, 550), FINESTRA, 120, 24) == (200, 223)
+
+
+def test_striscia_sotto_se_sopra_non_ce_posto():
+    assert TC.posizione_striscia((200, 60, 400, 300), FINESTRA, 120, 24) == (200, 303)
+
+
+def test_striscia_dentro_se_la_selezione_riempie_la_vista():
+    assert TC.posizione_striscia((50, 20, 950, 700), FINESTRA, 120, 24) == (100, 53)
+
+
+def test_striscia_resta_nella_vista_in_orizzontale():
+    x, _ = TC.posizione_striscia((850, 250, 1200, 550), FINESTRA, 120, 24)
+    assert x == 900 - 120
+
+
+def test_niente_striscia_se_la_selezione_e_fuori_vista():
+    assert TC.posizione_striscia((1000, 250, 1200, 550), FINESTRA, 120, 24) is None
+    assert TC.posizione_striscia(None, FINESTRA, 120, 24) is None
