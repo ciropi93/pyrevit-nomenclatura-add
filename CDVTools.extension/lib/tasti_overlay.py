@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
-"""Tasto in sovraimpressione per le sezioni con Profondita' (sfondo) attiva.
+"""Tasti in sovraimpressione che cambiano con la selezione.
 
-Quando selezioni la linea di sezione (in pianta) o il riquadro in tavola di una
-sezione che ha lo sfondo vettoriale, vicino al cursore compare un piccolo pannello:
-  - "Profondita' sezione": apre la finestra del pulsante gia' su quella sezione;
-  - "Sincronizza": riallinea subito sfondo e tavole (una transazione, annullabile).
+Vicino al cursore compare un piccolo pannello:
+  - linea di sezione (in pianta) o riquadro di una sezione con Profondita' attiva:
+    "Profondita' sezione" e "Sincronizza sfondo";
+  - una vista in tavola: allineamento del suo titolo;
+  - due o piu' viste/titoli in tavola: allineamento di titoli e riquadri;
+  - tre o piu': anche distribuzione.
+Quali tasti mostrare lo decide tasti_contestuali.py (senza API Revit).
 
 Viene attivato da startup.py dell'estensione. Usa l'evento SelectionChanged
 (Revit 2023+) oppure, nelle versioni precedenti, il controllo della selezione
-nell'evento Idling.
+nell'evento Idling. I tasti lavorano tramite ExternalEvent (contesto API valido).
 """
 import os
 import imp
@@ -25,51 +28,57 @@ clr.AddReference("RevitAPIUI")
 
 import System
 from System import EventHandler, IntPtr
-from System.Windows import Visibility
+from System.Windows import Visibility, Thickness, FontWeights
+from System.Windows.Controls import Button, TextBlock, WrapPanel
+from System.Windows.Input import Cursors
 from System.Windows.Interop import WindowInteropHelper
 from System.Windows.Markup import XamlReader
+from System.Windows.Media import BrushConverter
 from Autodesk.Revit import DB, UI
 
 import profondita_sezione as PS
+import tasti_contestuali as TC
 
 
+# Stessa chiave della prima versione: al Reload spegne anche il vecchio pannello
 CHIAVE_APPDOMAIN = "CDVTools.SezioneOverlay.Spegni"
 TITOLO = u"CDV Tools"
-SCRIPT_PULSANTE = os.path.join(
+SCRIPT_PROFONDITA = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     u"CDV Tools.tab", u"Grafica e Filtri.panel", u"SectionDepth.pushbutton", u"script.py",
 )
+LARGHEZZA_MAX = 330
 
 XAML = u"""
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
-        SizeToContent="WidthAndHeight" FontFamily="Segoe UI" FontSize="12">
+        SizeToContent="WidthAndHeight" FontFamily="Segoe UI" FontSize="11">
   <Border Margin="8" CornerRadius="6" Background="#FFFFFF" BorderBrush="#CBD5E1"
-          BorderThickness="1" Padding="4">
+          BorderThickness="1" Padding="6,4,6,6">
     <Border.Effect>
       <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.25"/>
     </Border.Effect>
-    <StackPanel Orientation="Horizontal">
-      <Button x:Name="btnApri" Padding="10,3" Margin="0,0,4,0" Cursor="Hand"
-              Background="#0369A1" Foreground="White" BorderThickness="0"
-              ToolTip="Apri Profondità Sezione su questa sezione">
-        <StackPanel>
-          <TextBlock Text="Profondità sezione" FontWeight="SemiBold"/>
-          <TextBlock x:Name="lblNome" FontSize="10" Opacity="0.85"/>
-        </StackPanel>
-      </Button>
-      <Button x:Name="btnSync" Content="Sincronizza" Padding="8,3" Margin="0,0,4,0"
-              Cursor="Hand" Background="#E0F2FE" Foreground="#0369A1" BorderThickness="0"
-              ToolTip="Riallinea sfondo e tavole alla sezione madre (annullabile)"/>
-      <Button x:Name="btnChiudi" Content="×" Width="22" Cursor="Hand" FontSize="14"
-              Background="Transparent" Foreground="#64748B" BorderThickness="0"
-              ToolTip="Nascondi"/>
+    <StackPanel>
+      <DockPanel LastChildFill="True">
+        <Button x:Name="btnChiudi" DockPanel.Dock="Right" Content="×" Width="20" Cursor="Hand"
+                FontSize="13" Padding="0" Background="Transparent" Foreground="#64748B"
+                BorderThickness="0" ToolTip="Nascondi"/>
+        <TextBlock x:Name="lblTitolo" Foreground="#334155" FontWeight="SemiBold"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="300"/>
+      </DockPanel>
+      <StackPanel x:Name="pnlGruppi"/>
     </StackPanel>
   </Border>
 </Window>
 """
+
+_PENNELLI = BrushConverter()
+
+
+def _colore(hex_):
+    return _PENNELLI.ConvertFromString(hex_)
 
 
 def _avvisa(msg):
@@ -88,6 +97,22 @@ def _toast(msg):
         pass
 
 
+def _non_attivabile(win):
+    """Il pannello non prende il focus: Revit resta attivo (Esc, scorciatoie, ExternalEvent)."""
+    try:
+        import ctypes
+        hwnd = WindowInteropHelper(win).EnsureHandle().ToInt64()
+        user32 = ctypes.windll.user32
+        GWL_EXSTYLE = -20
+        WS_EX_NOACTIVATE = 0x08000000
+        WS_EX_TOOLWINDOW = 0x00000080
+        stile = user32.GetWindowLongW(ctypes.c_void_p(hwnd), GWL_EXSTYLE)
+        user32.SetWindowLongW(ctypes.c_void_p(hwnd), GWL_EXSTYLE,
+                              stile | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW)
+    except Exception:
+        pass
+
+
 class _IgnoraAvvisi(DB.IFailuresPreprocessor):
     def PreprocessFailures(self, failuresAccessor):
         for f in failuresAccessor.GetFailureMessages():
@@ -100,43 +125,70 @@ class _IgnoraAvvisi(DB.IFailuresPreprocessor):
 # LETTURA SELEZIONE
 # ==============================================================================
 
-def _voce_elemento(el):
-    """Voce per PS.madre_da_selezione, oppure None se l'elemento non interessa."""
-    if el is None:
-        return None
-    if isinstance(el, DB.Viewport):
-        return (u"viewport", PS._id_val(el.ViewId))
-    cat = el.Category
-    if cat is not None and PS._id_val(cat.Id) == int(DB.BuiltInCategory.OST_Viewers):
-        return (u"viewer", el.Name)
-    return None
+def _e_viewer(el):
+    cat = el.Category if el is not None else None
+    return cat is not None and PS._id_val(cat.Id) == int(DB.BuiltInCategory.OST_Viewers)
 
 
-def _madre_selezionata(doc, ids):
-    """Sezione madre (View) indicata dalla selezione, oppure None."""
-    if doc is None or doc.IsFamilyDocument or len(ids) != 1:
+def _analizza_selezione(doc, ids):
+    """Ritorna (titolo, gruppi, madre_uid) oppure None se non c'e' nulla da proporre.
+
+    Considera solo selezioni fatte di soli riquadri di vista (in tavola) oppure di
+    una sola linea di sezione/prospetto.
+    """
+    if doc is None or doc.IsFamilyDocument or not ids:
         return None
-    voce = _voce_elemento(doc.GetElement(ids[0]))
-    if voce is None:
+    elementi = [doc.GetElement(i) for i in ids]
+    viewports = [e for e in elementi if isinstance(e, DB.Viewport)]
+    viewers = [e for e in elementi if _e_viewer(e)]
+
+    if len(viewports) == len(elementi):
+        voci = None
+    elif len(viewers) == 1 and len(elementi) == 1:
+        voci = [(u"viewer", viewers[0].Name)]
+    else:
         return None
-    coppie, _, _ = PS.trova_coppie_sezioni(doc)
-    if not coppie:
-        return None
-    per_id = dict((PS._id_val(c["madre"].Id), c["madre"]) for c in coppie)
+
+    coppie, _, sfondo_to_madre = PS.trova_coppie_sezioni(doc)
+    madri = dict((PS._id_val(c["madre"].Id), c["madre"]) for c in coppie)
     righe = [
         (PS._id_val(c["madre"].Id), c["madre"].Name, PS._id_val(c["sfondo"].Id), c["sfondo"].Name)
         for c in coppie
     ]
-    id_madre = PS.madre_da_selezione([voce], righe)
-    return per_id.get(id_madre) if id_madre is not None else None
+
+    if voci is None:
+        sfondo_a_madre = dict((k, PS._id_val(m.Id)) for k, m in sfondo_to_madre.items())
+        viste = TC.viste_distinte([PS._id_val(vp.ViewId) for vp in viewports], sfondo_a_madre)
+        n = len(viste)
+        voci = [(u"viewport", viste[0])] if n == 1 else []
+        in_tavola = isinstance(doc.ActiveView, DB.ViewSheet)
+    else:
+        n = 1
+        in_tavola = False
+
+    id_madre = PS.madre_da_selezione(voci, righe) if voci else None
+    madre = madri.get(id_madre) if id_madre is not None else None
+
+    gruppi = TC.comandi_per_selezione(n, in_tavola=in_tavola, sezione_con_sfondo=madre is not None)
+    if not gruppi:
+        return None
+    if n == 1:
+        if madre is not None:
+            titolo = madre.Name
+        else:
+            vista = doc.GetElement(viewports[0].ViewId)
+            titolo = vista.Name if vista is not None else u"Vista"
+    else:
+        titolo = u"%d viste selezionate" % n
+    return titolo, gruppi, (madre.UniqueId if madre is not None else None)
 
 
 # ==============================================================================
 # AZIONI (eseguite in contesto API tramite ExternalEvent)
 # ==============================================================================
 
-def _apri_finestra(madre_uid):
-    modulo = imp.load_source("cdv_sectiondepth_script", SCRIPT_PULSANTE)
+def _apri_profondita(madre_uid):
+    modulo = imp.load_source("cdv_sectiondepth_script", SCRIPT_PROFONDITA)
     modulo.main(madre_uid=madre_uid)
 
 
@@ -181,32 +233,36 @@ def _sincronizza(doc, madre_uid):
 
 class _GestoreAzione(UI.IExternalEventHandler):
     def __init__(self):
-        self.azione = None
+        self.comando = None
         self.madre_uid = None
 
     def Execute(self, uiapp):
-        azione, uid = self.azione, self.madre_uid
-        self.azione = None
+        comando, uid = self.comando, self.madre_uid
+        self.comando = None
         try:
             uidoc = uiapp.ActiveUIDocument
-            if uidoc is None or not uid:
+            if uidoc is None or not comando:
                 return
-            if azione == u"apri":
-                _apri_finestra(uid)
-            elif azione == u"sincronizza":
+            if comando == TC.SEZIONE_APRI:
+                _apri_profondita(uid)
+            elif comando == TC.SEZIONE_SINCRONIZZA:
                 _sincronizza(uidoc.Document, uid)
+            else:
+                # Allineamenti: lavorano sulla selezione corrente della tavola attiva
+                import allinea_in_tavola as AIT
+                AIT.esegui_da_ribbon(comando)
         except Exception as ex:
             _avvisa(u"Errore: %s" % ex)
 
     def GetName(self):
-        return u"CDV Tools - Profondita' Sezione (sovraimpressione)"
+        return u"CDV Tools - Tasti in sovraimpressione"
 
 
 # ==============================================================================
 # PANNELLO IN SOVRAIMPRESSIONE
 # ==============================================================================
 
-class SezioneOverlay(object):
+class TastiOverlay(object):
     def __init__(self, uiapp):
         self.uiapp = uiapp
         self.win = None
@@ -223,13 +279,49 @@ class SezioneOverlay(object):
             WindowInteropHelper(win).Owner = self.uiapp.MainWindowHandle
         except Exception:
             win.Topmost = True
-        win.FindName("btnApri").Click += lambda s, a: self._esegui(u"apri")
-        win.FindName("btnSync").Click += lambda s, a: self._esegui(u"sincronizza")
+        _non_attivabile(win)
         win.FindName("btnChiudi").Click += lambda s, a: self.nascondi()
         self.win = win
         # ExternalEvent va creato in contesto API (qui siamo in un evento di Revit)
         self.gestore = _GestoreAzione()
         self.evento = UI.ExternalEvent.Create(self.gestore)
+
+    def _tasto(self, comando, etichetta, suggerimento, primario):
+        b = Button()
+        b.Content = etichetta
+        b.ToolTip = suggerimento
+        b.Padding = Thickness(7, 2, 7, 2)
+        b.Margin = Thickness(0, 0, 3, 3)
+        b.BorderThickness = Thickness(0)
+        b.Cursor = Cursors.Hand
+        b.Focusable = False
+        if primario:
+            b.Background = _colore("#0369A1")
+            b.Foreground = _colore("#FFFFFF")
+            b.FontWeight = FontWeights.SemiBold
+        else:
+            b.Background = _colore("#E0F2FE")
+            b.Foreground = _colore("#0369A1")
+        b.Click += lambda s, a: self._esegui(comando)
+        return b
+
+    def _riempi(self, titolo, gruppi):
+        self.win.FindName("lblTitolo").Text = titolo
+        pnl = self.win.FindName("pnlGruppi")
+        pnl.Children.Clear()
+        for nome, tasti in gruppi:
+            lbl = TextBlock()
+            lbl.Text = nome
+            lbl.Foreground = _colore("#64748B")
+            lbl.FontSize = 10
+            lbl.Margin = Thickness(0, 4, 0, 2)
+            pnl.Children.Add(lbl)
+            riga = WrapPanel()
+            riga.MaxWidth = LARGHEZZA_MAX
+            for comando, etichetta, suggerimento in tasti:
+                primario = comando == TC.SEZIONE_APRI
+                riga.Children.Add(self._tasto(comando, etichetta, suggerimento, primario))
+            pnl.Children.Add(riga)
 
     def _posiziona(self):
         """Mette il pannello in basso a destra del cursore, dentro lo schermo."""
@@ -243,7 +335,7 @@ class SezioneOverlay(object):
         finally:
             g.Dispose()
         w = self.win.ActualWidth or 260.0
-        h = self.win.ActualHeight or 60.0
+        h = self.win.ActualHeight or 80.0
         x = (pos.X + 16) / scala
         y = (pos.Y + 16) / scala
         x = min(x, area.Right / scala - w)
@@ -251,42 +343,47 @@ class SezioneOverlay(object):
         self.win.Left = max(x, area.Left / scala)
         self.win.Top = max(y, area.Top / scala)
 
-    def mostra(self, madre):
+    def mostra(self, titolo, gruppi, madre_uid):
         if self.win is None:
             self._crea_finestra()
-        self.madre_uid = madre.UniqueId
-        self.win.FindName("lblNome").Text = madre.Name
-        self._posiziona()
+        self.madre_uid = madre_uid
+        self._riempi(titolo, gruppi)
         if self.win.Visibility != Visibility.Visible:
             self.win.Show()
-            self.win.UpdateLayout()
-            self._posiziona()
+        self.win.UpdateLayout()
+        self._posiziona()
 
     def nascondi(self):
         if self.win is not None and self.win.Visibility == Visibility.Visible:
             self.win.Hide()
 
-    def _esegui(self, azione):
-        if not self.madre_uid or self.evento is None:
+    def _esegui(self, comando):
+        if self.evento is None:
             return
-        self.gestore.azione = azione
+        self.gestore.comando = comando
         self.gestore.madre_uid = self.madre_uid
-        self.nascondi()
+        if comando == TC.SEZIONE_APRI:
+            # Si apre una finestra: il pannello si toglie di mezzo.
+            # Per gli allineamenti resta, cosi' si possono fare piu' passaggi di fila.
+            self.nascondi()
         self.evento.Raise()
 
     # --- selezione ------------------------------------------------------------
     def aggiorna(self, doc, ids):
         try:
             ids = list(ids)
-            chiave = (doc.PathName or doc.Title, tuple(sorted(PS._id_val(i) for i in ids))) if doc else None
+            if doc is None:
+                chiave = None
+            else:
+                chiave = (doc.PathName or doc.Title, tuple(sorted(PS._id_val(i) for i in ids)))
             if chiave == self.chiave_sel:
                 return
             self.chiave_sel = chiave
-            madre = _madre_selezionata(doc, ids)
-            if madre is None:
+            esito = _analizza_selezione(doc, ids)
+            if esito is None:
                 self.nascondi()
             else:
-                self.mostra(madre)
+                self.mostra(*esito)
         except Exception:
             # Un errore qui non deve mai disturbare il lavoro in Revit
             self.nascondi()
@@ -342,7 +439,7 @@ class SezioneOverlay(object):
 
 
 def attiva(uiapp):
-    """Accende il tasto in sovraimpressione (spegne quello di un caricamento precedente)."""
+    """Accende i tasti in sovraimpressione (spegne quelli di un caricamento precedente)."""
     dominio = System.AppDomain.CurrentDomain
     vecchio = dominio.GetData(CHIAVE_APPDOMAIN)
     if vecchio is not None:
@@ -350,7 +447,7 @@ def attiva(uiapp):
             vecchio.Invoke()
         except Exception:
             pass
-    overlay = SezioneOverlay(uiapp)
+    overlay = TastiOverlay(uiapp)
     overlay.accendi()
     dominio.SetData(CHIAVE_APPDOMAIN, System.Action(overlay.spegni))
     return overlay

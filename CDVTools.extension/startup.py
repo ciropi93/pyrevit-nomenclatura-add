@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Avvio di CDV Tools: accende il tasto in sovraimpressione di Profondita' Sezione."""
+"""Avvio di CDV Tools: accende i tasti in sovraimpressione (sezioni e allineamenti in tavola)."""
 import os
 import sys
 
@@ -9,12 +9,12 @@ if _LIB not in sys.path:
 
 try:
     from pyrevit import HOST_APP
-    import sezione_overlay
-    sezione_overlay.attiva(HOST_APP.uiapp)
+    import tasti_overlay
+    tasti_overlay.attiva(HOST_APP.uiapp)
 except Exception as ex:
     # Il resto dell'estensione deve funzionare anche se il tasto non si attiva
     try:
         from pyrevit.coreutils import logger
-        logger.get_logger(__name__).warning(u"Tasto Profondita' Sezione non attivo: %s" % ex)
+        logger.get_logger(__name__).warning(u"Tasti in sovraimpressione non attivi: %s" % ex)
     except Exception:
         pass

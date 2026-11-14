@@ -10,11 +10,19 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 | **Tavole e Legende** | Allinea viste su tavole, Allinea Viste (stack: Distribuisci Viste, Allinea Viste Orizz., Allinea Viste Vert. sul puro CropBox), Allinea Titoli, Componenti in legenda, Allinea al Nord reale |
 | **Nomenclatura** | Controllo e correzione dei nomi secondo il BIMMS ADD2024 (vedi sotto) |
 
-**Tasto in sovraimpressione (Profondità sezione).** Se selezioni la linea di sezione in pianta
-o il riquadro in tavola di una sezione che ha lo sfondo attivo, vicino al cursore compare un
-pannellino con **Profondità sezione** (apre la finestra già su quella sezione) e **Sincronizza**
-(riallinea sfondo e tavole, annullabile con Ctrl+Z). Si accende da solo all'avvio
-(`startup.py`); su Revit 2023+ usa l'evento di selezione, prima controlla la selezione a riposo.
+**Tasti in sovraimpressione.** Quando selezioni qualcosa, vicino al cursore compare un
+pannellino con i tasti utili (in tavola, cliccare il titolo seleziona la vista):
+- linea di sezione o riquadro di una sezione con sfondo attivo: **Profondità sezione**
+  (apre la finestra già su quella sezione) e **Sincronizza sfondo**;
+- una vista in tavola: titolo a filo del ritaglio, linea del titolo = larghezza del ritaglio;
+- due o più viste/titoli: incolonna/in riga i titoli, stessa distanza, stessa linea,
+  allinea i riquadri (sinistra, centro, destra, alto, basso, coordinate del modello);
+- tre o più: distribuisci in orizzontale/verticale.
+
+Il pannello resta aperto, quindi puoi fare più allineamenti di fila; ogni tasto si annulla con
+Ctrl+Z. Lo sfondo di una sezione si sposta sempre insieme alla sua madre. Si accende da solo
+all'avvio (`startup.py`); su Revit 2023+ usa l'evento di selezione, prima controlla la
+selezione a riposo.
 
 ## Nomenclatura ADD
 

@@ -365,14 +365,24 @@ def esegui_da_ribbon(comando):
         return
 
     sheet = doc.ActiveView
-    coppie, madre_to_sfondo, _ = PS.trova_coppie_sezioni(doc)
+    coppie, madre_to_sfondo, sfondo_to_madre = PS.trova_coppie_sezioni(doc)
     sfondo_ids = set(_id_val(item["sfondo"].Id) for item in coppie)
     filtro = _ViewportFilter(sfondo_ids, sheet.Id)
+
+    vp_per_vista = {}
+    for vpid in sheet.GetAllViewports():
+        vp_s = doc.GetElement(vpid)
+        if vp_s is not None:
+            vp_per_vista[_id_val(vp_s.ViewId)] = vp_s
 
     pre_vps = []
     for eid in uidoc.Selection.GetElementIds():
         el = doc.GetElement(eid)
-        if filtro.AllowElement(el):
+        # Il riquadro di sfondo (sovrapposto) vale come quello della sua sezione madre
+        if isinstance(el, DB.Viewport) and _id_val(el.ViewId) in sfondo_ids:
+            madre = sfondo_to_madre.get(_id_val(el.ViewId))
+            el = vp_per_vista.get(_id_val(madre.Id)) if madre is not None else None
+        if filtro.AllowElement(el) and all(_id_val(v.Id) != _id_val(el.Id) for v in pre_vps):
             pre_vps.append(el)
 
     try:
