@@ -533,37 +533,3 @@ def copia_su_tutte(cfg, chiave):
         cfg[u"categorie"][k] = _normalizza_categoria(k, sorgente, fissa)
     return cfg
 
-
-# ==============================================================================
-# ICONE ORIGINALI DI REVIT
-# ==============================================================================
-# Per i comandi che esistono anche in Revit si usa, se c'e', l'icona del pulsante di
-# Revit (presa dal ribbon mentre Revit gira, vedi icone_revit.py: nessun file di
-# Autodesk nel repository). Per ogni comando: nomi di PostableCommand da cercare
-# e, in alternativa, il testo del pulsante (italiano e inglese).
-ICONE_REVIT = {
-    u"sposta": ([u"Move"], [u"Sposta", u"Move"]),
-    u"copia": ([u"Copy"], [u"Copia", u"Copy"]),
-    u"ruota": ([u"Rotate"], [u"Ruota", u"Rotate"]),
-    u"specchia": ([u"MirrorPickAxis"], [u"Specchia - Seleziona asse", u"Mirror - Pick Axis"]),
-    u"serie": ([u"Array"], [u"Serie", u"Array"]),
-    u"scala": ([u"Scale"], [u"Scala", u"Scale"]),
-    u"allinea": ([u"Align"], [u"Allinea", u"Align"]),
-    u"offset": ([u"Offset"], [u"Offset"]),
-    u"dividi": ([u"SplitElement"], [u"Dividi elemento", u"Split Element"]),
-    u"taglia_estendi": ([u"TrimOrExtendToCorner"],
-                        [u"Taglia/Estendi ad angolo", u"Trim/Extend to Corner"]),
-    u"crea_simile": ([u"CreateSimilar"], [u"Crea simile", u"Create Similar"]),
-    u"blocca": ([u"Pin"], [u"Blocca", u"Pin"]),
-    u"nascondi_elementi": ([u"HideElements"], [u"Nascondi elementi", u"Hide Elements"]),
-    u"nascondi_categoria": ([u"HideCategory"], [u"Nascondi categoria", u"Hide Category"]),
-    u"mezzitoni": ([u"OverrideByElement"],
-                   [u"Sostituisci grafica nella vista per elemento",
-                    u"Override Graphics in View by Element"]),
-    u"copia_grafica": ([u"MatchTypeProperties"],
-                       [u"Corrispondenza proprietà del tipo", u"Match Type Properties"]),
-    u"sel_tipo_vista": ([u"SelectAllInstancesVisibleInView"],
-                        [u"Visibile nella vista", u"Visible in View"]),
-    u"sel_tipo_progetto": ([u"SelectAllInstancesInEntireProject"],
-                           [u"Nell'intero progetto", u"In Entire Project"]),
-}
