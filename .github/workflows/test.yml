@@ -9,7 +9,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install pytest pyflakes
-      - run: python -m pyflakes CDVTools.extension/lib "CDVTools.extension/CDV Tools.tab/Nomenclatura.panel" tests
+      - run: python -m pyflakes lib "CDV Tools.tab/Nomenclatura.panel" tests
       - run: python -m pytest -q tests
 
   # pyRevit esegue gli script con IronPython 2.7: Python 2.7 e' il riferimento piu' vicino
@@ -22,7 +22,7 @@ jobs:
         run: |
           docker run --rm -v "$PWD":/src -w /src python:2.7-slim sh -c '
             set -e
-            find CDVTools.extension -name "*.py" | while IFS= read -r f; do
+            find lib "CDV Tools.tab" startup.py -name "*.py" | while IFS= read -r f; do
               python -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], \"exec\")" "$f"
             done
             pip install -q "pytest<5"

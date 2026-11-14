@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "CDVTools.extension", "lib"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import profondita_sezione as PS  # noqa: E402
 

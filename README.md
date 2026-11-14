@@ -105,28 +105,34 @@ Il report di *Controlla* elenca i file di impostazioni usati.
 ## Installazione
 
 1. Installa [pyRevit](https://github.com/pyrevitlabs/pyRevit) (4.8 o successivo).
-2. Clona il repository e aggiungi la sua cartella ai percorsi delle estensioni, poi fai *Reload*:
+2. In Revit apri **pyRevit > Extensions**, scrivi nel campo *Git URL*
+   `https://github.com/ciropi93/pyrevit-nomenclatura-add.git`, lascia *Path* e *Token* come sono
+   e premi **Add and install**. Per aggiornare usa lo stesso Extension Manager (o pyRevit > Update).
+
+   In alternativa, da riga di comando:
    ```
-   git clone https://github.com/ciropi93/pyrevit-nomenclatura-add.git
-   pyrevit extensions paths add <cartella>\pyrevit-nomenclatura-add
+   pyrevit extend ui CDVTools https://github.com/ciropi93/pyrevit-nomenclatura-add.git
    ```
-   (oppure pyRevit > Settings > Custom Extension Directories). Per aggiornare basta `git pull` e *Reload*.
 3. Apri **Impostazioni** e inserisci il codice fabbricato; controlla codice bene e fase (`P` = PFTE).
 
 ## Struttura
 
+La radice del repository è l'estensione: pyRevit la clona in una cartella `<nome>.extension`
+dentro `%APPDATA%\pyRevit\Extensions`.
+
 ```
-CDVTools.extension/
-  CDV Tools.tab/
-    Grafica e Filtri.panel/ Campiture.panel/ Modellazione.panel/ Tavole.panel/
-    Nomenclatura.panel/   pulsanti (script.py + bundle.yaml + icon.png)
-  lib/nomenclatura/
-    regole.py        regole di codifica (senza API Revit, testabile)
-    revit_dati.py    lettura e scrittura dei nomi in Revit
-    tabella.py       CSV per Excel (separatore ;)
-    ui.py            finestre e report pyRevit
-    data/codici_add2024.json   codici estratti dagli allegati (tipi, sottotipi, usi, documenti...)
-    data/progetto.json         impostazioni predefinite del progetto
+extension.json       manifest dell'estensione
+startup.py           eseguito da pyRevit all'avvio
+CDV Tools.tab/
+  Grafica e Filtri.panel/ Campiture.panel/ Modellazione.panel/ Tavole.panel/
+  Nomenclatura.panel/   pulsanti (script.py + bundle.yaml + icon.png)
+lib/nomenclatura/
+  regole.py        regole di codifica (senza API Revit, testabile)
+  revit_dati.py    lettura e scrittura dei nomi in Revit
+  tabella.py       CSV per Excel (separatore ;)
+  ui.py            finestre e report pyRevit
+  data/codici_add2024.json   codici estratti dagli allegati (tipi, sottotipi, usi, documenti...)
+  data/progetto.json         impostazioni predefinite del progetto
 tests/               test delle regole (pytest, senza Revit)
 ```
 

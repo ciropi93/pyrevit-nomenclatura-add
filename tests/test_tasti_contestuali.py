@@ -2,7 +2,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "CDVTools.extension", "lib"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import allinea_in_tavola as AIT  # noqa: E402
 import tasti_contestuali as TC  # noqa: E402
