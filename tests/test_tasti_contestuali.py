@@ -35,6 +35,19 @@ def test_linea_di_sezione_con_sfondo():
     assert _comandi(gruppi) == [TC.SEZIONE_APRI, TC.SEZIONE_SINCRONIZZA]
 
 
+def test_sezione_senza_sfondo_propone_di_attivarla():
+    # linea di sezione in pianta
+    gruppi = TC.comandi_per_selezione(1, in_tavola=False, sezione_senza_sfondo=True)
+    assert _nomi(gruppi) == [u"Sezione"]
+    assert _comandi(gruppi) == [TC.SEZIONE_APRI]
+    # riquadro in tavola: attiva + tasti del titolo
+    gruppi = TC.comandi_per_selezione(1, sezione_senza_sfondo=True)
+    assert _nomi(gruppi) == [u"Sezione", u"Titolo"]
+    assert TC.SEZIONE_SINCRONIZZA not in _comandi(gruppi)
+    # con due viste non si propone
+    assert u"Sezione" not in _nomi(TC.comandi_per_selezione(2, sezione_senza_sfondo=True))
+
+
 def test_una_vista_in_tavola():
     gruppi = TC.comandi_per_selezione(1)
     assert _nomi(gruppi) == [u"Titolo"]

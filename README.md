@@ -14,7 +14,8 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 compare una fila di tastini con icona; il nome è nel suggerimento al passaggio del mouse.
 Seguono zoom e pan, spariscono deselezionando (in tavola, cliccare il titolo seleziona la vista):
 - linea di sezione o riquadro di una sezione con sfondo attivo: **Profondità sezione**
-  (apre la finestra già su quella sezione) e **Sincronizza sfondo**;
+  (apre la finestra già su quella sezione) e **Sincronizza sfondo**; se lo sfondo non c'è
+  ancora, solo **Attiva profondità sezione** (apre la finestra per crearlo);
 - una vista in tavola: titolo a filo del ritaglio, linea del titolo = larghezza del ritaglio;
 - due o più viste/titoli: incolonna/in riga i titoli, stessa distanza, stessa linea,
   allinea i riquadri (sinistra, centro, destra, alto, basso, coordinate del modello);

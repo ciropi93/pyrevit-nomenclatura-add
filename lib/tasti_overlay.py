@@ -4,7 +4,8 @@
 Sul bordo superiore della selezione compare una fila di tastini con icona
 (il nome completo e' nel suggerimento al passaggio del mouse):
   - linea di sezione (in pianta) o riquadro di una sezione con Profondita' attiva:
-    "Profondita' sezione" e "Sincronizza sfondo";
+    "Profondita' sezione" e "Sincronizza sfondo"; se non e' ancora attiva, solo
+    "Attiva profondita' sezione" (apre la finestra per creare lo sfondo);
   - una vista in tavola: allineamento del suo titolo;
   - due o piu' viste/titoli in tavola: allineamento di titoli e riquadri;
   - tre o piu': anche distribuzione.
@@ -154,6 +155,22 @@ def _e_viewer(el):
     return cat is not None and PS._id_val(cat.Id) == int(DB.BuiltInCategory.OST_Viewers)
 
 
+def _vista_da_attivare(doc, voce, viewports):
+    """Sezione o prospetto (senza sfondo) indicato dalla voce di selezione, oppure None."""
+    tipo, valore = voce
+    if tipo == u"viewport":
+        for vp in viewports:
+            if PS._id_val(vp.ViewId) == valore:
+                vista = doc.GetElement(vp.ViewId)
+                return vista if PS.e_vista_supportata(vista) else None
+        return None
+    if tipo == u"viewer":
+        for vista in DB.FilteredElementCollector(doc).OfClass(DB.View):
+            if vista.Name == valore and PS.e_vista_supportata(vista):
+                return vista
+    return None
+
+
 def _analizza_selezione(doc, ids):
     """Ritorna (titolo, gruppi, madre_uid) oppure None se non c'e' nulla da proporre.
 
@@ -192,10 +209,15 @@ def _analizza_selezione(doc, ids):
 
     id_madre = PS.madre_da_selezione(voci, righe) if voci else None
     madre = madri.get(id_madre) if id_madre is not None else None
+    # Sezione/prospetto senza sfondo: il tasto apre Profondita' Sezione per crearlo
+    da_attivare = _vista_da_attivare(doc, voci[0], viewports) if (madre is None and voci) else None
 
-    gruppi = TC.comandi_per_selezione(n, in_tavola=in_tavola, sezione_con_sfondo=madre is not None)
+    gruppi = TC.comandi_per_selezione(n, in_tavola=in_tavola, sezione_con_sfondo=madre is not None,
+                                      sezione_senza_sfondo=da_attivare is not None)
     if not gruppi:
         return None
+    if madre is None:
+        madre = da_attivare
     if n == 1:
         if madre is not None:
             titolo = madre.Name

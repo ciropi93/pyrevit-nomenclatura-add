@@ -16,6 +16,12 @@ _SEZIONE = [
      u"Riallinea sfondo e tavole alla sezione madre (annullabile)"),
 ]
 
+# Sezione o prospetto senza sfondo: solo il tasto per attivarlo
+_SEZIONE_DA_ATTIVARE = [
+    (SEZIONE_APRI, u"Attiva profondità sezione",
+     u"Apri Profondità Sezione su questa vista per creare lo sfondo"),
+]
+
 _TITOLO_SINGOLO = [
     (u"titolo_bordo_sinistro", u"A filo del ritaglio",
      u"Porta il titolo sul bordo sinistro del ritaglio della vista"),
@@ -61,11 +67,18 @@ def viste_distinte(id_viste, sfondo_a_madre):
     return out
 
 
-def comandi_per_selezione(n_viste, in_tavola=True, sezione_con_sfondo=False):
-    """Gruppi di tasti da mostrare: lista di (titolo_gruppo, [(comando, etichetta, suggerimento)])."""
+def comandi_per_selezione(n_viste, in_tavola=True, sezione_con_sfondo=False,
+                          sezione_senza_sfondo=False):
+    """Gruppi di tasti da mostrare: lista di (titolo_gruppo, [(comando, etichetta, suggerimento)]).
+
+    sezione_senza_sfondo: la vista selezionata e' una sezione/prospetto su cui
+    Profondita' Sezione non e' ancora attivo (si propone di attivarlo).
+    """
     gruppi = []
     if sezione_con_sfondo and n_viste == 1:
         gruppi.append((u"Sezione", list(_SEZIONE)))
+    elif sezione_senza_sfondo and n_viste == 1:
+        gruppi.append((u"Sezione", list(_SEZIONE_DA_ATTIVARE)))
     if in_tavola and n_viste == 1:
         gruppi.append((u"Titolo", list(_TITOLO_SINGOLO)))
     if in_tavola and n_viste >= 2:
