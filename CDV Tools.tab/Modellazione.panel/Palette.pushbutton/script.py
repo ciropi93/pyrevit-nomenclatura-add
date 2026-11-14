@@ -1,34 +1,30 @@
 # -*- coding: utf-8 -*-
-"""Finestra per scegliere i tasti della palette contestuale.
+"""Finestra per scegliere gli strumenti della palette contestuale.
 
-A sinistra la fila fissa (uguale per tutte le categorie) e le categorie; a destra,
-per ogni comando: "In palette" (riga principale, al massimo 5), "Nel menu" (dietro
-il tasto ...) o "Nascosto". Lavora su una copia della configurazione e salva in
+A sinistra la fila fissa (uguale per tutte le categorie) e le categorie; a destra le
+caselle degli strumenti divise per famiglia (Trasforma, Forma, Seleziona, Vista, Isola).
+Lavora su una copia della configurazione e salva in
 %APPDATA%\\pyRevit\\CDVTools\\palette.json solo con "Salva"; l'overlay rilegge il
 file appena cambia, quindi la palette si aggiorna senza riavviare.
 """
 import os
 
-from System.Windows import FontWeights, GridLength, GridUnitType, Thickness, VerticalAlignment
-from System.Windows.Controls import (CheckBox, ColumnDefinition, ComboBox, Grid, Orientation,
-                                     StackPanel, TextBlock)
-from System.Windows.Media import BrushConverter, Geometry, Stretch
-from System.Windows.Shapes import Path
+from System.Windows import FontWeights, Thickness, VerticalAlignment
+from System.Windows.Controls import CheckBox, Orientation, StackPanel, TextBlock
 
 from pyrevit import forms
 
 import palette as PAL
+import icone_wpf as IW
 
 TITOLO = u"CDV Tools"
 CARTELLA_ONOFF = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                               u"PaletteOnOff.pushbutton")
 FISSA = u"__fissa__"
-LIVELLI = [(PAL.IN_VISTA, u"In palette"), (PAL.NEL_MENU, u"Nel menu …"), (PAL.NASCOSTO, u"Nascosto")]
-_PENNELLI = BrushConverter()
 
 
 def _colore(hex_):
-    return _PENNELLI.ConvertFromString(hex_)
+    return IW.colore(hex_)
 
 
 def _aggiorna_icona_onoff(attiva):
@@ -70,9 +66,8 @@ class FinestraPalette(forms.WPFWindow):
     def _voce(self, chiave):
         if chiave == FISSA:
             return u"★ Fila fissa  (%d)" % len(self.cfg[u"fissa"])
-        voce = self.cfg[u"categorie"].get(chiave, {})
-        return u"%s  (%d + %d)" % (PAL.NOMI_CATEGORIE[chiave], len(voce.get(PAL.IN_VISTA, [])),
-                                   len(voce.get(PAL.NEL_MENU, [])))
+        n = len([i for i in self.cfg[u"categorie"].get(chiave, []) if i not in self.cfg[u"fissa"]])
+        return u"%s  (%d)" % (PAL.NOMI_CATEGORIE[chiave], n)
 
     def riempi_categorie(self, selezione=None):
         sel = self.lstCategorie.SelectedIndex if selezione is None else selezione
@@ -97,62 +92,28 @@ class FinestraPalette(forms.WPFWindow):
         self.chiave = self.voci[self.lstCategorie.SelectedIndex]
         self.riempi_comandi()
 
-    # --- comandi a destra ---------------------------------------------------------
-    def _etichetta(self, cmd, nota=None):
-        icona = Path()
-        icona.Data = Geometry.Parse(cmd.icona)
-        icona.Fill = _colore("#0369A1")
-        icona.Width = 16
-        icona.Height = 16
-        icona.Stretch = Stretch.Uniform
+    # --- caselle a destra ---------------------------------------------------------
+    def _casella(self, cmd, spuntata, nota=None):
+        icona = IW.crea_icona(cmd.icona, 16)
         icona.Margin = Thickness(0, 0, 8, 0)
         testo = TextBlock()
         testo.Text = cmd.etichetta if not nota else u"%s  (%s)" % (cmd.etichetta, nota)
         testo.VerticalAlignment = VerticalAlignment.Center
-        if nota:
-            testo.Foreground = _colore("#94A3B8")
         riga = StackPanel()
         riga.Orientation = Orientation.Horizontal
         riga.Children.Add(icona)
         riga.Children.Add(testo)
-        riga.ToolTip = cmd.suggerimento
-        return riga
-
-    def _riga_livello(self, cmd):
-        """Icona e nome a sinistra, tendina In palette / Nel menu / Nascosto a destra."""
-        g = Grid()
-        g.Margin = Thickness(0, 2, 0, 2)
-        c1 = ColumnDefinition()
-        c1.Width = GridLength(1, GridUnitType.Star)
-        c2 = ColumnDefinition()
-        c2.Width = GridLength(120)
-        g.ColumnDefinitions.Add(c1)
-        g.ColumnDefinitions.Add(c2)
-        in_fissa = cmd.id in self.cfg[u"fissa"]
-        nome = self._etichetta(cmd, u"nella fila fissa" if in_fissa else None)
-        g.Children.Add(nome)
-        if not in_fissa:
-            combo = ComboBox()
-            for _, testo in LIVELLI:
-                combo.Items.Add(testo)
-            attuale = PAL.livello(self.cfg, self.chiave, cmd.id)
-            combo.SelectedIndex = [l for l, _ in LIVELLI].index(attuale)
-            combo.Tag = cmd.id
-            combo.FontSize = 11
-            combo.SelectionChanged += self.su_livello
-            Grid.SetColumn(combo, 1)
-            g.Children.Add(combo)
-        return g
-
-    def _casella_fissa(self, cmd):
         c = CheckBox()
-        c.Content = self._etichetta(cmd)
-        c.IsChecked = cmd.id in self.cfg[u"fissa"]
+        c.Content = riga
+        c.ToolTip = cmd.suggerimento
+        c.IsChecked = spuntata
         c.Tag = cmd.id
-        c.Click += self.su_fissa
+        if nota:
+            c.IsEnabled = False
+        c.Click += self.su_casella
         return c
 
-    def _titolo_gruppo(self, testo):
+    def _titolo_famiglia(self, testo):
         t = TextBlock()
         t.Text = testo
         t.FontWeight = FontWeights.SemiBold
@@ -167,44 +128,45 @@ class FinestraPalette(forms.WPFWindow):
         self.btnCopiaTutte.IsEnabled = not fissa
         if fissa:
             self.txtCategoria.Text = u"Fila fissa (tutte le categorie)"
+            ammessi = None
+            scelti = set(self.cfg[u"fissa"])
         else:
             self.txtCategoria.Text = PAL.NOMI_CATEGORIE[self.chiave]
-        ammessi = None if fissa else set(PAL.ammessi_per_categoria(self.chiave))
-        for gruppo, titolo in PAL.TITOLI_GRUPPI:
-            comandi = [c for c in PAL.CATALOGO if c.gruppo == gruppo
+            ammessi = set(PAL.ammessi_per_categoria(self.chiave))
+            scelti = set(self.cfg[u"categorie"].get(self.chiave, []))
+        for fid, nome in PAL.FAMIGLIE:
+            comandi = [c for c in PAL.CATALOGO if c.famiglia == fid
                        and (ammessi is None or c.id in ammessi)]
             if not comandi:
                 continue
-            pnl.Children.Add(self._titolo_gruppo(titolo))
+            pnl.Children.Add(self._titolo_famiglia(nome))
             for cmd in comandi:
-                pnl.Children.Add(self._casella_fissa(cmd) if fissa else self._riga_livello(cmd))
+                if not fissa and cmd.id in self.cfg[u"fissa"]:
+                    pnl.Children.Add(self._casella(cmd, True, u"nella fila fissa"))
+                else:
+                    pnl.Children.Add(self._casella(cmd, cmd.id in scelti))
         self.aggiorna_conteggio()
 
     def aggiorna_conteggio(self):
         if self.chiave == FISSA:
             self.txtConteggio.Text = u"%d / %d" % (len(self.cfg[u"fissa"]), PAL.MAX_FISSA)
         else:
-            n = len(self.cfg[u"categorie"][self.chiave][PAL.IN_VISTA])
-            self.txtConteggio.Text = u"In palette: %d / %d" % (n, PAL.MAX_IN_VISTA)
+            self.txtConteggio.Text = u""
 
-    def su_livello(self, sender, args):
-        nuovo = LIVELLI[sender.SelectedIndex][0]
-        if not PAL.imposta_livello(self.cfg, self.chiave, sender.Tag, nuovo):
-            forms.alert(u"Nella riga della palette ci stanno al massimo %d comandi.\n"
-                        u"Mettine prima un altro nel menu." % PAL.MAX_IN_VISTA, title=TITOLO)
-            self.riempi_comandi()
-            return
-        self.aggiorna_voce_corrente()
-
-    def su_fissa(self, sender, args):
-        if not PAL.imposta_fissa(self.cfg, sender.Tag, bool(sender.IsChecked)):
-            forms.alert(u"Nella fila fissa ci stanno al massimo %d comandi." % PAL.MAX_FISSA,
-                        title=TITOLO)
-            sender.IsChecked = False
-            return
-        # un comando entrato/uscito dalla fila fissa cambia anche le categorie
-        self.riempi_categorie()
-        self.aggiorna_conteggio()
+    def su_casella(self, sender, args):
+        attivo = bool(sender.IsChecked)
+        if self.chiave == FISSA:
+            if not PAL.imposta_fissa(self.cfg, sender.Tag, attivo):
+                forms.alert(u"Nella fila fissa ci stanno al massimo %d strumenti." % PAL.MAX_FISSA,
+                            title=TITOLO)
+                sender.IsChecked = False
+                return
+            # entrare/uscire dalla fila fissa cambia anche le categorie
+            self.riempi_categorie()
+            self.aggiorna_conteggio()
+        else:
+            PAL.imposta_comando(self.cfg, self.chiave, sender.Tag, attivo)
+            self.aggiorna_voce_corrente()
 
     # --- pulsanti -----------------------------------------------------------------
     def su_attiva(self, sender, args):

@@ -11,23 +11,26 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 | **Nomenclatura** | Controllo e correzione dei nomi secondo il BIMMS ADD2024 (vedi sotto) |
 
 **Palette contestuale (stile ArchiCAD).** Quando selezioni qualcosa nella vista, accanto al
-cursore compare una palette piccola (il nome di ogni tasto è nel suggerimento al passaggio del mouse):
-- **riga principale**: in blu gli strumenti CDV della categoria (es. Inverti muro; per le viste in
-  tavola i gruppi Titoli / Allinea viste si aprono come menu), poi i comandi **in vista** (di
-  serie Sposta, Copia, Ruota, Specchia: i comandi di Revit, partono con la selezione già fatta)
-  e il tasto **…** che apre il menu con tutto il resto, diviso in Modifica, Selezione e Visibilità;
-- **fila fissa**, più piccola e uguale per tutte le categorie: Nascondi elementi, Nascondi
+cursore compare una palette piccola:
+- **sopra, la fila fissa**, uguale per tutte le categorie: Nascondi elementi, Nascondi
   categoria, Mezzitoni, **Copia grafica** (come il matchprop di AutoCAD: con un elemento
   selezionato clicchi quelli a cui copiarne la grafica nella vista, Esc per finire; con più
-  elementi selezionati clicchi quello da cui copiarla) e Blocca/Sblocca.
+  elementi selezionati clicchi quello da cui copiarla) e Blocca/Sblocca;
+- **sotto, i tasti famiglia**: prima, in azzurro con bordo blu, gli strumenti CDV della
+  selezione (vedi sotto), poi **Trasforma** (Sposta, Copia, Ruota, Specchia, Serie, Scala),
+  **Forma** (Allinea, Offset, Dividi, Taglia/Estendi, Crea simile), **Seleziona** (stesso tipo
+  nella vista o nel progetto, stessa categoria), **Isola** (temporaneo). Il tasto mostra
+  l'ultimo strumento usato della famiglia e un clic lo rifà; **passando sopra** si apre la
+  griglia con tutti gli strumenti, icona e nome.
 
-Con una selezione mista compaiono solo i comandi comuni. Durante un comando la palette sparisce
-e torna a comando finito. Se la selezione arriva dal browser di progetto la palette va sul bordo
-superiore della selezione. **Palette On/Off** (pannello Modellazione) la spegne o la riaccende;
-lo stato resta dopo il riavvio. **Personalizza Palette** apre una finestra dove scegli, per ogni
-categoria, quali comandi stanno nella riga (al massimo 5), quali nel menu … e quali nascondere,
-e quali tasti formano la fila fissa (al massimo 6); vale subito, senza riavviare. Le scelte
-stanno in `%APPDATA%\pyRevit\CDVTools\palette.json`.
+I comandi di modifica sono quelli di Revit e partono con la selezione già fatta; durante un
+comando la palette sparisce e torna a comando finito. Le icone sono disegnate da noi nello
+stile di Revit (blu l'oggetto, arancio l'azione). Con una selezione mista compaiono solo gli
+strumenti comuni. Se la selezione arriva dal browser di progetto la palette va sul bordo
+superiore della selezione. **Palette On/Off** (pannello Modellazione) la spegne o la
+riaccende; lo stato resta dopo il riavvio. **Personalizza Palette** apre una finestra dove
+spunti, per ogni categoria, gli strumenti di ogni famiglia e scegli la fila fissa (al massimo
+6); vale subito, senza riavviare. Le scelte stanno in `%APPDATA%\pyRevit\CDVTools\palette.json`.
 
 Strumenti CDV della categoria (in tavola, cliccare il titolo seleziona la vista):
 - linea di sezione o riquadro di una sezione con sfondo attivo: **Profondità sezione**
@@ -37,6 +40,9 @@ Strumenti CDV della categoria (in tavola, cliccare il titolo seleziona la vista)
 - due o più viste/titoli: incolonna/in riga i titoli, stessa distanza, stessa linea,
   allinea i riquadri (sinistra, centro, destra, alto, basso, coordinate del modello);
 - tre o più: distribuisci in orizzontale/verticale.
+- due o più oggetti del modello o di dettaglio: **Allinea oggetti** (sinistra, centro, destra,
+  alto, basso sull'oggetto più esterno; i centri sul centro del gruppo) e, da tre, **Distribuisci
+  oggetti** (gli estremi restano fermi); oggetti bloccati o in gruppi vengono saltati.
 - uno o più muri: **Inverti muro sul centro** (Maiusc+clic: linea di ubicazione su Asse del muro);
   accanto a ogni muro selezionato compaiono le lettere **E** (esterno, rossa) e **I** (interno, blu)
   sui due lati, in pianta e in sezione, così si vede subito come è girata la stratigrafia.

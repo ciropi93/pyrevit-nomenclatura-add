@@ -40,11 +40,13 @@ import System
 from System import Double, EventHandler, IntPtr, TimeSpan
 from System.Windows import Point, Size, SystemParameters, Thickness, Visibility
 from System.Windows import CornerRadius, FontWeights, HorizontalAlignment, VerticalAlignment
-from System.Windows.Controls import Border, Button, Canvas, Orientation, StackPanel, TextBlock
+from System.Windows import TextAlignment, TextWrapping
+from System.Windows.Controls import (Border, Button, Canvas, Grid, Orientation, StackPanel,
+                                     TextBlock, WrapPanel)
 from System.Windows.Input import Keyboard, ModifierKeys
 from System.Windows.Interop import WindowInteropHelper
 from System.Windows.Markup import XamlReader
-from System.Windows.Media import BrushConverter, Geometry, Stretch
+from System.Windows.Media import BrushConverter, Geometry
 from System.Windows.Shapes import Path
 from System.Windows.Threading import DispatcherTimer
 from System.Windows.Forms import Control, MouseButtons
@@ -57,6 +59,8 @@ import profondita_sezione as PS
 import tasti_contestuali as TC
 import palette as PAL
 import palette_azioni as PA
+import allinea_oggetti as AO
+import icone_wpf as IW
 
 
 # Stessa chiave della prima versione: al Reload spegne anche il vecchio pannello
@@ -71,7 +75,6 @@ SCRIPT_INVERTI_MURO = os.path.join(
     u"CDV Tools.tab", u"Modellazione.panel", u"FlipWallCenter.pushbutton", u"script.py",
 )
 DIM_TASTO = 22
-DIM_ICONA = 14
 DIM_LETTERA = 14          # cerchietto della lettera E / I
 DISTACCO_LETTERA = 10     # pixel tra la faccia del muro e il centro della lettera
 CONTROLLO_MOUSE_MS = 40   # ogni quanto si guarda se la vista si sta spostando
@@ -108,21 +111,28 @@ _STILI = u"""
         </Setter.Value>
       </Setter>
     </Style>
-    <!-- strumento CDV della categoria: blu pieno -->
-    <Style x:Key="Primario" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Background" Value="#0369A1"/>
+    <!-- tasto famiglia (riga sotto) -->
+    <Style x:Key="Famiglia" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Width" Value="28"/>
+      <Setter Property="Height" Value="26"/>
+    </Style>
+    <!-- famiglia di strumenti CDV della categoria: sfondo azzurro con bordo blu -->
+    <Style x:Key="FamigliaCdv" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Width" Value="28"/>
+      <Setter Property="Height" Value="26"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="sfondo" Background="{TemplateBinding Background}" CornerRadius="3">
+            <Border x:Name="sfondo" Background="#E5EEF7" BorderBrush="#1F6FB2" BorderThickness="1"
+                    CornerRadius="3">
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="sfondo" Property="Background" Value="#075985"/>
+                <Setter TargetName="sfondo" Property="Background" Value="#CFE3F4"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="sfondo" Property="Background" Value="#0C4A6E"/>
+                <Setter TargetName="sfondo" Property="Background" Value="#BAE6FD"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -131,16 +141,14 @@ _STILI = u"""
     </Style>
     <!-- fila fissa: tasti piccoli -->
     <Style x:Key="Piccolo" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Width" Value="18"/>
-      <Setter Property="Height" Value="18"/>
+      <Setter Property="Width" Value="19"/>
+      <Setter Property="Height" Value="19"/>
     </Style>
-    <!-- voce del menu "..." -->
-    <Style x:Key="Voce" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Width" Value="NaN"/>
-      <Setter Property="Height" Value="24"/>
-      <Setter Property="Margin" Value="0"/>
-      <Setter Property="Padding" Value="10,0,14,0"/>
-      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+    <!-- casella della griglia che si apre sopra una famiglia: icona e nome -->
+    <Style x:Key="Casella" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Width" Value="68"/>
+      <Setter Property="Height" Value="56"/>
+      <Setter Property="Margin" Value="1"/>
     </Style>
   </Window.Resources>
 """
@@ -163,12 +171,11 @@ _FINESTRA = u"""
 """
 
 XAML = _FINESTRA % (_STILI, 5, u"2", 4)
-XAML_MENU = _FINESTRA % (_STILI, 6, u"0,4,0,4", 8)
+XAML_MENU = _FINESTRA % (_STILI, 8, u"6", 8)
 
-# Icona del tasto "..." (tre punti)
-ICONA_ALTRO = (u"M3,6.5 A1.5,1.5 0 1 1 3,9.5 A1.5,1.5 0 1 1 3,6.5 Z "
-               u"M8,6.5 A1.5,1.5 0 1 1 8,9.5 A1.5,1.5 0 1 1 8,6.5 Z "
-               u"M13,6.5 A1.5,1.5 0 1 1 13,9.5 A1.5,1.5 0 1 1 13,6.5 Z")
+TEMPO_APERTURA_MS = 250   # mouse fermo su una famiglia: si apre la griglia
+TEMPO_CHIUSURA_MS = 350   # mouse fuori da famiglia e griglia: si chiude
+CASELLE_PER_RIGA = 3
 
 # Finestra trasparente sopra la vista per le lettere E / I: non riceve clic
 XAML_LETTERE = u"""
@@ -285,11 +292,13 @@ def _gruppi_cdv(doc, elementi):
     """Strumenti CDV legati al contesto: (gruppi, madre_uid).
 
     Muri: Inverti sul centro. Soli riquadri di vista (in tavola) o una sola linea di
-    sezione/prospetto: Profondita' Sezione e allineamenti in tavola.
+    sezione/prospetto: Profondita' Sezione e allineamenti in tavola. Altri oggetti
+    (2 o piu'): allinea e distribuisci nella vista.
     """
     muri = [e for e in elementi if isinstance(e, DB.Wall)]
     if muri and len(muri) == len(elementi):
-        return TC.comandi_per_selezione(0, in_tavola=False, n_muri=len(muri)), None
+        return TC.comandi_per_selezione(0, in_tavola=False, n_muri=len(muri),
+                                        n_oggetti=len(muri)), None
     viewports = [e for e in elementi if isinstance(e, DB.Viewport)]
     viewers = [e for e in elementi if _e_viewer(e)]
 
@@ -297,6 +306,9 @@ def _gruppi_cdv(doc, elementi):
         voci = None
     elif len(viewers) == 1 and len(elementi) == 1:
         voci = [(u"viewer", viewers[0].Name)]
+    elif not viewports:
+        # oggetti del modello o di dettaglio: allinea / distribuisci da 2 in su
+        return TC.comandi_per_selezione(0, in_tavola=False, n_oggetti=len(elementi)), None
     else:
         return [], None
 
@@ -447,6 +459,8 @@ class _GestoreAzione(UI.IExternalEventHandler):
                     return
                 if msg:
                     _toast(msg)
+            elif comando in AO.COMANDI:
+                _toast(AO.esegui(uidoc, comando))
             elif comando == TC.SEZIONE_APRI:
                 _apri_profondita(uid)
             elif comando == TC.SEZIONE_SINCRONIZZA:
@@ -784,8 +798,14 @@ class TastiOverlay(object):
         self.ancora = None          # punto del clic, in coordinate della vista
         self.sospesa = False        # comando in corso: palette via fino alla fine
         self.sospesa_revit = False  # ... ed e' un comando di Revit (torna con DocumentChanged)
-        self.win_menu = None        # menu "..." (o di un gruppo CDV)
-        self.menu_da = None         # tasto che ha aperto il menu
+        self.win_menu = None        # griglia della famiglia sotto il mouse
+        self.menu_da = None         # tasto famiglia che l'ha aperta
+        self.da_aprire = None
+        self.t_apri = None
+        self.t_chiudi = None
+        self.famiglie = {}          # id famiglia -> (tasto, famiglia)
+        self.fam_di = {}            # comando -> id famiglia
+        self.ultimi = {}            # id famiglia -> ultimo strumento usato (in questa sessione)
 
     # --- finestra -------------------------------------------------------------
     def _crea_finestra(self):
@@ -921,98 +941,92 @@ class TastiOverlay(object):
             self.win_lettere.Show()
 
     # --- costruzione della palette -------------------------------------------
-    def _icona(self, tracciato, colore, dim=DIM_ICONA):
-        icona = Path()
-        icona.Data = Geometry.Parse(tracciato or u"M2,2 H14 V14 H2 Z")
-        icona.Fill = _colore(colore)
-        icona.Width = dim
-        icona.Height = dim
-        icona.Stretch = Stretch.Uniform
-        return icona
+    def _icona(self, comando, dim, colore_singolo="#1F6FB2"):
+        dati = PAL.ICONE.get(comando) or TC.ICONE.get(comando)
+        return IW.crea_icona(dati, dim, colore_singolo)
 
-    def _tracciato(self, comando):
-        cmd = PAL.PER_ID.get(comando)
-        return cmd.icona if cmd is not None else TC.ICONE.get(comando)
-
-    def _tasto(self, comando, etichetta, suggerimento, stile=None, colore="#0369A1", dim=DIM_ICONA):
+    def _tasto(self, comando, etichetta, suggerimento, stile, dim):
         b = Button()
-        if stile:
-            b.Style = self.win.FindResource(stile)
-        b.Content = self._icona(self._tracciato(comando), colore, dim)
+        b.Style = self.win.FindResource(stile)
+        b.Content = self._icona(comando, dim, "#475569" if stile == u"Piccolo" else "#1F6FB2")
         b.ToolTip = u"%s\n%s" % (etichetta, suggerimento)
         b.Click += lambda s, a: self._esegui(comando)
         return b
 
-    def _tasto_menu(self, tracciato, suggerimento, sezioni, stile=None, colore="#475569"):
-        """Tasto che apre un menu (il "..." o un gruppo di strumenti CDV)."""
+    def _contenuto_famiglia(self, fam):
+        """Icona dell'ultimo strumento usato, con il triangolino se ce ne sono altri."""
+        voci = fam[u"voci"]
+        corrente = self.ultimi.get(fam[u"id"])
+        if corrente not in [v[0] for v in voci]:
+            corrente = voci[0][0]
+        g = Grid()
+        g.Width = 26
+        g.Height = 24
+        icona = self._icona(corrente, 16)
+        icona.HorizontalAlignment = HorizontalAlignment.Center
+        icona.VerticalAlignment = VerticalAlignment.Center
+        g.Children.Add(icona)
+        if len(voci) > 1:
+            tri = Path()
+            tri.Data = Geometry.Parse(u"M5,0 V5 H0 Z")
+            tri.Fill = _colore("#94A3B8")
+            tri.HorizontalAlignment = HorizontalAlignment.Right
+            tri.VerticalAlignment = VerticalAlignment.Bottom
+            tri.Margin = Thickness(0, 0, 2, 2)
+            g.Children.Add(tri)
+        return g, corrente
+
+    def _tasto_famiglia(self, fam):
         b = Button()
-        if stile:
-            b.Style = self.win.FindResource(stile)
-        riga = StackPanel()
-        riga.Orientation = Orientation.Horizontal
-        riga.Children.Add(self._icona(tracciato, colore, DIM_ICONA if not stile else 13))
-        if stile == u"Primario":
-            b.Width = 30
-            freccia = self._icona(u"M0,0 H8 L4,5 Z", colore, 5)
-            freccia.Margin = Thickness(2, 0, 0, 0)
-            riga.Children.Add(freccia)
-        b.Content = riga
-        b.ToolTip = suggerimento
-        b.Click += lambda s, a: self._apri_menu(b, sezioni)
+        b.Style = self.win.FindResource(u"FamigliaCdv" if fam[u"cdv"] else u"Famiglia")
+        self._aggiorna_famiglia(b, fam)
+        b.Click += lambda s, a: self._esegui(b.Tag)
+        b.MouseEnter += lambda s, a: self._entra_famiglia(b, fam)
+        b.MouseLeave += lambda s, a: self._esci()
         return b
 
-    def _separatore(self):
-        sep = Border()
-        sep.Width = 1
-        sep.Height = 16
-        sep.Margin = Thickness(3, 0, 3, 0)
-        sep.Background = _colore("#CBD5E1")
-        return sep
+    def _aggiorna_famiglia(self, b, fam):
+        contenuto, corrente = self._contenuto_famiglia(fam)
+        b.Content = contenuto
+        b.Tag = corrente
+        nome = [v[1] for v in fam[u"voci"] if v[0] == corrente][0]
+        b.ToolTip = None if len(fam[u"voci"]) > 1 else u"%s\n%s" % (nome, fam[u"voci"][0][2])
 
     def _riempi(self, st):
-        """Riga principale (CDV in blu | comandi in vista | ...) e sotto la fila fissa."""
+        """Sopra la fila fissa (piccola), sotto una riga di tasti famiglia."""
         self._chiudi_menu()
         pnl = self.win.FindName("pnlTasti")
         pnl.Children.Clear()
-        riga = StackPanel()
-        riga.Orientation = Orientation.Horizontal
-        for v in st[u"cdv"]:
-            if v[0] == u"tasto":
-                riga.Children.Add(self._tasto(v[1], v[2], v[3], stile=u"Primario", colore="#FFFFFF"))
-            else:
-                nome, tasti = v[1], v[2]
-                riga.Children.Add(self._tasto_menu(self._tracciato(tasti[0][0]), nome,
-                                                   [(nome, tasti)], stile=u"Primario",
-                                                   colore="#FFFFFF"))
-        if st[u"cdv"] and (st[u"vista"] or st[u"menu"]):
-            riga.Children.Add(self._separatore())
-        for comando, etichetta, suggerimento in st[u"vista"]:
-            riga.Children.Add(self._tasto(comando, etichetta, suggerimento))
-        if st[u"menu"]:
-            if st[u"vista"]:
-                riga.Children.Add(self._separatore())
-            riga.Children.Add(self._tasto_menu(ICONA_ALTRO, u"Altri comandi", st[u"menu"]))
-        if riga.Children.Count:
-            pnl.Children.Add(riga)
+        self.famiglie = {}
+        self.fam_di = {}
         if st[u"fissa"]:
             fila = StackPanel()
             fila.Orientation = Orientation.Horizontal
             for comando, etichetta, suggerimento in st[u"fissa"]:
-                fila.Children.Add(self._tasto(comando, etichetta, suggerimento, stile=u"Piccolo",
-                                              colore="#475569", dim=12))
+                fila.Children.Add(self._tasto(comando, etichetta, suggerimento, u"Piccolo", 13))
             fondo = Border()
             fondo.Child = fila
             fondo.Background = _colore("#F1F5F9")
-            fondo.CornerRadius = CornerRadius(3)
+            fondo.CornerRadius = CornerRadius(4)
             fondo.Padding = Thickness(1)
             fondo.HorizontalAlignment = HorizontalAlignment.Left
-            if riga.Children.Count:
-                fondo.Margin = Thickness(0, 2, 0, 0)
             pnl.Children.Add(fondo)
+        if st[u"famiglie"]:
+            riga = StackPanel()
+            riga.Orientation = Orientation.Horizontal
+            if st[u"fissa"]:
+                riga.Margin = Thickness(0, 2, 0, 0)
+            for fam in st[u"famiglie"]:
+                b = self._tasto_famiglia(fam)
+                self.famiglie[fam[u"id"]] = (b, fam)
+                for v in fam[u"voci"]:
+                    self.fam_di[v[0]] = fam[u"id"]
+                riga.Children.Add(b)
+            pnl.Children.Add(riga)
         self.win.Content.Measure(Size(Double.PositiveInfinity, Double.PositiveInfinity))
         self.ultima_pos = None
 
-    # --- menu "..." -------------------------------------------------------------
+    # --- griglia che si apre sopra una famiglia --------------------------------
     def _crea_menu(self):
         win = XamlReader.Parse(XAML_MENU)
         try:
@@ -1020,65 +1034,115 @@ class TastiOverlay(object):
         except Exception:
             win.Topmost = True
         _non_attivabile(win)
+        win.MouseEnter += lambda s, a: self.t_chiudi.Stop()
+        win.MouseLeave += lambda s, a: self._esci()
         self.win_menu = win
+        self.t_apri = DispatcherTimer()
+        self.t_apri.Interval = TimeSpan.FromMilliseconds(TEMPO_APERTURA_MS)
+        self.t_apri.Tick += self._su_t_apri
+        self.t_chiudi = DispatcherTimer()
+        self.t_chiudi.Interval = TimeSpan.FromMilliseconds(TEMPO_CHIUSURA_MS)
+        self.t_chiudi.Tick += self._su_t_chiudi
 
-    def _voce_menu(self, comando, etichetta, suggerimento):
+    def _entra_famiglia(self, tasto, fam):
+        if self.win_menu is None:
+            self._crea_menu()
+        self.t_chiudi.Stop()
+        if len(fam[u"voci"]) < 2:
+            self._chiudi_menu()
+            return
+        self.da_aprire = (tasto, fam)
+        if self.win_menu.Visibility == Visibility.Visible:
+            self._apri_menu(tasto, fam)      # gia' aperta su un'altra famiglia: cambia subito
+        else:
+            self.t_apri.Stop()
+            self.t_apri.Start()
+
+    def _esci(self):
+        if self.win_menu is None:
+            return
+        self.t_apri.Stop()
+        self.t_chiudi.Stop()
+        self.t_chiudi.Start()
+
+    def _su_t_apri(self, sender, args):
+        self.t_apri.Stop()
+        if self.da_aprire is not None and self.da_aprire[0].IsMouseOver:
+            self._apri_menu(*self.da_aprire)
+
+    def _su_t_chiudi(self, sender, args):
+        self.t_chiudi.Stop()
+        if self.win_menu is not None and self.win_menu.IsMouseOver:
+            return
+        if self.menu_da is not None and self.menu_da.IsMouseOver:
+            return
+        self._chiudi_menu()
+
+    def _casella(self, fam_id, comando, etichetta, suggerimento):
         b = Button()
-        b.Style = self.win_menu.FindResource(u"Voce")
-        riga = StackPanel()
-        riga.Orientation = Orientation.Horizontal
-        riga.Children.Add(self._icona(self._tracciato(comando), "#0369A1"))
+        b.Style = self.win_menu.FindResource(u"Casella")
+        cella = StackPanel()
+        icona = self._icona(comando, 22)
+        icona.HorizontalAlignment = HorizontalAlignment.Center
+        cella.Children.Add(icona)
         t = TextBlock()
         t.Text = etichetta
-        t.Margin = Thickness(8, 0, 0, 0)
-        t.Foreground = _colore("#0F172A")
-        t.VerticalAlignment = VerticalAlignment.Center
-        riga.Children.Add(t)
-        b.Content = riga
+        t.FontSize = 10.5
+        t.Foreground = _colore("#1E293B")
+        t.TextAlignment = TextAlignment.Center
+        t.TextWrapping = TextWrapping.Wrap
+        t.MaxWidth = 64
+        t.Margin = Thickness(0, 3, 0, 0)
+        cella.Children.Add(t)
+        b.Content = cella
         b.ToolTip = suggerimento
-        b.HorizontalAlignment = HorizontalAlignment.Stretch
         b.Click += lambda s, a: self._esegui(comando)
+        if comando == self.ultimi.get(fam_id):
+            b.Background = _colore("#F0F9FF")
         return b
 
-    def _apri_menu(self, tasto, sezioni):
-        if self.menu_da is tasto and self.win_menu is not None \
-                and self.win_menu.Visibility == Visibility.Visible:
-            self._chiudi_menu()     # secondo clic sullo stesso tasto: chiude
-            return
+    def _apri_menu(self, tasto, fam):
         if self.win_menu is None:
             self._crea_menu()
         pnl = self.win_menu.FindName("pnlTasti")
         pnl.Children.Clear()
-        for titolo, tasti in sezioni:
-            t = TextBlock()
-            t.Text = titolo.upper()
-            t.FontSize = 10
-            t.FontWeight = FontWeights.SemiBold
-            t.Foreground = _colore("#64748B")
-            t.Margin = Thickness(10, 6 if pnl.Children.Count else 2, 10, 2)
-            pnl.Children.Add(t)
-            for comando, etichetta, suggerimento in tasti:
-                pnl.Children.Add(self._voce_menu(comando, etichetta, suggerimento))
+        t = TextBlock()
+        t.Text = fam[u"nome"].upper()
+        t.FontSize = 10
+        t.FontWeight = FontWeights.SemiBold
+        t.Foreground = _colore("#64748B")
+        t.Margin = Thickness(4, 0, 4, 4)
+        pnl.Children.Add(t)
+        griglia = WrapPanel()
+        griglia.Width = CASELLE_PER_RIGA * 70
+        for comando, etichetta, suggerimento in fam[u"voci"]:
+            griglia.Children.Add(self._casella(fam[u"id"], comando, etichetta, suggerimento))
+        pnl.Children.Add(griglia)
         self.win_menu.Content.Measure(Size(Double.PositiveInfinity, Double.PositiveInfinity))
         dim = self.win_menu.Content.DesiredSize
-        # sotto il tasto, allineato a sinistra; sopra se in basso non c'e' posto
+        # sotto la palette, allineata al suo bordo sinistro; sopra se in basso non c'e' posto
         k = self.scala
-        basso_sx = tasto.PointToScreen(Point(0, tasto.ActualHeight))
-        alto_sx = tasto.PointToScreen(Point(0, 0))
-        x, y = basso_sx.X / k, basso_sx.Y / k + 2
+        alto = self.win.PointToScreen(Point(0, 0))
+        basso = tasto.PointToScreen(Point(0, tasto.ActualHeight))
+        x, y = alto.X / k, basso.Y / k + 4
         schermo = SystemParameters.WorkArea
         if y + dim.Height > schermo.Bottom:
-            y = alto_sx.Y / k - dim.Height - 2
+            y = alto.Y / k - dim.Height - 2
         if x + dim.Width > schermo.Right:
             x = schermo.Right - dim.Width
         self.win_menu.Left, self.win_menu.Top = x, y
         self.menu_da = tasto
-        self.win_menu.Show()
+        if self.win_menu.Visibility != Visibility.Visible:
+            self.win_menu.Show()
 
     def _chiudi_menu(self):
         self.menu_da = None
-        if self.win_menu is not None and self.win_menu.Visibility == Visibility.Visible:
-            self.win_menu.Hide()
+        self.da_aprire = None
+        if self.win_menu is not None:
+            self.t_apri.Stop()
+            self.t_chiudi.Stop()
+            if self.win_menu.Visibility == Visibility.Visible:
+                self.win_menu.Hide()
 
     def riposiziona(self, uidoc):
         """Mette la palette accanto al punto del clic (o sul bordo superiore della selezione
@@ -1128,7 +1192,7 @@ class TastiOverlay(object):
             self._crea_finestra()
         self.madre_uid = madre_uid
         self.ids = list(ids)
-        self.muri = any(v[0] == u"tasto" and v[1] == TC.MURO_INVERTI for v in struttura[u"cdv"])
+        self.muri = any(v[0] == TC.MURO_INVERTI for f in struttura[u"famiglie"] for v in f[u"voci"])
         self.ultime_lettere = None
         self.cache_muri = {}
         self.ancora = self._ancora_cursore(uidoc)
@@ -1177,6 +1241,12 @@ class TastiOverlay(object):
         except Exception:
             self.gestore.maiuscolo = False
         self._chiudi_menu()
+        fam_id = self.fam_di.get(comando)
+        if fam_id is not None:
+            self.ultimi[fam_id] = comando
+            if fam_id in self.famiglie:
+                b, fam = self.famiglie[fam_id]
+                self._aggiorna_famiglia(b, fam)
         cmd = PAL.PER_ID.get(comando)
         if cmd is not None and (cmd.esecuzione == PAL.REVIT or cmd.interattivo):
             # Sposta, Copia, Copia grafica...: la palette si toglie e torna a comando

@@ -30,6 +30,22 @@ _MURI = [
      u"Maiusc+clic: linea di ubicazione su Asse del muro"),
 ]
 
+# Due o piu' oggetti del modello/dettaglio (non riquadri di vista): allinea e distribuisci
+_OGGETTI_ALLINEA = [
+    (u"ogg_sinistra", u"Sinistra", u"Allinea a sinistra sull'oggetto più a sinistra (annullabile)"),
+    (u"ogg_centro_x", u"Centro X", u"Centri sulla stessa verticale, al centro del gruppo (annullabile)"),
+    (u"ogg_destra", u"Destra", u"Allinea a destra sull'oggetto più a destra (annullabile)"),
+    (u"ogg_alto", u"Alto", u"Allinea in alto sull'oggetto più in alto (annullabile)"),
+    (u"ogg_centro_y", u"Centro Y", u"Centri sulla stessa orizzontale, al centro del gruppo (annullabile)"),
+    (u"ogg_basso", u"Basso", u"Allinea in basso sull'oggetto più in basso (annullabile)"),
+]
+_OGGETTI_DISTRIBUISCI = [
+    (u"ogg_distribuisci_x", u"Orizzontale",
+     u"Stessa distanza tra gli oggetti in orizzontale (gli estremi restano fermi)"),
+    (u"ogg_distribuisci_y", u"Verticale",
+     u"Stessa distanza tra gli oggetti in verticale (gli estremi restano fermi)"),
+]
+
 _TITOLO_SINGOLO = [
     (u"titolo_bordo_sinistro", u"A filo del ritaglio",
      u"Porta il titolo sul bordo sinistro del ritaglio della vista"),
@@ -76,16 +92,21 @@ def viste_distinte(id_viste, sfondo_a_madre):
 
 
 def comandi_per_selezione(n_viste, in_tavola=True, sezione_con_sfondo=False,
-                          sezione_senza_sfondo=False, n_muri=0):
+                          sezione_senza_sfondo=False, n_muri=0, n_oggetti=0):
     """Gruppi di tasti da mostrare: lista di (titolo_gruppo, [(comando, etichetta, suggerimento)]).
 
     sezione_senza_sfondo: la vista selezionata e' una sezione/prospetto su cui
     Profondita' Sezione non e' ancora attivo (si propone di attivarlo).
     n_muri: muri selezionati (la selezione e' fatta solo di muri).
+    n_oggetti: oggetti del modello o di dettaglio selezionati (per allinea/distribuisci).
     """
     gruppi = []
     if n_muri >= 1:
         gruppi.append((u"Muri", list(_MURI)))
+    if n_oggetti >= 2:
+        gruppi.append((u"Allinea oggetti", list(_OGGETTI_ALLINEA)))
+    if n_oggetti >= 3:
+        gruppi.append((u"Distribuisci oggetti", list(_OGGETTI_DISTRIBUISCI)))
     if sezione_con_sfondo and n_viste == 1:
         gruppi.append((u"Sezione", list(_SEZIONE)))
     elif sezione_senza_sfondo and n_viste == 1:
@@ -136,6 +157,14 @@ ICONE = {
                        u"A2.4,2.4 0 1 1 12,5.6 Z"),
     u"distribuisci_x": u"F1 M1,3 H4 V13 H1 Z M6.5,3 H9.5 V13 H6.5 Z M12,3 H15 V13 H12 Z",
     u"distribuisci_y": u"F1 M3,1 V4 H13 V1 Z M3,6.5 V9.5 H13 V6.5 Z M3,12 V15 H13 V12 Z",
+    u"ogg_sinistra": u"F1 M1,1 H2.5 V15 H1 Z M4,3 H14 V7 H4 Z M4,9 H10 V13 H4 Z",
+    u"ogg_centro_x": u"F1 M7.25,1 H8.75 V15 H7.25 Z M2,3 H14 V7 H2 Z M4,9 H12 V13 H4 Z",
+    u"ogg_destra": u"F1 M13.5,1 H15 V15 H13.5 Z M2,3 H12 V7 H2 Z M6,9 H12 V13 H6 Z",
+    u"ogg_alto": u"F1 M1,1 V2.5 H15 V1 Z M3,4 V14 H7 V4 Z M9,4 V10 H13 V4 Z",
+    u"ogg_centro_y": u"F1 M1,7.25 V8.75 H15 V7.25 Z M3,2 V14 H7 V2 Z M9,4 V12 H13 V4 Z",
+    u"ogg_basso": u"F1 M1,13.5 V15 H15 V13.5 Z M3,2 V12 H7 V2 Z M9,6 V12 H13 V6 Z",
+    u"ogg_distribuisci_x": u"F1 M1,3 H4 V13 H1 Z M6.5,3 H9.5 V13 H6.5 Z M12,3 H15 V13 H12 Z",
+    u"ogg_distribuisci_y": u"F1 M3,1 V4 H13 V1 Z M3,6.5 V9.5 H13 V6.5 Z M3,12 V15 H13 V12 Z",
     # asse fisso al centro, frecce opposte ai due lati
     MURO_INVERTI: (u"F1 M7.25,1 H8.75 V15 H7.25 Z M1,4.5 L4,1.5 V3.5 H6 V5.5 H4 V7.5 Z "
                    u"M15,11.5 L12,8.5 V10.5 H10 V12.5 H12 V14.5 Z"),

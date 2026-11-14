@@ -12,17 +12,31 @@ import tasti_contestuali as TC  # noqa: E402
 def test_catalogo_valido():
     ids = [c.id for c in PAL.CATALOGO]
     assert len(ids) == len(set(ids))
-    gruppi = set(g for g, _ in PAL.TITOLI_GRUPPI)
+    famiglie = [f for f, _ in PAL.FAMIGLIE]
     for c in PAL.CATALOGO:
-        assert c.gruppo in gruppi, c.id
-        assert c.icona and c.etichetta and c.suggerimento, c.id
+        assert c.famiglia in famiglie, c.id
+        assert c.etichetta and c.suggerimento, c.id
         assert c.esecuzione in (PAL.REVIT, PAL.API), c.id
         if c.esecuzione == PAL.REVIT:
             assert c.postable, c.id
         if c.categorie is not None:
             assert set(c.categorie) <= set(PAL.CHIAVI), c.id
+    # nel catalogo i comandi stanno raggruppati per famiglia, nell'ordine delle famiglie
+    ordine = [famiglie.index(c.famiglia) for c in PAL.CATALOGO]
+    assert ordine == sorted(ordine)
     # nessun conflitto con i comandi CDV contestuali
     assert not set(ids) & set(TC.ICONE)
+
+
+def test_icone_a_livelli():
+    assert set(PAL.ICONE) == set(c.id for c in PAL.CATALOGO)
+    for cid, livelli in PAL.ICONE.items():
+        assert livelli, cid
+        for liv in livelli:
+            assert liv[0] in (u"f", u"s"), cid
+            assert liv[1].startswith(u"#") and liv[2], cid
+            if liv[0] == u"s":
+                assert len(liv) >= 4 and liv[3] > 0, cid
 
 
 def test_azioni_api_hanno_una_funzione():
@@ -44,8 +58,15 @@ def test_chiave_categoria():
     assert PAL.chiave_categoria(None) == u"altro"
 
 
-def _menu_ids(st):
-    return [c for _, tasti in st[u"menu"] for c, _, _ in tasti]
+def _fam(st):
+    return [f[u"nome"] for f in st[u"famiglie"]]
+
+
+def _ids_fam(st, nome):
+    for f in st[u"famiglie"]:
+        if f[u"nome"] == nome:
+            return [v[0] for v in f[u"voci"]]
+    return []
 
 
 def _ids(lista):
@@ -58,32 +79,26 @@ def test_config_predefinita():
     assert cfg[u"fissa"] == [u"nascondi_elementi", u"nascondi_categoria", u"mezzitoni",
                              u"copia_grafica", u"blocca"]
     assert set(cfg[u"categorie"]) == set(PAL.CHIAVI)
-    for k, voce in cfg[u"categorie"].items():
-        ammessi = set(PAL.ammessi_per_categoria(k))
-        assert set(voce[PAL.IN_VISTA]) <= ammessi, k
-        assert set(voce[PAL.NEL_MENU]) <= ammessi, k
-        assert len(voce[PAL.IN_VISTA]) <= PAL.MAX_IN_VISTA, k
-        # niente doppioni tra livelli e con la fila fissa
-        assert not set(voce[PAL.IN_VISTA]) & set(voce[PAL.NEL_MENU]), k
-        assert not (set(voce[PAL.IN_VISTA]) | set(voce[PAL.NEL_MENU])) & set(cfg[u"fissa"]), k
-    assert cfg[u"categorie"][u"muri"][PAL.IN_VISTA] == [u"sposta", u"copia", u"ruota", u"specchia"]
-    assert u"offset" in cfg[u"categorie"][u"muri"][PAL.NEL_MENU]
-    assert u"offset" not in cfg[u"categorie"][u"porte"][PAL.NEL_MENU]
+    for k, ids in cfg[u"categorie"].items():
+        assert set(ids) <= set(PAL.ammessi_per_categoria(k)), k
+    assert u"offset" in cfg[u"categorie"][u"muri"]
+    assert u"offset" not in cfg[u"categorie"][u"porte"]
+    assert cfg[u"categorie"][u"viste_tavola"] == [u"sposta", u"sel_tipo_vista"]
 
 
-def test_unisci_config_scarta_comandi_ignoti_e_vecchio_formato():
+def test_unisci_config_scarta_comandi_ignoti_e_legge_il_formato_precedente():
     cfg = PAL.unisci_config({
         u"attiva": False,
         u"fissa": [u"blocca", u"inventato", u"blocca"],
-        u"categorie": {u"porte": {u"vista": [u"sposta", u"offset", u"inventato"],
-                                  u"menu": [u"sposta", u"copia"]},
-                       u"muri": [u"sposta"],                  # formato della fase 1
-                       u"categoria_ignota": {u"vista": [u"sposta"]}}})
+        u"categorie": {u"porte": [u"copia", u"offset", u"inventato", u"sposta"],
+                       u"muri": {u"vista": [u"sposta"], u"menu": [u"offset"]},
+                       u"categoria_ignota": [u"sposta"]}})
     assert cfg[u"attiva"] is False
     assert cfg[u"fissa"] == [u"blocca"]
-    assert cfg[u"categorie"][u"porte"] == {u"vista": [u"sposta"], u"menu": [u"copia"]}
+    assert cfg[u"categorie"][u"porte"] == [u"sposta", u"copia"]   # ordine del catalogo
+    assert cfg[u"categorie"][u"muri"] == [u"sposta", u"offset"]
     assert u"categoria_ignota" not in cfg[u"categorie"]
-    assert cfg[u"categorie"][u"muri"][PAL.IN_VISTA] == [u"sposta", u"copia", u"ruota", u"specchia"]
+    assert cfg[u"categorie"][u"finestre"] == PAL.config_predefinita()[u"categorie"][u"finestre"]
     assert PAL.unisci_config(None) == PAL.config_predefinita()
 
 
@@ -91,19 +106,27 @@ def test_struttura_per_un_muro():
     cfg = PAL.config_predefinita()
     cdv = [(u"Muri", [(TC.MURO_INVERTI, u"Inverti muro sul centro", u"...")])]
     st = PAL.struttura_palette([u"muri"], 1, cfg, cdv=cdv)
-    assert st[u"cdv"] == [(u"tasto", TC.MURO_INVERTI, u"Inverti muro sul centro", u"...")]
-    assert _ids(st[u"vista"]) == [u"sposta", u"copia", u"ruota", u"specchia"]
-    assert [t for t, _ in st[u"menu"]] == [u"Modifica", u"Selezione", u"Visibilità"]
-    assert u"offset" in _menu_ids(st) and u"crea_simile" in _menu_ids(st)
+    assert _fam(st) == [u"Muri", u"Trasforma", u"Forma", u"Seleziona", u"Isola"]
+    assert st[u"famiglie"][0][u"cdv"] is True
+    assert st[u"famiglie"][0][u"id"] == PAL.PREFISSO_CDV + u"Muri"
+    assert _ids_fam(st, u"Trasforma") == [u"sposta", u"copia", u"ruota", u"specchia", u"serie", u"scala"]
+    assert u"offset" in _ids_fam(st, u"Forma") and u"crea_simile" in _ids_fam(st, u"Forma")
+    # la famiglia Vista e' tutta nella fila fissa: non compare
     assert _ids(st[u"fissa"]) == cfg[u"fissa"]
-    assert not set(_menu_ids(st)) & set(_ids(st[u"fissa"]))
 
 
-def test_gruppi_cdv_grandi_diventano_menu():
+def test_famiglia_vista_compare_se_tolgo_dalla_fila_fissa():
+    cfg = PAL.copia_config(PAL.config_predefinita())
+    PAL.imposta_fissa(cfg, u"mezzitoni", False)
+    st = PAL.struttura_palette([u"porte"], 1, cfg)
+    assert _ids_fam(st, u"Vista") == [u"mezzitoni"]
+    assert u"mezzitoni" not in _ids(st[u"fissa"])
+
+
+def test_viste_in_tavola():
     cfg = PAL.config_predefinita()
     st = PAL.struttura_palette([u"viste_tavola"], 3, cfg, cdv=TC.comandi_per_selezione(3))
-    tipi = [v[0] for v in st[u"cdv"]]
-    assert tipi == [u"gruppo", u"gruppo", u"tasto", u"tasto"]   # Titoli, Allinea, Distribuisci x2
+    assert _fam(st) == [u"Titoli", u"Allinea viste", u"Distribuisci", u"Trasforma", u"Seleziona"]
     # in tavola la fila fissa tiene solo Blocca (niente visibilita' sui riquadri)
     assert _ids(st[u"fissa"]) == [u"blocca"]
 
@@ -111,9 +134,9 @@ def test_gruppi_cdv_grandi_diventano_menu():
 def test_selezione_mista_solo_comandi_comuni():
     cfg = PAL.config_predefinita()
     st = PAL.struttura_palette([u"muri", u"porte"], 2, cfg)
-    assert u"sposta" in _ids(st[u"vista"])
-    assert u"offset" not in _menu_ids(st)       # non ammesso per le porte
-    assert u"crea_simile" not in _menu_ids(st)  # solo con un elemento
+    assert u"sposta" in _ids_fam(st, u"Trasforma")
+    assert u"offset" not in _ids_fam(st, u"Forma")       # non ammesso per le porte
+    assert u"crea_simile" not in _ids_fam(st, u"Forma")  # solo con un elemento
 
 
 def test_palette_spenta_o_vuota():
@@ -126,8 +149,7 @@ def test_palette_spenta_o_vuota():
 def test_comandi_non_disponibili_spariscono():
     cfg = PAL.config_predefinita()
     st = PAL.struttura_palette([u"muri"], 1, cfg, disponibili={u"sposta", u"blocca"})
-    assert _ids(st[u"vista"]) == [u"sposta"]
-    assert st[u"menu"] == []
+    assert _fam(st) == [u"Trasforma"]
     assert _ids(st[u"fissa"]) == [u"blocca"]
 
 
@@ -174,41 +196,34 @@ def test_posizione_palette_fuori_vista():
     assert PAL.posizione_palette(None, FINESTRA, 120, 60) is None
 
 
-def test_imposta_livello_e_limite_in_vista():
+def test_imposta_comando():
     cfg = PAL.copia_config(PAL.config_predefinita())
-    assert PAL.imposta_livello(cfg, u"muri", u"offset", PAL.IN_VISTA)
-    assert PAL.livello(cfg, u"muri", u"offset") == PAL.IN_VISTA
-    assert u"offset" not in cfg[u"categorie"][u"muri"][PAL.NEL_MENU]
-    # in vista ce ne stanno al massimo 5
-    assert not PAL.imposta_livello(cfg, u"muri", u"dividi", PAL.IN_VISTA)
-    assert PAL.livello(cfg, u"muri", u"dividi") == PAL.NEL_MENU
-    assert PAL.imposta_livello(cfg, u"muri", u"dividi", PAL.NASCOSTO)
-    assert PAL.livello(cfg, u"muri", u"dividi") == PAL.NASCOSTO
-    # non ammesso o nella fila fissa: rifiutato
-    assert not PAL.imposta_livello(cfg, u"porte", u"offset", PAL.NEL_MENU)
-    assert not PAL.imposta_livello(cfg, u"muri", u"blocca", PAL.IN_VISTA)
+    assert PAL.imposta_comando(cfg, u"muri", u"offset", False)
+    assert u"offset" not in cfg[u"categorie"][u"muri"]
+    assert PAL.imposta_comando(cfg, u"muri", u"offset", True)
+    assert u"offset" in cfg[u"categorie"][u"muri"]
+    assert not PAL.imposta_comando(cfg, u"porte", u"offset", True)     # non ammesso
     # la copia non tocca l'originale
-    assert u"offset" not in PAL.config_predefinita()[u"categorie"][u"muri"][PAL.IN_VISTA]
+    PAL.imposta_comando(cfg, u"muri", u"sposta", False)
+    assert u"sposta" in PAL.config_predefinita()[u"categorie"][u"muri"]
 
 
 def test_imposta_fissa():
     cfg = PAL.copia_config(PAL.config_predefinita())
+    assert PAL.imposta_fissa(cfg, u"isola_elementi", True)              # sesto
+    assert not PAL.imposta_fissa(cfg, u"sposta", True)                  # pieno
     assert PAL.imposta_fissa(cfg, u"blocca", False)
     assert u"blocca" not in cfg[u"fissa"]
-    assert PAL.livello(cfg, u"porte", u"blocca") == PAL.NEL_MENU   # torna nel menu
-    assert PAL.imposta_fissa(cfg, u"isola_elementi", True)
-    assert PAL.livello(cfg, u"muri", u"isola_elementi") == PAL.NASCOSTO
-    assert PAL.imposta_fissa(cfg, u"sposta", True)                  # sesto
-    assert not PAL.imposta_fissa(cfg, u"copia", True)               # pieno
+    assert u"blocca" in cfg[u"categorie"][u"porte"]                     # torna nella famiglia
+    assert cfg[u"fissa"] == [u"nascondi_elementi", u"nascondi_categoria", u"mezzitoni",
+                             u"copia_grafica", u"isola_elementi"]
 
 
 def test_ripristina_e_copia_su_tutte():
     cfg = PAL.copia_config(PAL.config_predefinita())
-    cfg[u"categorie"][u"muri"] = {PAL.IN_VISTA: [u"sposta", u"offset"], PAL.NEL_MENU: [u"copia"]}
+    cfg[u"categorie"][u"muri"] = [u"sposta", u"offset"]
     PAL.copia_su_tutte(cfg, u"muri")
-    assert cfg[u"categorie"][u"linee"] == {PAL.IN_VISTA: [u"sposta", u"offset"],
-                                           PAL.NEL_MENU: [u"copia"]}
-    assert cfg[u"categorie"][u"porte"][PAL.IN_VISTA] == [u"sposta"]   # offset non ammesso
+    assert cfg[u"categorie"][u"linee"] == [u"sposta", u"offset"]
+    assert cfg[u"categorie"][u"porte"] == [u"sposta"]      # offset non ammesso
     PAL.ripristina_categoria(cfg, u"porte")
     assert cfg[u"categorie"][u"porte"] == PAL.config_predefinita()[u"categorie"][u"porte"]
-

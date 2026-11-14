@@ -47,7 +47,7 @@
             <StackPanel>
                 <TextBlock Text="Personalizza Palette" Foreground="White" FontSize="16" FontWeight="SemiBold"/>
                 <TextBlock Foreground="#CBD5E1" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
-                           Text="Per ogni categoria scegli quali comandi stanno nella riga della palette (al massimo 5), quali nel menu &#8230; e quali nascondere. La fila fissa in basso è uguale per tutte le categorie."/>
+                           Text="Per ogni categoria spunta gli strumenti che compaiono in ogni famiglia (Trasforma, Forma, Seleziona, Vista, Isola). La fila fissa in alto è uguale per tutte le categorie."/>
             </StackPanel>
         </Border>
 
