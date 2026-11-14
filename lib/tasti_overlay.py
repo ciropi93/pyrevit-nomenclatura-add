@@ -8,7 +8,9 @@ Sul bordo superiore della selezione compare una fila di tastini con icona
     "Attiva profondita' sezione" (apre la finestra per creare lo sfondo);
   - una vista in tavola: allineamento del suo titolo;
   - due o piu' viste/titoli in tavola: allineamento di titoli e riquadri;
-  - tre o piu': anche distribuzione.
+  - tre o piu': anche distribuzione;
+  - uno o piu' muri: "Inverti muro sul centro", e accanto a ogni muro le lettere
+    E (esterno) e I (interno) sui due lati, in pianta e in sezione.
 Quali tasti mostrare lo decide tasti_contestuali.py (senza API Revit).
 
 Viene attivato da startup.py dell'estensione. Usa l'evento SelectionChanged
@@ -32,7 +34,9 @@ clr.AddReference("RevitAPIUI")
 import System
 from System import Double, EventHandler, IntPtr
 from System.Windows import Size, Thickness, Visibility
-from System.Windows.Controls import Border, Button
+from System.Windows import CornerRadius, FontWeights, HorizontalAlignment, VerticalAlignment
+from System.Windows.Controls import Border, Button, Canvas, TextBlock
+from System.Windows.Input import Keyboard, ModifierKeys
 from System.Windows.Interop import WindowInteropHelper
 from System.Windows.Markup import XamlReader
 from System.Windows.Media import BrushConverter, Geometry, Stretch
@@ -53,8 +57,17 @@ SCRIPT_PROFONDITA = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     u"CDV Tools.tab", u"Grafica e Filtri.panel", u"SectionDepth.pushbutton", u"script.py",
 )
+SCRIPT_INVERTI_MURO = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    u"CDV Tools.tab", u"Modellazione.panel", u"FlipWallCenter.pushbutton", u"script.py",
+)
 DIM_TASTO = 22
 DIM_ICONA = 14
+DIM_LETTERA = 14          # cerchietto della lettera E / I
+DISTACCO_LETTERA = 10     # pixel tra la faccia del muro e il centro della lettera
+MAX_MURI_LETTERE = 150    # oltre, niente lettere (troppe per leggerle)
+COLORE_ESTERNO = "#DC2626"
+COLORE_INTERNO = "#2563EB"
 
 XAML = u"""
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -99,6 +112,17 @@ XAML = u"""
 </Window>
 """
 
+# Finestra trasparente sopra la vista per le lettere E / I: non riceve clic
+XAML_LETTERE = u"""
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
+        IsHitTestVisible="False" FontFamily="Segoe UI">
+  <Canvas x:Name="tela"/>
+</Window>
+"""
+
 _PENNELLI = BrushConverter()
 
 
@@ -122,8 +146,11 @@ def _toast(msg):
         pass
 
 
-def _non_attivabile(win):
-    """Il pannello non prende il focus: Revit resta attivo (Esc, scorciatoie, ExternalEvent)."""
+def _non_attivabile(win, trasparente_ai_clic=False):
+    """Il pannello non prende il focus: Revit resta attivo (Esc, scorciatoie, ExternalEvent).
+
+    trasparente_ai_clic: mouse e clic passano alla vista di Revit sotto (lettere E / I).
+    """
     try:
         import ctypes
         hwnd = WindowInteropHelper(win).EnsureHandle().ToInt64()
@@ -131,9 +158,12 @@ def _non_attivabile(win):
         GWL_EXSTYLE = -20
         WS_EX_NOACTIVATE = 0x08000000
         WS_EX_TOOLWINDOW = 0x00000080
+        WS_EX_TRANSPARENT = 0x00000020
         stile = user32.GetWindowLongW(ctypes.c_void_p(hwnd), GWL_EXSTYLE)
-        user32.SetWindowLongW(ctypes.c_void_p(hwnd), GWL_EXSTYLE,
-                              stile | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW)
+        stile = stile | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
+        if trasparente_ai_clic:
+            stile = stile | WS_EX_TRANSPARENT
+        user32.SetWindowLongW(ctypes.c_void_p(hwnd), GWL_EXSTYLE, stile)
     except Exception:
         pass
 
@@ -180,6 +210,11 @@ def _analizza_selezione(doc, ids):
     if doc is None or doc.IsFamilyDocument or not ids:
         return None
     elementi = [doc.GetElement(i) for i in ids]
+    muri = [e for e in elementi if isinstance(e, DB.Wall)]
+    if muri and len(muri) == len(elementi):
+        gruppi = TC.comandi_per_selezione(0, in_tavola=False, n_muri=len(muri))
+        titolo = u"Muro" if len(muri) == 1 else u"%d muri selezionati" % len(muri)
+        return titolo, gruppi, None
     viewports = [e for e in elementi if isinstance(e, DB.Viewport)]
     viewers = [e for e in elementi if _e_viewer(e)]
 
@@ -238,6 +273,13 @@ def _apri_profondita(madre_uid):
     modulo.main(madre_uid=madre_uid)
 
 
+def _inverti_muri(maiuscolo):
+    """Lancia "Inverti Muro sul Centro" sui muri selezionati (con Maiusc: su Asse del muro)."""
+    modulo = imp.load_source("cdv_flipwallcenter_script", SCRIPT_INVERTI_MURO)
+    modulo.__shiftclick__ = bool(maiuscolo)
+    modulo.main()
+
+
 def _sincronizza(doc, madre_uid):
     madre = doc.GetElement(madre_uid)
     if madre is None:
@@ -281,6 +323,7 @@ class _GestoreAzione(UI.IExternalEventHandler):
     def __init__(self):
         self.comando = None
         self.madre_uid = None
+        self.maiuscolo = False
 
     def Execute(self, uiapp):
         comando, uid = self.comando, self.madre_uid
@@ -293,6 +336,8 @@ class _GestoreAzione(UI.IExternalEventHandler):
                 _apri_profondita(uid)
             elif comando == TC.SEZIONE_SINCRONIZZA:
                 _sincronizza(uidoc.Document, uid)
+            elif comando == TC.MURO_INVERTI:
+                _inverti_muri(self.maiuscolo)
             else:
                 # Allineamenti: lavorano sulla selezione corrente della tavola attiva
                 AIT.esegui_da_ribbon(comando)
@@ -317,11 +362,11 @@ def _scala_dpi():
         g.Dispose()
 
 
-def _riquadro_selezione(uidoc, ids):
-    """(riquadro, finestra) in pixel fisici, oppure None.
+def _contesto_vista(uidoc):
+    """(vista, uv, zoom, finestra) della vista attiva, oppure None.
 
-    riquadro: ingombro sullo schermo degli elementi selezionati (riquadri di vista
-    in tavola o linea di sezione in pianta); finestra: area della vista attiva.
+    uv(XYZ) -> coordinate nel piano della vista; zoom: angoli visibili in uv;
+    finestra: area della vista sullo schermo in pixel fisici.
     """
     doc = uidoc.Document
     vista = doc.ActiveView
@@ -343,6 +388,20 @@ def _riquadro_selezione(uidoc, ids):
 
     angoli = list(uiview.GetZoomCorners())
     zoom = (uv(angoli[0]), uv(angoli[1]))
+    return vista, uv, zoom, finestra
+
+
+def _riquadro_selezione(uidoc, ids):
+    """(riquadro, finestra) in pixel fisici, oppure None.
+
+    riquadro: ingombro sullo schermo degli elementi selezionati (riquadri di vista
+    in tavola, linea di sezione o muri); finestra: area della vista attiva.
+    """
+    ctx = _contesto_vista(uidoc)
+    if ctx is None:
+        return None
+    vista, uv, zoom, finestra = ctx
+    doc = uidoc.Document
 
     punti = []
     for eid in ids:
@@ -367,6 +426,86 @@ def _riquadro_selezione(uidoc, ids):
     return riquadro, finestra
 
 
+def _lati_muro(wall):
+    """(centro, verso_esterno, mezzo_spessore) di un muro, in piedi, oppure None.
+
+    verso_esterno: versore orizzontale che punta al lato esterno (tiene conto del Flip).
+    centro: punto a meta' muro sull'asse geometrico (la curva di Revit sta sulla
+    linea di ubicazione, che puo' essere su una faccia o sul nucleo).
+    """
+    loc = wall.Location
+    curva = getattr(loc, "Curve", None)
+    if curva is None:
+        return None
+    if isinstance(curva, DB.Line):
+        medio = curva.Evaluate(0.5, True)
+        n = wall.Orientation
+    else:
+        der = curva.ComputeDerivatives(0.5, True)
+        medio = der.Origin
+        n = DB.XYZ.BasisZ.CrossProduct(der.BasisX)
+        if wall.Flipped:
+            n = n.Negate()
+    n = DB.XYZ(n.X, n.Y, 0.0)
+    if n.GetLength() < 1e-9:
+        return None
+    n = n.Normalize()
+    spessore = wall.Width
+    codice = 0
+    p = wall.get_Parameter(DB.BuiltInParameter.WALL_KEY_REF_PARAM)
+    if p is not None:
+        codice = p.AsInteger()
+    strati, primo, ultimo = None, -1, -1
+    try:
+        cs = wall.WallType.GetCompoundStructure()
+    except Exception:
+        cs = None
+    if cs is not None:
+        strati = [cs.GetLayerWidth(i) for i in range(cs.LayerCount)]
+        primo, ultimo = cs.GetFirstCoreLayerIndex(), cs.GetLastCoreLayerIndex()
+    off = TC.offset_linea_ubicazione(codice, spessore, strati, primo, ultimo)
+    centro = medio - n.Multiply(off)
+    # in sezione le lettere stanno a meta' altezza del muro
+    bb = wall.get_BoundingBox(None)
+    if bb is not None:
+        centro = DB.XYZ(centro.X, centro.Y, (bb.Min.Z + bb.Max.Z) / 2.0)
+    mezzo = (sum(strati) if strati and sum(strati) > 0 else spessore) / 2.0
+    return centro, n, mezzo
+
+
+def _posizioni_lettere(uidoc, ids, distacco):
+    """Lista di (lettera, x, y) in pixel fisici per i muri selezionati, dentro la vista."""
+    ctx = _contesto_vista(uidoc)
+    if ctx is None:
+        return None, []
+    vista, uv, zoom, finestra = ctx
+    if not isinstance(vista, (DB.ViewPlan, DB.ViewSection)):
+        return finestra, []
+    doc = uidoc.Document
+    f_sx, f_alto, f_dx, f_basso = finestra
+    out = []
+    for eid in list(ids)[:MAX_MURI_LETTERE]:
+        wall = doc.GetElement(eid)
+        if not isinstance(wall, DB.Wall):
+            continue
+        try:
+            lati = _lati_muro(wall)
+        except Exception:
+            lati = None
+        if lati is None:
+            continue
+        centro, n, mezzo = lati
+        c = TC.proietta(uv(centro), zoom, finestra)
+        e = TC.proietta(uv(centro + n), zoom, finestra)
+        pos = TC.posizioni_lati(c, e, mezzo, distacco)
+        if pos is None:
+            continue
+        for lettera, (x, y) in zip((u"E", u"I"), pos):
+            if f_sx <= x <= f_dx and f_alto <= y <= f_basso:
+                out.append((lettera, x, y))
+    return finestra, out
+
+
 # ==============================================================================
 # FILA DI TASTINI AI BORDI DELLA SELEZIONE
 # ==============================================================================
@@ -384,6 +523,9 @@ class TastiOverlay(object):
         self.ultima_pos = None
         self.scala = 1.0
         self.delegati = []
+        self.win_lettere = None
+        self.muri = False
+        self.ultime_lettere = None
 
     # --- finestra -------------------------------------------------------------
     def _crea_finestra(self):
@@ -401,6 +543,69 @@ class TastiOverlay(object):
         # ExternalEvent va creato in contesto API (qui siamo in un evento di Revit)
         self.gestore = _GestoreAzione()
         self.evento = UI.ExternalEvent.Create(self.gestore)
+
+    def _crea_finestra_lettere(self):
+        win = XamlReader.Parse(XAML_LETTERE)
+        try:
+            WindowInteropHelper(win).Owner = self.uiapp.MainWindowHandle
+        except Exception:
+            win.Topmost = True
+        _non_attivabile(win, trasparente_ai_clic=True)
+        self.win_lettere = win
+
+    def _lettera(self, testo):
+        t = TextBlock()
+        t.Text = testo
+        t.FontSize = 9
+        t.FontWeight = FontWeights.Bold
+        t.Foreground = _colore("#FFFFFF")
+        t.HorizontalAlignment = HorizontalAlignment.Center
+        t.VerticalAlignment = VerticalAlignment.Center
+        b = Border()
+        b.Width = DIM_LETTERA
+        b.Height = DIM_LETTERA
+        b.CornerRadius = CornerRadius(DIM_LETTERA / 2.0)
+        b.Background = _colore(COLORE_ESTERNO if testo == u"E" else COLORE_INTERNO)
+        b.BorderBrush = _colore("#FFFFFF")
+        b.BorderThickness = Thickness(1)
+        b.Child = t
+        return b
+
+    def _nascondi_lettere(self):
+        self.ultime_lettere = None
+        if self.win_lettere is not None and self.win_lettere.Visibility == Visibility.Visible:
+            self.win_lettere.Hide()
+
+    def _aggiorna_lettere(self, uidoc):
+        """Lettere E / I ai lati dei muri selezionati (seguono zoom, pan e inversioni)."""
+        if not (self.attivo and self.muri) or uidoc is None:
+            self._nascondi_lettere()
+            return
+        finestra, lettere = _posizioni_lettere(uidoc, self.ids, DISTACCO_LETTERA * self.scala)
+        if finestra is None or not lettere:
+            self._nascondi_lettere()
+            return
+        k = self.scala
+        f_sx, f_alto, f_dx, f_basso = finestra
+        stato = (tuple(round(v / k) for v in finestra),
+                 tuple((l, round(x / k), round(y / k)) for l, x, y in lettere))
+        if self.win_lettere is None:
+            self._crea_finestra_lettere()
+        if stato != self.ultime_lettere:
+            self.ultime_lettere = stato
+            w = self.win_lettere
+            w.Left, w.Top = f_sx / k, f_alto / k
+            w.Width, w.Height = max((f_dx - f_sx) / k, 1), max((f_basso - f_alto) / k, 1)
+            tela = w.FindName("tela")
+            tela.Children.Clear()
+            meta = DIM_LETTERA / 2.0
+            for lettera, x, y in lettere:
+                el = self._lettera(lettera)
+                Canvas.SetLeft(el, (x - f_sx) / k - meta)
+                Canvas.SetTop(el, (y - f_alto) / k - meta)
+                tela.Children.Add(el)
+        if self.win_lettere.Visibility != Visibility.Visible:
+            self.win_lettere.Show()
 
     def _tasto(self, comando, etichetta, suggerimento, gruppo):
         icona = Path()
@@ -434,6 +639,10 @@ class TastiOverlay(object):
         """Mette la fila sul bordo superiore della selezione (o la nasconde se e' fuori vista)."""
         if self.win is None or not self.attivo:
             return
+        try:
+            self._aggiorna_lettere(uidoc)
+        except Exception:
+            self._nascondi_lettere()
         pos = None
         if uidoc is not None:
             esito = _riquadro_selezione(uidoc, self.ids)
@@ -457,6 +666,8 @@ class TastiOverlay(object):
             self._crea_finestra()
         self.madre_uid = madre_uid
         self.ids = list(ids)
+        self.muri = any(c == TC.MURO_INVERTI for _, tasti in gruppi for c, _, _ in tasti)
+        self.ultime_lettere = None
         self.attivo = True
         self._riempi(gruppi)
         self.riposiziona(uidoc)
@@ -468,13 +679,19 @@ class TastiOverlay(object):
     def nascondi(self):
         self.attivo = False
         self.ids = []
+        self.muri = False
         self._nascondi_finestra()
+        self._nascondi_lettere()
 
     def _esegui(self, comando):
         if self.evento is None:
             return
         self.gestore.comando = comando
         self.gestore.madre_uid = self.madre_uid
+        try:
+            self.gestore.maiuscolo = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift
+        except Exception:
+            self.gestore.maiuscolo = False
         if comando == TC.SEZIONE_APRI:
             # Si apre una finestra: i tasti si tolgono di mezzo e tornano dopo
             # (chiave azzerata = la selezione viene riletta al prossimo Idling).
@@ -521,6 +738,7 @@ class TastiOverlay(object):
             self.riposiziona(uidoc)
         except Exception:
             self._nascondi_finestra()
+            self._nascondi_lettere()
 
     def _su_chiusura(self, sender, args):
         self.chiave_sel = None
@@ -553,12 +771,14 @@ class TastiOverlay(object):
             except Exception:
                 pass
         self.delegati = []
-        if self.win is not None:
-            try:
-                self.win.Close()
-            except Exception:
-                pass
-            self.win = None
+        for win in (self.win, self.win_lettere):
+            if win is not None:
+                try:
+                    win.Close()
+                except Exception:
+                    pass
+        self.win = None
+        self.win_lettere = None
 
 
 def attiva(uiapp):

@@ -20,6 +20,9 @@ Seguono zoom e pan, spariscono deselezionando (in tavola, cliccare il titolo sel
 - due o più viste/titoli: incolonna/in riga i titoli, stessa distanza, stessa linea,
   allinea i riquadri (sinistra, centro, destra, alto, basso, coordinate del modello);
 - tre o più: distribuisci in orizzontale/verticale.
+- uno o più muri: **Inverti muro sul centro** (Maiusc+clic: linea di ubicazione su Asse del muro);
+  accanto a ogni muro selezionato compaiono le lettere **E** (esterno, rossa) e **I** (interno, blu)
+  sui due lati, in pianta e in sezione, così si vede subito come è girata la stratigrafia.
 
 Il pannello resta aperto, quindi puoi fare più allineamenti di fila; ogni tasto si annulla con
 Ctrl+Z. Lo sfondo di una sezione si sposta sempre insieme alla sua madre. Si accende da solo

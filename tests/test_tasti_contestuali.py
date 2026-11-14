@@ -67,10 +67,11 @@ def test_piu_viste_in_tavola():
 def test_comandi_esistono_negli_strumenti_di_allineamento():
     validi = set(AIT._COMANDO_TO_OPZ) | {
         u"titolo_larghezza_vista", u"titolo_bordo_sinistro", u"distribuisci_x", u"distribuisci_y",
-        TC.SEZIONE_APRI, TC.SEZIONE_SINCRONIZZA,
+        TC.SEZIONE_APRI, TC.SEZIONE_SINCRONIZZA, TC.MURO_INVERTI,
     }
     for gruppi in (TC.comandi_per_selezione(3, sezione_con_sfondo=True),
-                   TC.comandi_per_selezione(1, sezione_con_sfondo=True)):
+                   TC.comandi_per_selezione(1, sezione_con_sfondo=True),
+                   TC.comandi_per_selezione(0, in_tavola=False, n_muri=2)):
         for c in _comandi(gruppi):
             assert c in validi, c
 
@@ -78,7 +79,8 @@ def test_comandi_esistono_negli_strumenti_di_allineamento():
 def test_ogni_comando_ha_la_sua_icona():
     for n in (1, 3):
         for gruppi in (TC.comandi_per_selezione(n, sezione_con_sfondo=True),
-                       TC.comandi_per_selezione(n, in_tavola=False, sezione_con_sfondo=True)):
+                       TC.comandi_per_selezione(n, in_tavola=False, sezione_con_sfondo=True),
+                       TC.comandi_per_selezione(0, in_tavola=False, n_muri=n)):
             for c in _comandi(gruppi):
                 assert TC.ICONE.get(c), c
 
@@ -114,3 +116,34 @@ def test_striscia_resta_nella_vista_in_orizzontale():
 def test_niente_striscia_se_la_selezione_e_fuori_vista():
     assert TC.posizione_striscia((1000, 250, 1200, 550), FINESTRA, 120, 24) is None
     assert TC.posizione_striscia(None, FINESTRA, 120, 24) is None
+
+
+def test_muri_selezionati_mostrano_inverti():
+    for n in (1, 5):
+        gruppi = TC.comandi_per_selezione(0, in_tavola=False, n_muri=n)
+        assert _nomi(gruppi) == [u"Muri"]
+        assert _comandi(gruppi) == [TC.MURO_INVERTI]
+    assert TC.comandi_per_selezione(0, in_tavola=False, n_muri=0) == []
+
+
+def test_offset_linea_ubicazione():
+    # strati dall'esterno: intonaco 2, isolante 10, nucleo 20, intonaco 2 = 34
+    strati = [2.0, 10.0, 20.0, 2.0]
+    assert TC.offset_linea_ubicazione(TC.ASSE_MURO, 34.0, strati, 2, 2) == 0.0
+    assert TC.offset_linea_ubicazione(TC.FINITURA_EST, 34.0, strati, 2, 2) == 17.0
+    assert TC.offset_linea_ubicazione(TC.FINITURA_INT, 34.0, strati, 2, 2) == -17.0
+    assert TC.offset_linea_ubicazione(TC.NUCLEO_EST, 34.0, strati, 2, 2) == 5.0
+    assert TC.offset_linea_ubicazione(TC.NUCLEO_INT, 34.0, strati, 2, 2) == -15.0
+    assert TC.offset_linea_ubicazione(TC.ASSE_NUCLEO, 34.0, strati, 2, 2) == -5.0
+    # senza stratigrafia (es. facciata continua): il nucleo e' tutto il muro
+    assert TC.offset_linea_ubicazione(TC.NUCLEO_EST, 10.0) == 5.0
+    assert TC.offset_linea_ubicazione(TC.ASSE_NUCLEO, 10.0) == 0.0
+
+
+def test_posizioni_lati_esterno_dal_lato_giusto():
+    # muro orizzontale sullo schermo, esterno verso l'alto (y dello schermo cala)
+    e, i = TC.posizioni_lati((100.0, 100.0), (100.0, 90.0), 1.5, distacco=9.0)
+    assert e == (100.0, 76.0)    # 1.5 unita' * 10 px + 9 px sopra
+    assert i == (100.0, 124.0)
+    # muro visto di fronte (prospetto parallelo): niente lettere
+    assert TC.posizioni_lati((100.0, 100.0), (100.0, 100.0), 1.5) is None
