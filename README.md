@@ -6,7 +6,7 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 |---|---|
 | **Grafica e Filtri** | Copia proprietà grafiche categoria/elemento, Aggiorna modello di vista, Copia ritaglio di vista, Cambia livello della pianta, Crea filtro da selezione, Profondità sezione (sfondo vettoriale) |
 | **Campiture** | Campitura da polilinea/offset, Campitura da sezione |
-| **Modellazione** | Inverti muro sull'asse centrale, Palette On/Off |
+| **Modellazione** | Inverti muro sull'asse centrale, Palette On/Off, Personalizza Palette |
 | **Tavole e Legende** | Allinea viste su tavole, Allinea Viste (stack: Distribuisci Viste, Allinea Viste Orizz., Allinea Viste Vert. sul puro CropBox), Allinea Titoli, Componenti in legenda, Allinea al Nord reale |
 | **Nomenclatura** | Controllo e correzione dei nomi secondo il BIMMS ADD2024 (vedi sotto) |
 
@@ -23,8 +23,10 @@ una riga per gruppo, con i comandi adatti alla categoria selezionata:
 
 Con una selezione mista compaiono solo i comandi comuni. Se la selezione arriva dal browser di
 progetto la palette va sul bordo superiore della selezione. Il pulsante **Palette On/Off**
-(pannello Modellazione) la spegne o la riaccende tutta; lo stato resta dopo il riavvio. La scelta
-dei comandi per categoria sta in `%APPDATA%\pyRevit\CDVTools\palette.json`.
+(pannello Modellazione) la spegne o la riaccende tutta; lo stato resta dopo il riavvio.
+**Personalizza Palette** apre una finestra dove scegli, categoria per categoria, quali tasti
+compaiono (con "Copia su tutte", "Predefiniti" e "Ripristina tutto"); vale subito, senza
+riavviare. Le scelte stanno in `%APPDATA%\pyRevit\CDVTools\palette.json`.
 
 Strumenti CDV in fondo alla palette (in tavola, cliccare il titolo seleziona la vista):
 - linea di sezione o riquadro di una sezione con sfondo attivo: **Profondità sezione**

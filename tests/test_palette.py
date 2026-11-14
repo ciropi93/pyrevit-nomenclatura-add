@@ -141,3 +141,26 @@ def test_posizione_palette_si_ribalta_agli_angoli():
 def test_posizione_palette_fuori_vista():
     assert PAL.posizione_palette((50, 300), FINESTRA, 120, 60) is None
     assert PAL.posizione_palette(None, FINESTRA, 120, 60) is None
+
+
+def test_imposta_comando_tiene_ordine_e_regole():
+    cfg = PAL.copia_config(PAL.config_predefinita())
+    PAL.imposta_comando(cfg, u"porte", u"sposta", False)
+    assert u"sposta" not in cfg[u"categorie"][u"porte"]
+    PAL.imposta_comando(cfg, u"porte", u"sposta", True)
+    assert cfg[u"categorie"][u"porte"][0] == u"sposta"
+    # non ammesso per le porte: ignorato
+    PAL.imposta_comando(cfg, u"porte", u"offset", True)
+    assert u"offset" not in cfg[u"categorie"][u"porte"]
+    # la copia non tocca l'originale
+    assert u"sposta" in PAL.config_predefinita()[u"categorie"][u"porte"]
+
+
+def test_ripristina_e_copia_su_tutte():
+    cfg = PAL.copia_config(PAL.config_predefinita())
+    cfg[u"categorie"][u"muri"] = [u"sposta", u"offset"]
+    PAL.copia_su_tutte(cfg, u"muri")
+    assert cfg[u"categorie"][u"linee"] == [u"sposta", u"offset"]
+    assert cfg[u"categorie"][u"porte"] == [u"sposta"]      # offset non ammesso
+    PAL.ripristina_categoria(cfg, u"porte")
+    assert cfg[u"categorie"][u"porte"] == PAL.config_predefinita()[u"categorie"][u"porte"]

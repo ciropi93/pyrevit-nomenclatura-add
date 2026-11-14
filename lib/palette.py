@@ -369,3 +369,39 @@ def posizione_palette(cursore, finestra, larghezza, altezza, distacco=12):
     x = max(min(x, dx - larghezza), sx)
     y = max(min(y, basso - altezza), alto)
     return x, y
+
+
+# ==============================================================================
+# MODIFICHE DALLA FINESTRA DI PERSONALIZZAZIONE
+# ==============================================================================
+
+def copia_config(cfg):
+    """Copia indipendente (la finestra lavora su questa finche' non si salva)."""
+    return {
+        u"attiva": bool(cfg.get(u"attiva", True)),
+        u"categorie": dict((k, list(v)) for k, v in cfg.get(u"categorie", {}).items()),
+    }
+
+
+def imposta_comando(cfg, chiave, comando, attivo):
+    """Aggiunge o toglie un comando da una categoria, tenendo l'ordine del catalogo."""
+    attuali = set(cfg[u"categorie"].get(chiave, []))
+    if attivo:
+        attuali.add(comando)
+    else:
+        attuali.discard(comando)
+    cfg[u"categorie"][chiave] = [i for i in ammessi_per_categoria(chiave) if i in attuali]
+    return cfg
+
+
+def ripristina_categoria(cfg, chiave):
+    cfg[u"categorie"][chiave] = list(config_predefinita()[u"categorie"][chiave])
+    return cfg
+
+
+def copia_su_tutte(cfg, chiave):
+    """Stessa scelta della categoria 'chiave' su tutte le altre (dove il comando e' ammesso)."""
+    sorgente = cfg[u"categorie"].get(chiave, [])
+    for k in CHIAVI:
+        cfg[u"categorie"][k] = _pulisci(k, sorgente)
+    return cfg
