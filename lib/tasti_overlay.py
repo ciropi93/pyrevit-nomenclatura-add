@@ -372,6 +372,65 @@ def _tasti_premuti():
             (b & MouseButtons.Left) == MouseButtons.Left)
 
 
+class _GancioMouse(object):
+    """Hook WH_MOUSE sul thread di Revit: avvisa appena arriva un clic o la rotellina.
+
+    Serve per togliere tasti e lettere all'istante quando parte un pan o uno zoom:
+    durante il ridisegno Revit non manda Idling e un timer non fa in tempo.
+    su_messaggio(msg) riceve il codice del messaggio (WM_MBUTTONDOWN, ...).
+    """
+    WH_MOUSE = 7
+    WM_LBUTTONDOWN = 0x0201
+    WM_MBUTTONDOWN = 0x0207
+    WM_MOUSEWHEEL = 0x020A
+    WM_MOUSEHWHEEL = 0x020E
+    _MESSAGGI = (WM_LBUTTONDOWN, WM_MBUTTONDOWN, WM_MOUSEWHEEL, WM_MOUSEHWHEEL)
+
+    def __init__(self, su_messaggio):
+        self.su_messaggio = su_messaggio
+        self.hhook = None
+        self._proc = None
+        self._user32 = None
+
+    def attacca(self):
+        import ctypes
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_longlong, ctypes.c_int,
+                                      ctypes.c_ulonglong, ctypes.c_longlong)
+        user32.SetWindowsHookExW.argtypes = [ctypes.c_int, HOOKPROC, ctypes.c_void_p,
+                                             ctypes.c_uint]
+        user32.SetWindowsHookExW.restype = ctypes.c_void_p
+        user32.CallNextHookEx.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                                          ctypes.c_ulonglong, ctypes.c_longlong]
+        user32.CallNextHookEx.restype = ctypes.c_longlong
+        user32.UnhookWindowsHookEx.argtypes = [ctypes.c_void_p]
+        self._user32 = user32
+        messaggi = self._MESSAGGI
+
+        def proc(n_code, w_param, l_param):
+            if n_code >= 0 and w_param in messaggi:
+                try:
+                    self.su_messaggio(w_param)
+                except Exception:
+                    pass
+            return user32.CallNextHookEx(self.hhook, n_code, w_param, l_param)
+
+        self._proc = HOOKPROC(proc)   # tenuto in vita finche' l'hook e' attivo
+        self.hhook = user32.SetWindowsHookExW(self.WH_MOUSE, self._proc, None,
+                                              kernel32.GetCurrentThreadId())
+        return bool(self.hhook)
+
+    def stacca(self):
+        if self.hhook and self._user32 is not None:
+            try:
+                self._user32.UnhookWindowsHookEx(self.hhook)
+            except Exception:
+                pass
+        self.hhook = None
+        self._proc = None
+
+
 def _contesto_vista(uidoc):
     """(vista, uv, zoom, finestra) della vista attiva, oppure None.
 
@@ -600,6 +659,7 @@ class TastiOverlay(object):
         self.ultime_lettere = None
         self.cache_muri = {}
         self.timer = None
+        self.gancio = None
 
     # --- finestra -------------------------------------------------------------
     def _crea_finestra(self):
@@ -622,6 +682,18 @@ class TastiOverlay(object):
         self.timer = DispatcherTimer()
         self.timer.Interval = TimeSpan.FromMilliseconds(CONTROLLO_MOUSE_MS)
         self.timer.Tick += self._su_timer
+
+    def _su_mouse(self, messaggio):
+        """Dall'hook: rotellina premuta o girata = la vista si muove, via subito tutto.
+        Clic sinistro = forse si trascina un muro, via le lettere.
+        Tornano al prossimo Idling, gia' nella posizione nuova."""
+        if not self.attivo:
+            return
+        if messaggio == _GancioMouse.WM_LBUTTONDOWN:
+            self._nascondi_lettere()
+        else:
+            self._nascondi_finestra()
+            self._nascondi_lettere()
 
     def _su_timer(self, sender, args):
         try:
@@ -865,6 +937,13 @@ class TastiOverlay(object):
         d = EventHandler[DB.Events.DocumentClosingEventArgs](self._su_chiusura)
         self.uiapp.Application.DocumentClosing += d
         self.delegati.append(("DocumentClosing", d))
+        try:
+            gancio = _GancioMouse(self._su_mouse)
+            if gancio.attacca():
+                self.gancio = gancio
+        except Exception:
+            # senza hook resta il timer (piu' lento con pan veloci)
+            self.gancio = None
 
 
     def spegni(self):
@@ -879,6 +958,9 @@ class TastiOverlay(object):
             except Exception:
                 pass
         self.delegati = []
+        if self.gancio is not None:
+            self.gancio.stacca()
+            self.gancio = None
         if self.timer is not None:
             try:
                 self.timer.Stop()
