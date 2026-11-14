@@ -140,10 +140,17 @@ def test_offset_linea_ubicazione():
     assert TC.offset_linea_ubicazione(TC.ASSE_NUCLEO, 10.0) == 0.0
 
 
-def test_posizioni_lati_esterno_dal_lato_giusto():
-    # muro orizzontale sullo schermo, esterno verso l'alto (y dello schermo cala)
-    e, i = TC.posizioni_lati((100.0, 100.0), (100.0, 90.0), 1.5, distacco=9.0)
-    assert e == (100.0, 76.0)    # 1.5 unita' * 10 px + 9 px sopra
-    assert i == (100.0, 124.0)
-    # muro visto di fronte (prospetto parallelo): niente lettere
-    assert TC.posizioni_lati((100.0, 100.0), (100.0, 100.0), 1.5) is None
+def test_posizioni_da_facce():
+    # muro verticale sullo schermo: faccia esterna a x=168, interna a x=205
+    e, i = TC.posizioni_da_facce((168.0, 100.0), (205.0, 100.0), distacco=11.0)
+    assert e == (157.0, 100.0)
+    assert i == (216.0, 100.0)
+    # facce coincidenti (muro piccolissimo sullo schermo): direzione dall'asse
+    e, i = TC.posizioni_da_facce((50.0, 50.0), (50.0, 50.0),
+                                 asse=((50.0, 50.0), (50.0, 40.0)), distacco=5.0)
+    assert e == (50.0, 45.0)
+    assert i == (50.0, 55.0)
+    # muro visto di fronte: niente lettere
+    assert TC.posizioni_da_facce((50.0, 50.0), (50.0, 50.0),
+                                 asse=((50.0, 50.0), (50.0, 50.0))) is None
+    assert TC.posizioni_da_facce((50.0, 50.0), (50.0, 50.0)) is None

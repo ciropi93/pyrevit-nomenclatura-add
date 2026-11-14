@@ -32,7 +32,7 @@ clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 
 import System
-from System import Double, EventHandler, IntPtr
+from System import Double, EventHandler, IntPtr, TimeSpan
 from System.Windows import Size, Thickness, Visibility
 from System.Windows import CornerRadius, FontWeights, HorizontalAlignment, VerticalAlignment
 from System.Windows.Controls import Border, Button, Canvas, TextBlock
@@ -41,6 +41,8 @@ from System.Windows.Interop import WindowInteropHelper
 from System.Windows.Markup import XamlReader
 from System.Windows.Media import BrushConverter, Geometry, Stretch
 from System.Windows.Shapes import Path
+from System.Windows.Threading import DispatcherTimer
+from System.Windows.Forms import Control, MouseButtons
 from Autodesk.Revit import DB, UI
 
 # Import qui, all'avvio: quando poi scatta l'ExternalEvent la cartella lib
@@ -65,6 +67,7 @@ DIM_TASTO = 22
 DIM_ICONA = 14
 DIM_LETTERA = 14          # cerchietto della lettera E / I
 DISTACCO_LETTERA = 10     # pixel tra la faccia del muro e il centro della lettera
+CONTROLLO_MOUSE_MS = 40   # ogni quanto si guarda se la vista si sta spostando
 MAX_MURI_LETTERE = 150    # oltre, niente lettere (troppe per leggerle)
 COLORE_ESTERNO = "#DC2626"
 COLORE_INTERNO = "#2563EB"
@@ -362,6 +365,13 @@ def _scala_dpi():
         g.Dispose()
 
 
+def _tasti_premuti():
+    """(centrale, sinistro): tasti del mouse premuti in questo momento (senza API Revit)."""
+    b = Control.MouseButtons
+    return ((b & MouseButtons.Middle) == MouseButtons.Middle,
+            (b & MouseButtons.Left) == MouseButtons.Left)
+
+
 def _contesto_vista(uidoc):
     """(vista, uv, zoom, finestra) della vista attiva, oppure None.
 
@@ -426,15 +436,9 @@ def _riquadro_selezione(uidoc, ids):
     return riquadro, finestra
 
 
-def _lati_muro(wall):
-    """(centro, verso_esterno, mezzo_spessore) di un muro, in piedi, oppure None.
-
-    verso_esterno: versore orizzontale che punta al lato esterno (tiene conto del Flip).
-    centro: punto a meta' muro sull'asse geometrico (la curva di Revit sta sulla
-    linea di ubicazione, che puo' essere su una faccia o sul nucleo).
-    """
-    loc = wall.Location
-    curva = getattr(loc, "Curve", None)
+def _asse_muro(wall):
+    """(punto a meta' muro, versore orizzontale verso l'esterno) oppure None."""
+    curva = getattr(wall.Location, "Curve", None)
     if curva is None:
         return None
     if isinstance(curva, DB.Line):
@@ -449,32 +453,96 @@ def _lati_muro(wall):
     n = DB.XYZ(n.X, n.Y, 0.0)
     if n.GetLength() < 1e-9:
         return None
-    n = n.Normalize()
-    spessore = wall.Width
-    codice = 0
-    p = wall.get_Parameter(DB.BuiltInParameter.WALL_KEY_REF_PARAM)
-    if p is not None:
-        codice = p.AsInteger()
-    strati, primo, ultimo = None, -1, -1
-    try:
-        cs = wall.WallType.GetCompoundStructure()
-    except Exception:
-        cs = None
-    if cs is not None:
-        strati = [cs.GetLayerWidth(i) for i in range(cs.LayerCount)]
-        primo, ultimo = cs.GetFirstCoreLayerIndex(), cs.GetLastCoreLayerIndex()
-    off = TC.offset_linea_ubicazione(codice, spessore, strati, primo, ultimo)
-    centro = medio - n.Multiply(off)
     # in sezione le lettere stanno a meta' altezza del muro
     bb = wall.get_BoundingBox(None)
     if bb is not None:
-        centro = DB.XYZ(centro.X, centro.Y, (bb.Min.Z + bb.Max.Z) / 2.0)
-    mezzo = (sum(strati) if strati and sum(strati) > 0 else spessore) / 2.0
-    return centro, n, mezzo
+        medio = DB.XYZ(medio.X, medio.Y, (bb.Min.Z + bb.Max.Z) / 2.0)
+    return medio, n.Normalize()
 
 
-def _posizioni_lettere(uidoc, ids, distacco):
-    """Lista di (lettera, x, y) in pixel fisici per i muri selezionati, dentro la vista."""
+def _su_faccia(faccia, p):
+    """Punto della faccia piu' vicino a p (sul piano della faccia se p cade in un foro)."""
+    try:
+        r = faccia.Project(p)
+    except Exception:
+        r = None
+    if r is not None:
+        return r.XYZPoint
+    if isinstance(faccia, DB.PlanarFace):
+        n = faccia.FaceNormal
+        return p + n.Multiply((faccia.Origin - p).DotProduct(n))
+    return None
+
+
+def _punto_faccia(wall, tipo, p):
+    migliore = None
+    for ref in DB.HostObjectUtils.GetSideFaces(wall, tipo):
+        faccia = wall.GetGeometryObjectFromReference(ref)
+        if not isinstance(faccia, DB.Face):
+            continue
+        q = _su_faccia(faccia, p)
+        if q is not None and (migliore is None or q.DistanceTo(p) < migliore.DistanceTo(p)):
+            migliore = q
+    return migliore
+
+
+def _facce_muro(wall):
+    """(punto faccia esterna, punto faccia interna, centro, versore esterno) oppure None.
+
+    I punti sono presi sulla geometria vera del muro (facce laterali di Revit), cosi'
+    non dipendono da linea di ubicazione, stratigrafia o Flip.
+    """
+    asse = _asse_muro(wall)
+    if asse is None:
+        return None
+    medio, n = asse
+    try:
+        est = _punto_faccia(wall, DB.ShellLayerType.Exterior, medio)
+        int_ = _punto_faccia(wall, DB.ShellLayerType.Interior, medio)
+    except Exception:
+        est = int_ = None
+    if est is None or int_ is None:
+        # es. muro sovrapposto: si stima dalla linea di ubicazione
+        codice = 0
+        p = wall.get_Parameter(DB.BuiltInParameter.WALL_KEY_REF_PARAM)
+        if p is not None:
+            codice = p.AsInteger()
+        strati, primo, ultimo = None, -1, -1
+        try:
+            cs = wall.WallType.GetCompoundStructure()
+        except Exception:
+            cs = None
+        if cs is not None:
+            strati = [cs.GetLayerWidth(i) for i in range(cs.LayerCount)]
+            primo, ultimo = cs.GetFirstCoreLayerIndex(), cs.GetLastCoreLayerIndex()
+        spessore = wall.Width
+        off = TC.offset_linea_ubicazione(codice, spessore, strati, primo, ultimo)
+        mezzo = (sum(strati) if strati and sum(strati) > 0 else spessore) / 2.0
+        centro = medio - n.Multiply(off)
+        est = centro + n.Multiply(mezzo)
+        int_ = centro - n.Multiply(mezzo)
+    centro = (est + int_).Divide(2.0)
+    return est, int_, centro, n
+
+
+def _chiave_muro(wall):
+    """Cambia quando il muro viene spostato, invertito o cambia tipo/spessore."""
+    curva = getattr(wall.Location, "Curve", None)
+    estremi = ()
+    if curva is not None:
+        for k in (0, 1):
+            q = curva.GetEndPoint(k)
+            estremi += (round(q.X, 6), round(q.Y, 6), round(q.Z, 6))
+    p = wall.get_Parameter(DB.BuiltInParameter.WALL_KEY_REF_PARAM)
+    return (wall.Flipped, estremi, round(wall.Width, 6),
+            p.AsInteger() if p is not None else 0, PS._id_val(wall.GetTypeId()))
+
+
+def _posizioni_lettere(uidoc, ids, distacco, cache):
+    """Lista di (lettera, x, y) in pixel fisici per i muri selezionati, dentro la vista.
+
+    cache: {id muro: (chiave, facce)}: la geometria si rilegge solo se il muro cambia.
+    """
     ctx = _contesto_vista(uidoc)
     if ctx is None:
         return None, []
@@ -489,15 +557,19 @@ def _posizioni_lettere(uidoc, ids, distacco):
         if not isinstance(wall, DB.Wall):
             continue
         try:
-            lati = _lati_muro(wall)
+            chiave = _chiave_muro(wall)
+            voce = cache.get(PS._id_val(eid))
+            if voce is None or voce[0] != chiave:
+                voce = (chiave, _facce_muro(wall))
+                cache[PS._id_val(eid)] = voce
+            facce = voce[1]
         except Exception:
-            lati = None
-        if lati is None:
+            facce = None
+        if facce is None:
             continue
-        centro, n, mezzo = lati
-        c = TC.proietta(uv(centro), zoom, finestra)
-        e = TC.proietta(uv(centro + n), zoom, finestra)
-        pos = TC.posizioni_lati(c, e, mezzo, distacco)
+        est, int_, centro, n = facce
+        pr = lambda q: TC.proietta(uv(q), zoom, finestra)
+        pos = TC.posizioni_da_facce(pr(est), pr(int_), (pr(centro), pr(centro + n)), distacco)
         if pos is None:
             continue
         for lettera, (x, y) in zip((u"E", u"I"), pos):
@@ -526,6 +598,8 @@ class TastiOverlay(object):
         self.win_lettere = None
         self.muri = False
         self.ultime_lettere = None
+        self.cache_muri = {}
+        self.timer = None
 
     # --- finestra -------------------------------------------------------------
     def _crea_finestra(self):
@@ -543,6 +617,27 @@ class TastiOverlay(object):
         # ExternalEvent va creato in contesto API (qui siamo in un evento di Revit)
         self.gestore = _GestoreAzione()
         self.evento = UI.ExternalEvent.Create(self.gestore)
+        # Durante pan e zoom Revit non manda Idling: i tasti resterebbero fermi mentre
+        # il disegno si sposta. Un timer guarda il mouse e li toglie finche' ci si muove.
+        self.timer = DispatcherTimer()
+        self.timer.Interval = TimeSpan.FromMilliseconds(CONTROLLO_MOUSE_MS)
+        self.timer.Tick += self._su_timer
+
+    def _su_timer(self, sender, args):
+        try:
+            if not self.attivo:
+                self.timer.Stop()
+                return
+            centrale, sinistro = _tasti_premuti()
+            if centrale:
+                # pan con la rotellina premuta: via tasti e lettere fino al rilascio
+                self._nascondi_finestra()
+                self._nascondi_lettere()
+            elif sinistro:
+                # trascinamento (es. muro spostato): via le lettere, i tasti restano cliccabili
+                self._nascondi_lettere()
+        except Exception:
+            pass
 
     def _crea_finestra_lettere(self):
         win = XamlReader.Parse(XAML_LETTERE)
@@ -581,7 +676,11 @@ class TastiOverlay(object):
         if not (self.attivo and self.muri) or uidoc is None:
             self._nascondi_lettere()
             return
-        finestra, lettere = _posizioni_lettere(uidoc, self.ids, DISTACCO_LETTERA * self.scala)
+        if any(_tasti_premuti()):
+            self._nascondi_lettere()
+            return
+        finestra, lettere = _posizioni_lettere(uidoc, self.ids, DISTACCO_LETTERA * self.scala,
+                                               self.cache_muri)
         if finestra is None or not lettere:
             self._nascondi_lettere()
             return
@@ -643,6 +742,10 @@ class TastiOverlay(object):
             self._aggiorna_lettere(uidoc)
         except Exception:
             self._nascondi_lettere()
+        if _tasti_premuti()[0]:
+            # vista in movimento: si rimettono a posto quando si rilascia
+            self._nascondi_finestra()
+            return
         pos = None
         if uidoc is not None:
             esito = _riquadro_selezione(uidoc, self.ids)
@@ -668,7 +771,10 @@ class TastiOverlay(object):
         self.ids = list(ids)
         self.muri = any(c == TC.MURO_INVERTI for _, tasti in gruppi for c, _, _ in tasti)
         self.ultime_lettere = None
+        self.cache_muri = {}
         self.attivo = True
+        if self.timer is not None and not self.timer.IsEnabled:
+            self.timer.Start()
         self._riempi(gruppi)
         self.riposiziona(uidoc)
 
@@ -680,6 +786,8 @@ class TastiOverlay(object):
         self.attivo = False
         self.ids = []
         self.muri = False
+        if self.timer is not None:
+            self.timer.Stop()
         self._nascondi_finestra()
         self._nascondi_lettere()
 
@@ -771,6 +879,11 @@ class TastiOverlay(object):
             except Exception:
                 pass
         self.delegati = []
+        if self.timer is not None:
+            try:
+                self.timer.Stop()
+            except Exception:
+                pass
         for win in (self.win, self.win_lettere):
             if win is not None:
                 try:

@@ -226,20 +226,26 @@ def offset_linea_ubicazione(codice, spessore, strati=None, primo_nucleo=-1, ulti
     return 0.0
 
 
-def posizioni_lati(centro, verso_esterno, mezzo_spessore, distacco=9.0):
-    """Punti sullo schermo (pixel) dove scrivere E e I: ((xE, yE), (xI, yI)) oppure None.
+def posizioni_da_facce(esterna, interna, asse=None, distacco=11.0):
+    """Punti sullo schermo (pixel) per E e I partendo dalle due facce del muro.
 
-    centro: asse del muro proiettato; verso_esterno: proiezione del punto a 1 unita'
-    dal centro verso il lato esterno; mezzo_spessore nella stessa unita'.
-    Le lettere stanno appena fuori dalle due facce, a 'distacco' pixel.
-    None se il muro e' visto di fronte (esterno e interno cadono nello stesso punto).
+    esterna, interna: punti (x, y) delle facce esterna e interna proiettati;
+    asse: ((x, y) centro, (x, y) centro + versore verso l'esterno), usato per la
+    direzione quando il muro e' cosi' sottile sullo schermo che le facce coincidono.
+    E sta 'distacco' pixel fuori dalla faccia esterna, I fuori da quella interna.
+    None se il muro e' visto di fronte.
     """
-    dx = verso_esterno[0] - centro[0]
-    dy = verso_esterno[1] - centro[1]
+    dx = esterna[0] - interna[0]
+    dy = esterna[1] - interna[1]
     lung = (dx * dx + dy * dy) ** 0.5
-    if lung < 1e-6:
-        return None
+    if lung < 0.5:
+        if asse is None:
+            return None
+        (cx, cy), (nx, ny) = asse
+        dx, dy = nx - cx, ny - cy
+        lung = (dx * dx + dy * dy) ** 0.5
+        if lung < 1e-6:
+            return None
     ux, uy = dx / lung, dy / lung
-    d = mezzo_spessore * lung + distacco
-    return ((centro[0] + ux * d, centro[1] + uy * d),
-            (centro[0] - ux * d, centro[1] - uy * d))
+    return ((esterna[0] + ux * distacco, esterna[1] + uy * distacco),
+            (interna[0] - ux * distacco, interna[1] - uy * distacco))
