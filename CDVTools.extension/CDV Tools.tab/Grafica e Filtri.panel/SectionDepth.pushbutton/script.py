@@ -352,7 +352,8 @@ class SectionDepthWindow(forms.WPFWindow):
             forms.toast(msg, title=u"CDV Tools")
 
 
-def main():
+def main(madre_uid=None):
+    """madre_uid: UniqueId della sezione da proporre (usato dal tasto in sovraimpressione)."""
     doc = revit.doc
     uidoc = revit.uidoc
     if not doc or not uidoc:
@@ -373,6 +374,11 @@ def main():
         return
 
     initial_view = _rileva_madre_iniziale(doc, uidoc, all_views, sfondo_to_madre)
+    if madre_uid:
+        for v in all_views:
+            if v.UniqueId == madre_uid:
+                initial_view = v
+                break
     xaml_path = os.path.join(os.path.dirname(__file__), "ui.xaml")
     win = SectionDepthWindow(xaml_path, doc, all_views, initial_view, coppie, madre_to_sfondo)
     win.ShowDialog()

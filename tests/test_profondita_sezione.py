@@ -57,3 +57,19 @@ def test_angolo_rotazione_xy():
 def test_nome_vista_sfondo():
     assert PS.nome_vista_sfondo(u"Sezione A-A") == u"Sezione A-A (Sfondo)"
     assert PS.nome_vista_sfondo(u"Sezione A-A (Sfondo)") == u"Sezione A-A (Sfondo)"
+
+
+def test_madre_da_selezione():
+    coppie = [(10, u"Sezione A-A", 11, u"Sezione A-A (Sfondo)"),
+              (20, u"Sezione B-B", 21, u"Sezione B-B (Sfondo)")]
+    # linea di sezione della madre o dello sfondo
+    assert PS.madre_da_selezione([(u"viewer", u"Sezione B-B")], coppie) == 20
+    assert PS.madre_da_selezione([(u"viewer", u"Sezione A-A (Sfondo)")], coppie) == 10
+    # riquadro in tavola della madre o dello sfondo
+    assert PS.madre_da_selezione([(u"viewport", 10)], coppie) == 10
+    assert PS.madre_da_selezione([(u"viewport", 21)], coppie) == 20
+    # sezione senza sfondo, altri elementi, selezione multipla o vuota
+    assert PS.madre_da_selezione([(u"viewer", u"Sezione C-C")], coppie) is None
+    assert PS.madre_da_selezione([(u"altro", None)], coppie) is None
+    assert PS.madre_da_selezione([(u"viewport", 10), (u"viewport", 20)], coppie) is None
+    assert PS.madre_da_selezione([], coppie) is None

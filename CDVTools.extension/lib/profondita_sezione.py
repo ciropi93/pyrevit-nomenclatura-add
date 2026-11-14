@@ -97,6 +97,29 @@ def nome_vista_sfondo(nome_madre, suffisso=SUFFISSO_SFONDO):
     return base + suffisso
 
 
+def madre_da_selezione(voci, coppie):
+    """Dice se la selezione indica UNA sezione con sfondo attivo.
+
+    voci: una voce per ogni elemento selezionato:
+      ("viewport", id_vista) riquadro in tavola,
+      ("viewer", nome)       linea di sezione / simbolo di prospetto,
+      (altro, ...)           qualsiasi altro elemento.
+    coppie: lista di (id_madre, nome_madre, id_sfondo, nome_sfondo).
+
+    Ritorna id_madre, oppure None se la selezione non e' un solo elemento
+    collegato (madre o sfondo) a una coppia.
+    """
+    if len(voci) != 1:
+        return None
+    tipo, valore = voci[0]
+    for id_m, nome_m, id_s, nome_s in coppie:
+        if tipo == u"viewport" and valore in (id_m, id_s):
+            return id_m
+        if tipo == u"viewer" and valore in (nome_m, nome_s):
+            return id_m
+    return None
+
+
 # ==============================================================================
 # METADATI EXTENSIBLE STORAGE
 # ==============================================================================
