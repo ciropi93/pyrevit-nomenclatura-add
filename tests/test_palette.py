@@ -211,3 +211,9 @@ def test_ripristina_e_copia_su_tutte():
     assert cfg[u"categorie"][u"porte"][PAL.IN_VISTA] == [u"sposta"]   # offset non ammesso
     PAL.ripristina_categoria(cfg, u"porte")
     assert cfg[u"categorie"][u"porte"] == PAL.config_predefinita()[u"categorie"][u"porte"]
+
+
+def test_icone_revit_solo_per_comandi_del_catalogo():
+    for cid, (postable, testi) in PAL.ICONE_REVIT.items():
+        assert cid in PAL.PER_ID, cid
+        assert postable or testi, cid
