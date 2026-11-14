@@ -36,6 +36,9 @@ from System.Windows.Markup import XamlReader
 from System.Windows.Media import BrushConverter
 from Autodesk.Revit import DB, UI
 
+# Import qui, all'avvio: quando poi scatta l'ExternalEvent la cartella lib
+# dell'estensione non e' piu' nel sys.path e un import li' fallirebbe.
+import allinea_in_tavola as AIT
 import profondita_sezione as PS
 import tasti_contestuali as TC
 
@@ -249,7 +252,6 @@ class _GestoreAzione(UI.IExternalEventHandler):
                 _sincronizza(uidoc.Document, uid)
             else:
                 # Allineamenti: lavorano sulla selezione corrente della tavola attiva
-                import allinea_in_tavola as AIT
                 AIT.esegui_da_ribbon(comando)
         except Exception as ex:
             _avvisa(u"Errore: %s" % ex)
