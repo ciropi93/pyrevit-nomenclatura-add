@@ -11,24 +11,25 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 | **Nomenclatura** | Controllo e correzione dei nomi secondo il BIMMS ADD2024 (vedi sotto) |
 
 **Palette contestuale (stile ArchiCAD).** Quando selezioni qualcosa nella vista, accanto al
-cursore compare una palette di icone (il nome è nel suggerimento al passaggio del mouse),
-una riga per gruppo, con i comandi adatti alla categoria selezionata:
-- **Modifica**: Sposta, Copia, Ruota, Specchia, Serie, Allinea, Blocca/Sblocca; per muri, linee
-  e travi anche Offset, Dividi, Taglia/Estendi; Crea simile con un solo elemento.
-  Sono i comandi di Revit, partono con la selezione già fatta; a comando finito la palette torna;
-- **Selezione**: stesso tipo nella vista / nel progetto, stessa categoria nella vista;
-- **Visibilità** (vista attiva): nascondi elementi o categoria, isola temporaneo elementi o
-  categoria, ripristina, mezzitoni (si annullano con Ctrl+Z);
-- **strumenti CDV** legati al contesto (vedi sotto).
+cursore compare una palette piccola (il nome di ogni tasto è nel suggerimento al passaggio del mouse):
+- **riga principale**: in blu gli strumenti CDV della categoria (es. Inverti muro; per le viste in
+  tavola i gruppi Titoli / Allinea viste si aprono come menu), poi i comandi **in vista** (di
+  serie Sposta, Copia, Ruota, Specchia: i comandi di Revit, partono con la selezione già fatta)
+  e il tasto **…** che apre il menu con tutto il resto, diviso in Modifica, Selezione e Visibilità;
+- **fila fissa**, più piccola e uguale per tutte le categorie: Nascondi elementi, Nascondi
+  categoria, Mezzitoni, **Copia grafica** (come il matchprop di AutoCAD: con un elemento
+  selezionato clicchi quelli a cui copiarne la grafica nella vista, Esc per finire; con più
+  elementi selezionati clicchi quello da cui copiarla) e Blocca/Sblocca.
 
-Con una selezione mista compaiono solo i comandi comuni. Se la selezione arriva dal browser di
-progetto la palette va sul bordo superiore della selezione. Il pulsante **Palette On/Off**
-(pannello Modellazione) la spegne o la riaccende tutta; lo stato resta dopo il riavvio.
-**Personalizza Palette** apre una finestra dove scegli, categoria per categoria, quali tasti
-compaiono (con "Copia su tutte", "Predefiniti" e "Ripristina tutto"); vale subito, senza
-riavviare. Le scelte stanno in `%APPDATA%\pyRevit\CDVTools\palette.json`.
+Con una selezione mista compaiono solo i comandi comuni. Durante un comando la palette sparisce
+e torna a comando finito. Se la selezione arriva dal browser di progetto la palette va sul bordo
+superiore della selezione. **Palette On/Off** (pannello Modellazione) la spegne o la riaccende;
+lo stato resta dopo il riavvio. **Personalizza Palette** apre una finestra dove scegli, per ogni
+categoria, quali comandi stanno nella riga (al massimo 5), quali nel menu … e quali nascondere,
+e quali tasti formano la fila fissa (al massimo 6); vale subito, senza riavviare. Le scelte
+stanno in `%APPDATA%\pyRevit\CDVTools\palette.json`.
 
-Strumenti CDV in fondo alla palette (in tavola, cliccare il titolo seleziona la vista):
+Strumenti CDV della categoria (in tavola, cliccare il titolo seleziona la vista):
 - linea di sezione o riquadro di una sezione con sfondo attivo: **Profondità sezione**
   (apre la finestra già su quella sezione) e **Sincronizza sfondo**; se lo sfondo non c'è
   ancora, solo **Attiva profondità sezione** (apre la finestra per crearlo);

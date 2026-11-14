@@ -9,9 +9,12 @@ con PostCommand.
 """
 import clr
 clr.AddReference("RevitAPI")
+clr.AddReference("RevitAPIUI")
 
 from System.Collections.Generic import List
 from Autodesk.Revit import DB
+from Autodesk.Revit.Exceptions import OperationCanceledException
+from Autodesk.Revit.UI.Selection import ObjectType
 
 
 class AzioneErrore(Exception):
@@ -216,6 +219,59 @@ def mezzitoni(uidoc, ids):
     return u"Mezzitoni tolti." if tutti else u"Mezzitoni attivati."
 
 
+def _scegli(uidoc, messaggio):
+    """Elemento cliccato dall'utente nella vista, o None con Esc."""
+    try:
+        ref = uidoc.Selection.PickObject(ObjectType.Element, messaggio)
+    except OperationCanceledException:
+        return None
+    return uidoc.Document.GetElement(ref.ElementId)
+
+
+def _applica_grafica(doc, vista, ids, ogs):
+    def fn():
+        for i in ids:
+            vista.SetElementOverrides(i, ogs)
+    try:
+        _transazione(doc, u"Palette: copia grafica", fn)
+    except Exception:
+        raise AzioneErrore(_MSG_MODELLO)
+
+
+def copia_grafica(uidoc, ids):
+    """Come il matchprop di AutoCAD, per la grafica degli elementi nella vista attiva.
+
+    Un elemento selezionato: e' la sorgente, poi si cliccano i destinatari uno alla
+    volta (ognuno cambia subito, Esc per finire). Piu' elementi selezionati: si clicca
+    la sorgente e la sua grafica va su tutti i selezionati.
+    """
+    doc = uidoc.Document
+    vista = _vista(doc)
+    elementi = _elementi(doc, ids)
+    if not elementi:
+        raise AzioneErrore(u"Nessun elemento selezionato.")
+    if len(elementi) == 1:
+        sorgente = elementi[0]
+        ogs = vista.GetElementOverrides(sorgente.Id)
+        n = 0
+        while True:
+            el = _scegli(uidoc, u"Copia grafica: clicca gli elementi a cui applicarla (Esc per finire)")
+            if el is None:
+                break
+            if el.Id == sorgente.Id:
+                continue
+            _applica_grafica(doc, vista, [el.Id], ogs)
+            n += 1
+        return (u"Grafica copiata su %d elementi." % n) if n else None
+    sorgente = _scegli(uidoc, u"Copia grafica: clicca l'elemento da cui copiarla (Esc per annullare)")
+    if sorgente is None:
+        return None
+    ogs = vista.GetElementOverrides(sorgente.Id)
+    destinatari = [e.Id for e in elementi if e.Id != sorgente.Id]
+    _applica_grafica(doc, vista, destinatari, ogs)
+    return u"Grafica copiata su %d elementi." % len(destinatari)
+
+
 AZIONI = {
     u"blocca": blocca,
     u"sel_tipo_vista": lambda uidoc, ids: sel_tipo(uidoc, ids, True),
@@ -227,6 +283,7 @@ AZIONI = {
     u"isola_categoria": isola_categoria,
     u"ripristina_temporaneo": ripristina_temporaneo,
     u"mezzitoni": mezzitoni,
+    u"copia_grafica": copia_grafica,
 }
 
 

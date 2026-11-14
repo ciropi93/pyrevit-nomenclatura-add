@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 """Palette contestuale "stile ArchiCAD" (senza API Revit).
 
-Selezionando qualcosa, vicino al cursore compare una palette di icone con i comandi
-adatti alla categoria selezionata. Qui stanno:
-  - il catalogo dei comandi (modifica di Revit, selezione rapida, visibilita');
-  - le categorie (chiave nostra -> categorie Revit OST_*);
-  - la configurazione per categoria (predefinita + file personale in %APPDATA%);
-  - quali comandi mostrare per una selezione (anche mista);
-  - dove mettere la palette sullo schermo.
-I comandi CDV legati al contesto (sezioni, viste in tavola, muri) restano in
-tasti_contestuali.py e vengono aggiunti dall'overlay come ultima riga.
+Selezionando qualcosa, vicino al cursore compare una palette piccola su tre livelli:
+  1. riga principale: in blu gli strumenti CDV della categoria (tasti_contestuali.py,
+     es. Inverti muro), poi al massimo 5 comandi "in vista" scelti per categoria e il
+     tasto "..." che apre il menu con il resto, diviso per gruppi;
+  2. menu "...": i comandi "nel menu" della categoria, con nome;
+  3. fila fissa, piccola e uguale per tutte le categorie: nascondi, mezzitoni,
+     copia grafica (matchprop), blocca...
+Qui stanno il catalogo dei comandi, le categorie (chiave nostra -> OST_*), la
+configurazione (predefinita + file personale in %APPDATA%), la struttura della
+palette per una selezione (anche mista) e la posizione sullo schermo.
 """
 import io
 import json
@@ -37,7 +38,7 @@ API = u"api"
 
 class Comando(object):
     def __init__(self, id_, gruppo, etichetta, suggerimento, icona, esecuzione,
-                 postable=None, categorie=None, max_elementi=None):
+                 postable=None, categorie=None, max_elementi=None, interattivo=False):
         self.id = id_
         self.gruppo = gruppo
         self.etichetta = etichetta
@@ -47,6 +48,7 @@ class Comando(object):
         self.postable = postable          # nome in Autodesk.Revit.UI.PostableCommand
         self.categorie = categorie        # None = tutte; altrimenti insieme di chiavi
         self.max_elementi = max_elementi  # es. 1 per "Crea simile"
+        self.interattivo = interattivo    # chiede di cliccare nella vista: palette via intanto
 
     def ammesso(self, chiavi, n):
         if self.max_elementi is not None and n > self.max_elementi:
@@ -144,12 +146,26 @@ CATALOGO = [
     Comando(u"ripristina_temporaneo", VISIBILITA, u"Ripristina nascondi/isola",
             u"Toglie il nascondi/isola temporaneo della vista",
             _OCCHIO, API),
+    Comando(u"copia_grafica", VISIBILITA, u"Copia grafica",
+            u"Come il matchprop di AutoCAD, nella vista attiva: con un elemento selezionato "
+            u"clicca gli elementi a cui copiarne la grafica (Esc per finire); con piu' elementi "
+            u"selezionati clicca l'elemento da cui copiarla. Annullabile.",
+            u"F1 M10,1 L15,6 L13.6,7.4 L12.5,6.3 L6.2,12.6 C5.4,13.4 4.2,13.6 3.4,13.2 "
+            u"L1.6,15 L1,14.4 L2.8,12.6 C2.4,11.8 2.6,10.6 3.4,9.8 L9.7,3.5 L8.6,2.4 Z",
+            API, interattivo=True),
     Comando(u"mezzitoni", VISIBILITA, u"Mezzitoni",
             u"Attiva o toglie i mezzitoni sugli elementi selezionati in questa vista (annullabile)",
             u"M1,1 H15 V15 H1 Z M2.5,2.5 V13.5 H8 V2.5 Z", API),
 ]
 
 PER_ID = dict((c.id, c) for c in CATALOGO)
+
+# Livelli di un comando per una categoria
+IN_VISTA = u"vista"
+NEL_MENU = u"menu"
+NASCOSTO = u"no"
+MAX_IN_VISTA = 5
+MAX_FISSA = 6
 
 # ==============================================================================
 # CATEGORIE
@@ -187,6 +203,12 @@ NOMI_CATEGORIE = dict((k, nome) for k, nome, _ in CATEGORIE)
 _DA_OST = dict((ost, k) for k, _, osts in CATEGORIE for ost in osts)
 
 
+# Visibilita' e grafica non hanno senso sui riquadri delle viste in tavola
+for _c in CATALOGO:
+    if _c.gruppo == VISIBILITA and _c.categorie is None:
+        _c.categorie = frozenset(k for k in CHIAVI if k != u"viste_tavola")
+
+
 def chiave_categoria(nome_ost, nome_classe=None):
     """Chiave della palette per un elemento: dalla classe .NET o dalla categoria OST_*."""
     if nome_classe == u"FilledRegion":
@@ -199,32 +221,17 @@ def chiave_categoria(nome_ost, nome_classe=None):
     return u"altro"
 
 
+
 # ==============================================================================
 # CONFIGURAZIONE
 # ==============================================================================
+# {"attiva": bool, "fissa": [id...],
+#  "categorie": {chiave: {"vista": [id...], "menu": [id...]}}}
+# Un comando non elencato ne' in "vista" ne' in "menu" e' nascosto per quella categoria.
 
-_BASE_MODIFICA = [u"sposta", u"copia", u"ruota", u"specchia", u"serie", u"allinea", u"blocca"]
-_LINEARI_EXTRA = [u"offset", u"dividi", u"taglia_estendi"]
-_SELEZIONE = [u"sel_tipo_vista", u"sel_tipo_progetto", u"sel_categoria_vista"]
-_VISIBILITA = [u"nascondi_elementi", u"nascondi_categoria", u"isola_elementi",
-               u"isola_categoria", u"ripristina_temporaneo", u"mezzitoni"]
-_STANDARD = _BASE_MODIFICA + _SELEZIONE + _VISIBILITA
-
-
-def _predefiniti(chiave):
-    if chiave == u"viste_tavola":
-        return [u"sposta", u"blocca", u"sel_tipo_vista"]
-    if chiave == u"sezioni":
-        return [u"sposta", u"copia", u"ruota", u"specchia", u"blocca", u"sel_categoria_vista",
-                u"nascondi_elementi", u"isola_elementi", u"ripristina_temporaneo"]
-    out = list(_STANDARD)
-    if chiave in (u"muri", u"strutture"):
-        out += _LINEARI_EXTRA + [u"crea_simile"]
-    elif chiave == u"linee":
-        out += _LINEARI_EXTRA + [u"scala", u"crea_simile"]
-    elif chiave in _MODELLO or chiave in (u"dettagli", u"campiture", u"annotazioni"):
-        out += [u"crea_simile"]
-    return out
+FISSA_PREDEFINITA = [u"nascondi_elementi", u"nascondi_categoria", u"mezzitoni",
+                     u"copia_grafica", u"blocca"]
+_VISTA_STD = [u"sposta", u"copia", u"ruota", u"specchia"]
 
 
 def ammessi_per_categoria(chiave):
@@ -232,35 +239,76 @@ def ammessi_per_categoria(chiave):
     return [c.id for c in CATALOGO if c.ammesso([chiave], 1)]
 
 
-def _pulisci(chiave, ids):
-    ammessi = set(ammessi_per_categoria(chiave))
-    return [i for i in ids if i in ammessi]
+def _pulisci(chiave, ids, escludi=()):
+    ammessi = set(ammessi_per_categoria(chiave)) - set(escludi)
+    visti = set()
+    out = []
+    for i in ids:
+        if i in ammessi and i not in visti:
+            out.append(i)
+            visti.add(i)
+    return out
+
+
+def _predefiniti(chiave, fissa):
+    if chiave == u"viste_tavola":
+        vista, menu = [u"sposta"], [u"sel_tipo_vista"]
+    else:
+        vista = list(_VISTA_STD)
+        menu = [c.id for c in CATALOGO if c.id not in vista]
+        if chiave == u"sezioni":
+            menu = [i for i in menu if i in (u"sel_categoria_vista", u"isola_elementi",
+                                             u"ripristina_temporaneo")]
+    vista = _pulisci(chiave, vista, fissa)[:MAX_IN_VISTA]
+    menu = _pulisci(chiave, menu, set(fissa) | set(vista))
+    return {IN_VISTA: vista, NEL_MENU: menu}
 
 
 def config_predefinita():
+    fissa = list(FISSA_PREDEFINITA)
     return {
         u"attiva": True,
-        u"categorie": dict((k, _pulisci(k, _predefiniti(k))) for k in CHIAVI),
+        u"fissa": fissa,
+        u"categorie": dict((k, _predefiniti(k, fissa)) for k in CHIAVI),
     }
+
+
+def _normalizza_categoria(chiave, voce, fissa):
+    vista = _pulisci(chiave, voce.get(IN_VISTA, []), fissa)[:MAX_IN_VISTA]
+    menu = _pulisci(chiave, voce.get(NEL_MENU, []), set(fissa) | set(vista))
+    return {IN_VISTA: vista, NEL_MENU: menu}
 
 
 def unisci_config(utente):
     """Predefinita aggiornata con il file personale.
 
-    Comandi sconosciuti o non ammessi per la categoria vengono scartati; le categorie
-    non presenti nel file restano quelle predefinite (cosi' le novita' arrivano da sole).
+    Comandi sconosciuti, doppi o non ammessi vengono scartati; le categorie non presenti
+    nel file (o salvate nel vecchio formato a lista) restano quelle predefinite.
     """
     cfg = config_predefinita()
     if not isinstance(utente, dict):
         return cfg
     if u"attiva" in utente:
         cfg[u"attiva"] = bool(utente[u"attiva"])
+    if isinstance(utente.get(u"fissa"), list):
+        cfg[u"fissa"] = [i for i in _unici(utente[u"fissa"]) if i in PER_ID][:MAX_FISSA]
+    fissa = cfg[u"fissa"]
     cat = utente.get(u"categorie")
-    if isinstance(cat, dict):
-        for k, ids in cat.items():
-            if k in cfg[u"categorie"] and isinstance(ids, list):
-                cfg[u"categorie"][k] = _pulisci(k, ids)
+    for k in CHIAVI:
+        voce = cat.get(k) if isinstance(cat, dict) else None
+        if isinstance(voce, dict):
+            cfg[u"categorie"][k] = _normalizza_categoria(k, voce, fissa)
+        else:
+            cfg[u"categorie"][k] = _normalizza_categoria(k, cfg[u"categorie"][k], fissa)
     return cfg
+
+
+def _unici(ids):
+    out = []
+    for i in ids:
+        if i not in out:
+            out.append(i)
+    return out
 
 
 def percorso_config():
@@ -302,32 +350,63 @@ def imposta_attiva(attiva, percorso=None):
 
 
 # ==============================================================================
-# COMANDI PER UNA SELEZIONE
+# STRUTTURA DELLA PALETTE PER UNA SELEZIONE
 # ==============================================================================
 
-def palette_per_selezione(chiavi, n, cfg, disponibili=None):
-    """Gruppi di tasti: [(titolo_gruppo, [(id, etichetta, suggerimento)])].
+def _voce(c):
+    return (c.id, c.etichetta, c.suggerimento)
 
-    chiavi: categorie (chiavi della palette) degli elementi selezionati; n: quanti sono.
-    Con una selezione mista si mostrano i comandi comuni a tutte le categorie.
-    disponibili: id utilizzabili in questa versione di Revit (None = tutti).
+
+def struttura_palette(chiavi, n, cfg, disponibili=None, cdv=None):
+    """Cosa mostrare per una selezione, oppure None se non c'e' nulla.
+
+    chiavi: categorie (chiavi della palette) degli elementi selezionati; n: quanti sono;
+    cdv: gruppi di strumenti CDV del contesto [(nome, [(id, etichetta, suggerimento)])].
+    Con una selezione mista valgono i comandi comuni a tutte le categorie.
+
+    Ritorna {"cdv": [...], "vista": [...], "menu": [...], "fissa": [...]}:
+      cdv: voci ("tasto", id, etichetta, suggerimento) per i gruppi di 1-2 strumenti,
+           ("gruppo", nome, [tasti]) per quelli piu' grandi (si aprono come menu);
+      vista, fissa: [(id, etichetta, suggerimento)];
+      menu: [(titolo_gruppo, [(id, etichetta, suggerimento)])].
     """
     if not cfg.get(u"attiva", True) or not chiavi or n < 1:
-        return []
+        return None
     chiavi = sorted(set(chiavi))
     per_cat = cfg.get(u"categorie", {})
-    scelti = None
-    for k in chiavi:
-        ids = set(per_cat.get(k, per_cat.get(u"altro", [])))
-        scelti = ids if scelti is None else (scelti & ids)
-    gruppi = []
+
+    def utilizzabile(c):
+        return c.ammesso(chiavi, n) and (disponibili is None or c.id in disponibili)
+
+    def comuni(livello):
+        scelti = None
+        for k in chiavi:
+            ids = set(per_cat.get(k, per_cat.get(u"altro", {})).get(livello, []))
+            scelti = ids if scelti is None else (scelti & ids)
+        return scelti or set()
+
+    fissa_ids = set(cfg.get(u"fissa", []))
+    fissa = [_voce(PER_ID[i]) for i in cfg.get(u"fissa", [])
+             if i in PER_ID and utilizzabile(PER_ID[i])]
+    in_vista = comuni(IN_VISTA) - fissa_ids
+    vista = [_voce(c) for c in CATALOGO if c.id in in_vista and utilizzabile(c)][:MAX_IN_VISTA]
+    gia = fissa_ids | set(v[0] for v in vista)
+    nel_menu = comuni(NEL_MENU) - gia
+    menu = []
     for gruppo, titolo in TITOLI_GRUPPI:
-        tasti = [(c.id, c.etichetta, c.suggerimento) for c in CATALOGO
-                 if c.gruppo == gruppo and c.id in scelti and c.ammesso(chiavi, n)
-                 and (disponibili is None or c.id in disponibili)]
+        tasti = [_voce(c) for c in CATALOGO
+                 if c.gruppo == gruppo and c.id in nel_menu and utilizzabile(c)]
         if tasti:
-            gruppi.append((titolo, tasti))
-    return gruppi
+            menu.append((titolo, tasti))
+    voci_cdv = []
+    for nome, tasti in (cdv or []):
+        if len(tasti) <= 2:
+            voci_cdv.extend((u"tasto",) + tuple(t) for t in tasti)
+        elif tasti:
+            voci_cdv.append((u"gruppo", nome, list(tasti)))
+    if not (voci_cdv or vista or menu or fissa):
+        return None
+    return {u"cdv": voci_cdv, u"vista": vista, u"menu": menu, u"fissa": fissa}
 
 
 # ==============================================================================
@@ -371,6 +450,7 @@ def posizione_palette(cursore, finestra, larghezza, altezza, distacco=12):
     return x, y
 
 
+
 # ==============================================================================
 # MODIFICHE DALLA FINESTRA DI PERSONALIZZAZIONE
 # ==============================================================================
@@ -379,29 +459,76 @@ def copia_config(cfg):
     """Copia indipendente (la finestra lavora su questa finche' non si salva)."""
     return {
         u"attiva": bool(cfg.get(u"attiva", True)),
-        u"categorie": dict((k, list(v)) for k, v in cfg.get(u"categorie", {}).items()),
+        u"fissa": list(cfg.get(u"fissa", [])),
+        u"categorie": dict((k, {IN_VISTA: list(v.get(IN_VISTA, [])),
+                                NEL_MENU: list(v.get(NEL_MENU, []))})
+                           for k, v in cfg.get(u"categorie", {}).items()),
     }
 
 
-def imposta_comando(cfg, chiave, comando, attivo):
-    """Aggiunge o toglie un comando da una categoria, tenendo l'ordine del catalogo."""
-    attuali = set(cfg[u"categorie"].get(chiave, []))
+def livello(cfg, chiave, comando):
+    voce = cfg[u"categorie"].get(chiave, {})
+    if comando in voce.get(IN_VISTA, []):
+        return IN_VISTA
+    if comando in voce.get(NEL_MENU, []):
+        return NEL_MENU
+    return NASCOSTO
+
+
+def imposta_livello(cfg, chiave, comando, nuovo):
+    """Mette un comando in vista, nel menu o lo nasconde per una categoria.
+
+    Ritorna False (senza cambiare nulla) se in vista ci sono gia' MAX_IN_VISTA comandi
+    o se il comando sta nella fila fissa.
+    """
+    if comando in cfg.get(u"fissa", []) or comando not in ammessi_per_categoria(chiave):
+        return False
+    voce = cfg[u"categorie"].setdefault(chiave, {IN_VISTA: [], NEL_MENU: []})
+    vista = [i for i in voce.get(IN_VISTA, []) if i != comando]
+    menu = [i for i in voce.get(NEL_MENU, []) if i != comando]
+    if nuovo == IN_VISTA:
+        if len(vista) >= MAX_IN_VISTA:
+            return False
+        vista.append(comando)
+    elif nuovo == NEL_MENU:
+        menu.append(comando)
+    ordine = ammessi_per_categoria(chiave)
+    voce[IN_VISTA] = [i for i in ordine if i in vista]
+    voce[NEL_MENU] = [i for i in ordine if i in menu]
+    return True
+
+
+def imposta_fissa(cfg, comando, attivo):
+    """Aggiunge/toglie un comando dalla fila fissa (False se e' gia' piena).
+
+    Un comando nella fila fissa sparisce da vista e menu di tutte le categorie;
+    tolto dalla fila torna nel menu delle categorie dove e' ammesso.
+    """
+    fissa = [i for i in cfg.get(u"fissa", []) if i != comando]
     if attivo:
-        attuali.add(comando)
-    else:
-        attuali.discard(comando)
-    cfg[u"categorie"][chiave] = [i for i in ammessi_per_categoria(chiave) if i in attuali]
-    return cfg
+        if len(fissa) >= MAX_FISSA:
+            return False
+        fissa.append(comando)
+    cfg[u"fissa"] = [c.id for c in CATALOGO if c.id in fissa]
+    for k in CHIAVI:
+        voce = cfg[u"categorie"].setdefault(k, {IN_VISTA: [], NEL_MENU: []})
+        if attivo:
+            voce[IN_VISTA] = [i for i in voce[IN_VISTA] if i != comando]
+            voce[NEL_MENU] = [i for i in voce[NEL_MENU] if i != comando]
+        elif comando in ammessi_per_categoria(k):
+            imposta_livello(cfg, k, comando, NEL_MENU)
+    return True
 
 
 def ripristina_categoria(cfg, chiave):
-    cfg[u"categorie"][chiave] = list(config_predefinita()[u"categorie"][chiave])
+    cfg[u"categorie"][chiave] = _predefiniti(chiave, cfg.get(u"fissa", []))
     return cfg
 
 
 def copia_su_tutte(cfg, chiave):
     """Stessa scelta della categoria 'chiave' su tutte le altre (dove il comando e' ammesso)."""
-    sorgente = cfg[u"categorie"].get(chiave, [])
+    sorgente = cfg[u"categorie"].get(chiave, {})
+    fissa = cfg.get(u"fissa", [])
     for k in CHIAVI:
-        cfg[u"categorie"][k] = _pulisci(k, sorgente)
+        cfg[u"categorie"][k] = _normalizza_categoria(k, sorgente, fissa)
     return cfg

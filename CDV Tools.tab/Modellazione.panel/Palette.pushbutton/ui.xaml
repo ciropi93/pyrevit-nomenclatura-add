@@ -47,7 +47,7 @@
             <StackPanel>
                 <TextBlock Text="Personalizza Palette" Foreground="White" FontSize="16" FontWeight="SemiBold"/>
                 <TextBlock Foreground="#CBD5E1" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
-                           Text="Scegli quali tasti compaiono accanto al cursore quando selezioni una categoria. Con una selezione mista compaiono solo i tasti comuni."/>
+                           Text="Per ogni categoria scegli quali comandi stanno nella riga della palette (al massimo 5), quali nel menu &#8230; e quali nascondere. La fila fissa in basso è uguale per tutte le categorie."/>
             </StackPanel>
         </Border>
 
@@ -69,14 +69,15 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" x:Name="txtCategoria" FontSize="14" FontWeight="SemiBold"
-                               Foreground="#0F172A" Margin="0,0,0,6"/>
+                    <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                        <TextBlock DockPanel.Dock="Right" x:Name="txtConteggio" FontSize="11"
+                                   Foreground="#64748B" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="txtCategoria" FontSize="14" FontWeight="SemiBold" Foreground="#0F172A"/>
+                    </DockPanel>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <StackPanel x:Name="pnlComandi"/>
                     </ScrollViewer>
                     <WrapPanel Grid.Row="2" Margin="0,8,0,0" HorizontalAlignment="Right">
-                        <Button x:Name="btnTutti" Content="Tutti"/>
-                        <Button x:Name="btnNessuno" Content="Nessuno"/>
                         <Button x:Name="btnRipristinaCat" Content="Predefiniti"/>
                         <Button x:Name="btnCopiaTutte" Content="Copia su tutte"/>
                     </WrapPanel>

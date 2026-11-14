@@ -38,7 +38,7 @@ clr.AddReference("RevitAPIUI")
 
 import System
 from System import Double, EventHandler, IntPtr, TimeSpan
-from System.Windows import Size, Thickness, Visibility
+from System.Windows import Point, Size, SystemParameters, Thickness, Visibility
 from System.Windows import CornerRadius, FontWeights, HorizontalAlignment, VerticalAlignment
 from System.Windows.Controls import Border, Button, Canvas, Orientation, StackPanel, TextBlock
 from System.Windows.Input import Keyboard, ModifierKeys
@@ -71,7 +71,6 @@ SCRIPT_INVERTI_MURO = os.path.join(
     u"CDV Tools.tab", u"Modellazione.panel", u"FlipWallCenter.pushbutton", u"script.py",
 )
 DIM_TASTO = 22
-TASTI_PER_RIGA = 10
 DIM_ICONA = 14
 DIM_LETTERA = 14          # cerchietto della lettera E / I
 DISTACCO_LETTERA = 10     # pixel tra la faccia del muro e il centro della lettera
@@ -80,12 +79,7 @@ MAX_MURI_LETTERE = 150    # oltre, niente lettere (troppe per leggerle)
 COLORE_ESTERNO = "#DC2626"
 COLORE_INTERNO = "#2563EB"
 
-XAML = u"""
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
-        SizeToContent="WidthAndHeight" FontFamily="Segoe UI" FontSize="11">
+_STILI = u"""
   <Window.Resources>
     <Style TargetType="Button">
       <Setter Property="Width" Value="22"/>
@@ -97,8 +91,10 @@ XAML = u"""
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="sfondo" Background="{TemplateBinding Background}" CornerRadius="3">
-              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Border x:Name="sfondo" Background="{TemplateBinding Background}" CornerRadius="3"
+                    Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="Center"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
@@ -112,16 +108,67 @@ XAML = u"""
         </Setter.Value>
       </Setter>
     </Style>
+    <!-- strumento CDV della categoria: blu pieno -->
+    <Style x:Key="Primario" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="#0369A1"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="sfondo" Background="{TemplateBinding Background}" CornerRadius="3">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="sfondo" Property="Background" Value="#075985"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="sfondo" Property="Background" Value="#0C4A6E"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <!-- fila fissa: tasti piccoli -->
+    <Style x:Key="Piccolo" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Width" Value="18"/>
+      <Setter Property="Height" Value="18"/>
+    </Style>
+    <!-- voce del menu "..." -->
+    <Style x:Key="Voce" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Width" Value="NaN"/>
+      <Setter Property="Height" Value="24"/>
+      <Setter Property="Margin" Value="0"/>
+      <Setter Property="Padding" Value="10,0,14,0"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+    </Style>
   </Window.Resources>
-  <Border Margin="0,0,3,3" CornerRadius="4" Background="#F2FFFFFF" BorderBrush="#CBD5E1"
-          BorderThickness="1" Padding="2">
+"""
+
+_FINESTRA = u"""
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight" FontFamily="Segoe UI" FontSize="12">
+%s
+  <Border Margin="0,0,4,4" CornerRadius="%d" Background="#FAFFFFFF" BorderBrush="#CBD5E1"
+          BorderThickness="1" Padding="%s">
     <Border.Effect>
-      <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.2"/>
+      <DropShadowEffect BlurRadius="%d" ShadowDepth="1" Opacity="0.2"/>
     </Border.Effect>
     <StackPanel x:Name="pnlTasti" Orientation="Vertical"/>
   </Border>
 </Window>
 """
+
+XAML = _FINESTRA % (_STILI, 5, u"2", 4)
+XAML_MENU = _FINESTRA % (_STILI, 6, u"0,4,0,4", 8)
+
+# Icona del tasto "..." (tre punti)
+ICONA_ALTRO = (u"M3,6.5 A1.5,1.5 0 1 1 3,9.5 A1.5,1.5 0 1 1 3,6.5 Z "
+               u"M8,6.5 A1.5,1.5 0 1 1 8,9.5 A1.5,1.5 0 1 1 8,6.5 Z "
+               u"M13,6.5 A1.5,1.5 0 1 1 13,9.5 A1.5,1.5 0 1 1 13,6.5 Z")
 
 # Finestra trasparente sopra la vista per le lettere E / I: non riceve clic
 XAML_LETTERE = u"""
@@ -283,10 +330,10 @@ def _gruppi_cdv(doc, elementi):
 
 
 def _analizza_selezione(doc, ids, cfg, disponibili):
-    """Ritorna (gruppi, madre_uid) oppure None se non c'e' nulla da proporre.
+    """Ritorna (struttura, madre_uid) oppure None se non c'e' nulla da proporre.
 
-    gruppi: prima i comandi della palette per le categorie selezionate, poi gli
-    strumenti CDV legati al contesto.
+    struttura: vedi palette.struttura_palette (strumenti CDV del contesto, comandi
+    in vista, menu "...", fila fissa).
     """
     if doc is None or doc.IsFamilyDocument or not ids or not cfg.get(u"attiva", True):
         return None
@@ -294,12 +341,11 @@ def _analizza_selezione(doc, ids, cfg, disponibili):
     if not elementi:
         return None
     chiavi = set(PAL.chiave_categoria(_nome_ost(e), e.GetType().Name) for e in elementi)
-    gruppi = PAL.palette_per_selezione(chiavi, len(elementi), cfg, disponibili)
     cdv, madre_uid = _gruppi_cdv(doc, elementi)
-    gruppi = gruppi + cdv
-    if not gruppi:
+    struttura = PAL.struttura_palette(chiavi, len(elementi), cfg, disponibili, cdv)
+    if struttura is None:
         return None
-    return gruppi, madre_uid
+    return struttura, madre_uid
 
 
 # ==============================================================================
@@ -381,6 +427,7 @@ class _GestoreAzione(UI.IExternalEventHandler):
         self.comando = None
         self.madre_uid = None
         self.maiuscolo = False
+        self.al_termine = None   # chiamata a fine azione (la palette torna)
 
     def Execute(self, uiapp):
         comando, uid = self.comando, self.madre_uid
@@ -411,6 +458,12 @@ class _GestoreAzione(UI.IExternalEventHandler):
                 AIT.esegui_da_ribbon(comando)
         except Exception as ex:
             _avvisa(u"Errore: %s" % ex)
+        finally:
+            if self.al_termine is not None:
+                try:
+                    self.al_termine(comando)
+                except Exception:
+                    pass
 
     def GetName(self):
         return u"CDV Tools - Tasti in sovraimpressione"
@@ -729,7 +782,10 @@ class TastiOverlay(object):
         self.cfg_data = -1          # data del file palette.json letto (None = non esiste)
         self.disponibili = None
         self.ancora = None          # punto del clic, in coordinate della vista
-        self.sospesa = False        # comando di Revit in corso: palette via fino alla fine
+        self.sospesa = False        # comando in corso: palette via fino alla fine
+        self.sospesa_revit = False  # ... ed e' un comando di Revit (torna con DocumentChanged)
+        self.win_menu = None        # menu "..." (o di un gruppo CDV)
+        self.menu_da = None         # tasto che ha aperto il menu
 
     # --- finestra -------------------------------------------------------------
     def _crea_finestra(self):
@@ -746,6 +802,7 @@ class TastiOverlay(object):
             self.scala = 1.0
         # ExternalEvent va creato in contesto API (qui siamo in un evento di Revit)
         self.gestore = _GestoreAzione()
+        self.gestore.al_termine = self._fine_azione
         self.evento = UI.ExternalEvent.Create(self.gestore)
         # Durante pan e zoom Revit non manda Idling: i tasti resterebbero fermi mentre
         # il disegno si sposta. Un timer guarda il mouse e li toglie finche' ci si muove.
@@ -761,9 +818,24 @@ class TastiOverlay(object):
             return
         if messaggio == _GancioMouse.WM_LBUTTONDOWN:
             self._nascondi_lettere()
+            # clic fuori da palette e menu: il menu si chiude
+            if not (self._sotto_cursore(self.win_menu) or self._sotto_cursore(self.win)):
+                self._chiudi_menu()
         else:
+            self._chiudi_menu()
             self._nascondi_finestra()
             self._nascondi_lettere()
+
+    def _sotto_cursore(self, win):
+        if win is None or win.Visibility != Visibility.Visible:
+            return False
+        try:
+            mp = Control.MousePosition
+            k = self.scala
+            return (win.Left * k <= mp.X <= (win.Left + win.ActualWidth) * k
+                    and win.Top * k <= mp.Y <= (win.Top + win.ActualHeight) * k)
+        except Exception:
+            return False
 
     def _su_timer(self, sender, args):
         try:
@@ -848,40 +920,165 @@ class TastiOverlay(object):
         if self.win_lettere.Visibility != Visibility.Visible:
             self.win_lettere.Show()
 
-    def _tasto(self, comando, etichetta, suggerimento, gruppo):
+    # --- costruzione della palette -------------------------------------------
+    def _icona(self, tracciato, colore, dim=DIM_ICONA):
         icona = Path()
-        cmd = PAL.PER_ID.get(comando)
-        tracciato = cmd.icona if cmd is not None else TC.ICONE.get(comando)
         icona.Data = Geometry.Parse(tracciato or u"M2,2 H14 V14 H2 Z")
-        icona.Fill = _colore("#0369A1")
-        icona.Width = DIM_ICONA
-        icona.Height = DIM_ICONA
+        icona.Fill = _colore(colore)
+        icona.Width = dim
+        icona.Height = dim
         icona.Stretch = Stretch.Uniform
+        return icona
+
+    def _tracciato(self, comando):
+        cmd = PAL.PER_ID.get(comando)
+        return cmd.icona if cmd is not None else TC.ICONE.get(comando)
+
+    def _tasto(self, comando, etichetta, suggerimento, stile=None, colore="#0369A1", dim=DIM_ICONA):
         b = Button()
-        b.Content = icona
-        b.ToolTip = u"%s: %s\n%s" % (gruppo, etichetta, suggerimento)
+        if stile:
+            b.Style = self.win.FindResource(stile)
+        b.Content = self._icona(self._tracciato(comando), colore, dim)
+        b.ToolTip = u"%s\n%s" % (etichetta, suggerimento)
         b.Click += lambda s, a: self._esegui(comando)
         return b
 
-    def _riempi(self, gruppi):
-        """Una riga per gruppo (Modifica, Selezione, Visibilita', CDV), separate da una linea."""
+    def _tasto_menu(self, tracciato, suggerimento, sezioni, stile=None, colore="#475569"):
+        """Tasto che apre un menu (il "..." o un gruppo di strumenti CDV)."""
+        b = Button()
+        if stile:
+            b.Style = self.win.FindResource(stile)
+        riga = StackPanel()
+        riga.Orientation = Orientation.Horizontal
+        riga.Children.Add(self._icona(tracciato, colore, DIM_ICONA if not stile else 13))
+        if stile == u"Primario":
+            b.Width = 30
+            freccia = self._icona(u"M0,0 H8 L4,5 Z", colore, 5)
+            freccia.Margin = Thickness(2, 0, 0, 0)
+            riga.Children.Add(freccia)
+        b.Content = riga
+        b.ToolTip = suggerimento
+        b.Click += lambda s, a: self._apri_menu(b, sezioni)
+        return b
+
+    def _separatore(self):
+        sep = Border()
+        sep.Width = 1
+        sep.Height = 16
+        sep.Margin = Thickness(3, 0, 3, 0)
+        sep.Background = _colore("#CBD5E1")
+        return sep
+
+    def _riempi(self, st):
+        """Riga principale (CDV in blu | comandi in vista | ...) e sotto la fila fissa."""
+        self._chiudi_menu()
         pnl = self.win.FindName("pnlTasti")
         pnl.Children.Clear()
-        for n, (nome, tasti) in enumerate(gruppi):
-            if n > 0:
-                sep = Border()
-                sep.Height = 1
-                sep.Margin = Thickness(2, 2, 2, 2)
-                sep.Background = _colore("#CBD5E1")
-                pnl.Children.Add(sep)
-            for i in range(0, len(tasti), TASTI_PER_RIGA):
-                riga = StackPanel()
-                riga.Orientation = Orientation.Horizontal
-                for comando, etichetta, suggerimento in tasti[i:i + TASTI_PER_RIGA]:
-                    riga.Children.Add(self._tasto(comando, etichetta, suggerimento, nome))
-                pnl.Children.Add(riga)
+        riga = StackPanel()
+        riga.Orientation = Orientation.Horizontal
+        for v in st[u"cdv"]:
+            if v[0] == u"tasto":
+                riga.Children.Add(self._tasto(v[1], v[2], v[3], stile=u"Primario", colore="#FFFFFF"))
+            else:
+                nome, tasti = v[1], v[2]
+                riga.Children.Add(self._tasto_menu(self._tracciato(tasti[0][0]), nome,
+                                                   [(nome, tasti)], stile=u"Primario",
+                                                   colore="#FFFFFF"))
+        if st[u"cdv"] and (st[u"vista"] or st[u"menu"]):
+            riga.Children.Add(self._separatore())
+        for comando, etichetta, suggerimento in st[u"vista"]:
+            riga.Children.Add(self._tasto(comando, etichetta, suggerimento))
+        if st[u"menu"]:
+            if st[u"vista"]:
+                riga.Children.Add(self._separatore())
+            riga.Children.Add(self._tasto_menu(ICONA_ALTRO, u"Altri comandi", st[u"menu"]))
+        if riga.Children.Count:
+            pnl.Children.Add(riga)
+        if st[u"fissa"]:
+            fila = StackPanel()
+            fila.Orientation = Orientation.Horizontal
+            for comando, etichetta, suggerimento in st[u"fissa"]:
+                fila.Children.Add(self._tasto(comando, etichetta, suggerimento, stile=u"Piccolo",
+                                              colore="#475569", dim=12))
+            fondo = Border()
+            fondo.Child = fila
+            fondo.Background = _colore("#F1F5F9")
+            fondo.CornerRadius = CornerRadius(3)
+            fondo.Padding = Thickness(1)
+            fondo.HorizontalAlignment = HorizontalAlignment.Left
+            if riga.Children.Count:
+                fondo.Margin = Thickness(0, 2, 0, 0)
+            pnl.Children.Add(fondo)
         self.win.Content.Measure(Size(Double.PositiveInfinity, Double.PositiveInfinity))
         self.ultima_pos = None
+
+    # --- menu "..." -------------------------------------------------------------
+    def _crea_menu(self):
+        win = XamlReader.Parse(XAML_MENU)
+        try:
+            WindowInteropHelper(win).Owner = self.uiapp.MainWindowHandle
+        except Exception:
+            win.Topmost = True
+        _non_attivabile(win)
+        self.win_menu = win
+
+    def _voce_menu(self, comando, etichetta, suggerimento):
+        b = Button()
+        b.Style = self.win_menu.FindResource(u"Voce")
+        riga = StackPanel()
+        riga.Orientation = Orientation.Horizontal
+        riga.Children.Add(self._icona(self._tracciato(comando), "#0369A1"))
+        t = TextBlock()
+        t.Text = etichetta
+        t.Margin = Thickness(8, 0, 0, 0)
+        t.Foreground = _colore("#0F172A")
+        t.VerticalAlignment = VerticalAlignment.Center
+        riga.Children.Add(t)
+        b.Content = riga
+        b.ToolTip = suggerimento
+        b.HorizontalAlignment = HorizontalAlignment.Stretch
+        b.Click += lambda s, a: self._esegui(comando)
+        return b
+
+    def _apri_menu(self, tasto, sezioni):
+        if self.menu_da is tasto and self.win_menu is not None \
+                and self.win_menu.Visibility == Visibility.Visible:
+            self._chiudi_menu()     # secondo clic sullo stesso tasto: chiude
+            return
+        if self.win_menu is None:
+            self._crea_menu()
+        pnl = self.win_menu.FindName("pnlTasti")
+        pnl.Children.Clear()
+        for titolo, tasti in sezioni:
+            t = TextBlock()
+            t.Text = titolo.upper()
+            t.FontSize = 10
+            t.FontWeight = FontWeights.SemiBold
+            t.Foreground = _colore("#64748B")
+            t.Margin = Thickness(10, 6 if pnl.Children.Count else 2, 10, 2)
+            pnl.Children.Add(t)
+            for comando, etichetta, suggerimento in tasti:
+                pnl.Children.Add(self._voce_menu(comando, etichetta, suggerimento))
+        self.win_menu.Content.Measure(Size(Double.PositiveInfinity, Double.PositiveInfinity))
+        dim = self.win_menu.Content.DesiredSize
+        # sotto il tasto, allineato a sinistra; sopra se in basso non c'e' posto
+        k = self.scala
+        basso_sx = tasto.PointToScreen(Point(0, tasto.ActualHeight))
+        alto_sx = tasto.PointToScreen(Point(0, 0))
+        x, y = basso_sx.X / k, basso_sx.Y / k + 2
+        schermo = SystemParameters.WorkArea
+        if y + dim.Height > schermo.Bottom:
+            y = alto_sx.Y / k - dim.Height - 2
+        if x + dim.Width > schermo.Right:
+            x = schermo.Right - dim.Width
+        self.win_menu.Left, self.win_menu.Top = x, y
+        self.menu_da = tasto
+        self.win_menu.Show()
+
+    def _chiudi_menu(self):
+        self.menu_da = None
+        if self.win_menu is not None and self.win_menu.Visibility == Visibility.Visible:
+            self.win_menu.Hide()
 
     def riposiziona(self, uidoc):
         """Mette la palette accanto al punto del clic (o sul bordo superiore della selezione
@@ -919,24 +1116,26 @@ class TastiOverlay(object):
             return
         pos = (round(pos[0] / self.scala), round(pos[1] / self.scala))
         if pos != self.ultima_pos:
+            if self.ultima_pos is not None:
+                self._chiudi_menu()
             self.win.Left, self.win.Top = pos
             self.ultima_pos = pos
         if self.win.Visibility != Visibility.Visible:
             self.win.Show()
 
-    def mostra(self, uidoc, ids, gruppi, madre_uid):
+    def mostra(self, uidoc, ids, struttura, madre_uid):
         if self.win is None:
             self._crea_finestra()
         self.madre_uid = madre_uid
         self.ids = list(ids)
-        self.muri = any(c == TC.MURO_INVERTI for _, tasti in gruppi for c, _, _ in tasti)
+        self.muri = any(v[0] == u"tasto" and v[1] == TC.MURO_INVERTI for v in struttura[u"cdv"])
         self.ultime_lettere = None
         self.cache_muri = {}
         self.ancora = self._ancora_cursore(uidoc)
         self.attivo = True
         if self.timer is not None and not self.timer.IsEnabled:
             self.timer.Start()
-        self._riempi(gruppi)
+        self._riempi(struttura)
         self.riposiziona(uidoc)
 
     def _ancora_cursore(self, uidoc):
@@ -959,6 +1158,7 @@ class TastiOverlay(object):
             self.win.Hide()
 
     def nascondi(self):
+        self._chiudi_menu()
         self.attivo = False
         self.ids = []
         self.muri = False
@@ -976,11 +1176,14 @@ class TastiOverlay(object):
             self.gestore.maiuscolo = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift
         except Exception:
             self.gestore.maiuscolo = False
+        self._chiudi_menu()
         cmd = PAL.PER_ID.get(comando)
-        if cmd is not None and cmd.esecuzione == PAL.REVIT:
-            # Sposta, Copia, ...: la palette si toglie e torna a comando finito
-            # (DocumentChanged) o quando cambia la selezione.
+        if cmd is not None and (cmd.esecuzione == PAL.REVIT or cmd.interattivo):
+            # Sposta, Copia, Copia grafica...: la palette si toglie e torna a comando
+            # finito (DocumentChanged per i comandi di Revit, fine azione per i nostri)
+            # o quando cambia la selezione.
             self.sospesa = True
+            self.sospesa_revit = cmd.esecuzione == PAL.REVIT
             self._nascondi_finestra()
             self._nascondi_lettere()
         elif comando == TC.SEZIONE_APRI:
@@ -1018,12 +1221,13 @@ class TastiOverlay(object):
                 return
             self.chiave_sel = chiave
             self.sospesa = False
+            self.sospesa_revit = False
             esito = _analizza_selezione(doc, ids, self.cfg, self.disponibili)
             if esito is None:
                 self.nascondi()
             else:
-                gruppi, madre_uid = esito
-                self.mostra(uidoc, ids, gruppi, madre_uid)
+                struttura, madre_uid = esito
+                self.mostra(uidoc, ids, struttura, madre_uid)
         except Exception:
             # Un errore qui non deve mai disturbare il lavoro in Revit
             self.nascondi()
@@ -1053,10 +1257,21 @@ class TastiOverlay(object):
     def _su_modifica(self, sender, args):
         # Comando di Revit finito (es. Sposta): la palette torna, sul bordo della
         # selezione perche' gli elementi si sono spostati dal punto del clic.
-        if self.sospesa:
-            self.sospesa = False
-            self.ancora = None
-            self.ultima_pos = None
+        if self.sospesa and self.sospesa_revit:
+            self._riprendi()
+
+    def _fine_azione(self, comando):
+        # Azione nostra finita (es. Copia grafica dopo Esc): la palette torna
+        cmd = PAL.PER_ID.get(comando)
+        if self.sospesa and cmd is not None and not self.sospesa_revit:
+            self._riprendi()
+
+    def _riprendi(self):
+        # Torna sul bordo della selezione: gli elementi possono essersi spostati
+        self.sospesa = False
+        self.sospesa_revit = False
+        self.ancora = None
+        self.ultima_pos = None
 
     # --- attivazione ----------------------------------------------------------
     def accendi(self):
@@ -1109,7 +1324,7 @@ class TastiOverlay(object):
                 self.timer.Stop()
             except Exception:
                 pass
-        for win in (self.win, self.win_lettere):
+        for win in (self.win, self.win_lettere, self.win_menu):
             if win is not None:
                 try:
                     win.Close()
@@ -1117,6 +1332,7 @@ class TastiOverlay(object):
                     pass
         self.win = None
         self.win_lettere = None
+        self.win_menu = None
 
 
 def attiva(uiapp):
