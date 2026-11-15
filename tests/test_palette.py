@@ -76,8 +76,8 @@ def _ids(lista):
 def test_config_predefinita():
     cfg = PAL.config_predefinita()
     assert cfg[u"attiva"] is True
-    assert cfg[u"fissa"] == [u"nascondi_elementi", u"nascondi_categoria", u"mezzitoni",
-                             u"copia_grafica", u"blocca"]
+    assert cfg[u"fissa"] == [u"crea_simile", u"nascondi_elementi", u"nascondi_categoria",
+                             u"mezzitoni", u"copia_grafica", u"blocca"]
     assert set(cfg[u"categorie"]) == set(PAL.CHIAVI)
     for k, ids in cfg[u"categorie"].items():
         assert set(ids) <= set(PAL.ammessi_per_categoria(k)), k
@@ -94,7 +94,7 @@ def test_unisci_config_scarta_comandi_ignoti_e_legge_il_formato_precedente():
                        u"muri": {u"vista": [u"sposta"], u"menu": [u"offset"]},
                        u"categoria_ignota": [u"sposta"]}})
     assert cfg[u"attiva"] is False
-    assert cfg[u"fissa"] == [u"blocca"]
+    assert cfg[u"fissa"] == [u"crea_simile", u"blocca"]   # file vecchio: crea simile aggiunto
     assert cfg[u"categorie"][u"porte"] == [u"sposta", u"copia"]   # ordine del catalogo
     assert cfg[u"categorie"][u"muri"] == [u"sposta", u"offset"]
     assert u"categoria_ignota" not in cfg[u"categorie"]
@@ -110,7 +110,7 @@ def test_struttura_per_un_muro():
     assert st[u"famiglie"][0][u"cdv"] is True
     assert st[u"famiglie"][0][u"id"] == PAL.PREFISSO_CDV + u"Muri"
     assert _ids_fam(st, u"Trasforma") == [u"sposta", u"copia", u"ruota", u"specchia", u"serie", u"scala"]
-    assert u"offset" in _ids_fam(st, u"Forma") and u"crea_simile" in _ids_fam(st, u"Forma")
+    assert u"offset" in _ids_fam(st, u"Forma") and u"crea_simile" not in _ids_fam(st, u"Forma")
     # la famiglia Vista e' tutta nella fila fissa: non compare
     assert _ids(st[u"fissa"]) == cfg[u"fissa"]
 
@@ -178,14 +178,14 @@ def test_schermo_a_vista_inverso_di_proietta():
 
 
 def test_posizione_palette_accanto_al_cursore():
-    assert PAL.posizione_palette((300, 200), FINESTRA, 120, 60) == (312, 212)
+    assert PAL.posizione_palette((300, 200), FINESTRA, 120, 60) == (324, 224)
 
 
 def test_posizione_palette_si_ribalta_agli_angoli():
     # in basso a destra: va sopra e a sinistra del cursore
-    assert PAL.posizione_palette((880, 640), FINESTRA, 120, 60) == (880 - 12 - 120, 640 - 12 - 60)
+    assert PAL.posizione_palette((880, 640), FINESTRA, 120, 60) == (880 - 24 - 120, 640 - 24 - 60)
     # in alto a sinistra: resta in basso a destra
-    assert PAL.posizione_palette((101, 51), FINESTRA, 120, 60) == (113, 63)
+    assert PAL.posizione_palette((101, 51), FINESTRA, 120, 60) == (125, 75)
     # palette piu' larga dello spazio a sinistra: resta dentro la vista
     x, y = PAL.posizione_palette((850, 300), FINESTRA, 790, 60)
     assert x >= 100 and x + 790 <= 900
@@ -210,14 +210,14 @@ def test_imposta_comando():
 
 def test_imposta_fissa():
     cfg = PAL.copia_config(PAL.config_predefinita())
-    assert PAL.imposta_fissa(cfg, u"isola_elementi", True)              # sesto
+    assert PAL.imposta_fissa(cfg, u"isola_elementi", True)              # settimo
     assert not PAL.imposta_fissa(cfg, u"sposta", True)                  # pieno
     assert PAL.imposta_fissa(cfg, u"blocca", False)
     assert u"blocca" not in cfg[u"fissa"]
     assert u"blocca" in cfg[u"categorie"][u"porte"]                     # torna nella famiglia
     assert not PAL.imposta_fissa(cfg, u"inventato", True)
-    assert cfg[u"fissa"] == [u"nascondi_elementi", u"nascondi_categoria", u"mezzitoni",
-                             u"copia_grafica", u"isola_elementi"]
+    assert cfg[u"fissa"] == [u"crea_simile", u"nascondi_elementi", u"nascondi_categoria",
+                             u"mezzitoni", u"copia_grafica", u"isola_elementi"]
 
 
 def test_ripristina_e_copia_su_tutte():
@@ -279,7 +279,7 @@ def test_config_con_forma_sbagliata_non_da_errore(tmp_path):
     for dati in strane:
         cfg = PAL.unisci_config(dati)
         assert set(cfg[u"categorie"]) == set(PAL.CHIAVI)
-    assert PAL.unisci_config(strane[0])[u"fissa"] == [u"blocca"]
+    assert PAL.unisci_config(strane[0])[u"fissa"] == [u"crea_simile", u"blocca"]
     assert PAL.unisci_config(strane[1])[u"categorie"][u"muri"] == []
     assert PAL.unisci_config(strane[2])[u"categorie"][u"muri"] == [u"copia"]
     # anche dal file: mai un'eccezione, al massimo la predefinita
@@ -300,3 +300,25 @@ def test_posizione_griglia_sul_monitor_della_palette():
     assert PAL.posizione_griglia(300, 1000, 950, 210, 130, principale) == (300, 950 - 4 - 130)
     # vicino al bordo destro resta dentro il monitor
     assert PAL.posizione_griglia(3800, 200, 150, 210, 130, secondo)[0] == 3840 - 210
+
+
+def test_crea_simile_nella_fila_fissa_solo_con_un_elemento():
+    cfg = PAL.config_predefinita()
+    uno = PAL.struttura_palette([u"muri"], 1, cfg)
+    assert _ids(uno[u"fissa"])[0] == u"crea_simile"
+    assert u"crea_simile" not in _ids_fam(uno, u"Forma")       # non si ripete
+    due = PAL.struttura_palette([u"muri"], 2, cfg)
+    assert u"crea_simile" not in _ids(due[u"fissa"])
+
+
+def test_versione_config_crea_simile_aggiunto_una_volta_sola():
+    vecchio = {u"fissa": [u"nascondi_elementi", u"nascondi_categoria", u"mezzitoni",
+                          u"copia_grafica", u"blocca", u"isola_elementi"]}
+    cfg = PAL.unisci_config(vecchio)
+    assert cfg[u"fissa"][0] == u"crea_simile" and len(cfg[u"fissa"]) == 7
+    # l'utente lo toglie e salva: con la versione nuova non torna
+    salvata = PAL.copia_config(cfg)
+    PAL.imposta_fissa(salvata, u"crea_simile", False)
+    assert u"crea_simile" not in PAL.unisci_config(salvata)[u"fissa"]
+    # un file gia' nuovo non viene toccato
+    assert PAL.unisci_config({u"versione": 2, u"fissa": [u"blocca"]})[u"fissa"] == [u"blocca"]

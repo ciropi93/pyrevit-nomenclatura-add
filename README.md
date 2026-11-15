@@ -12,13 +12,13 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 
 **Palette contestuale (stile ArchiCAD).** Quando selezioni qualcosa nella vista, accanto al
 cursore compare una palette piccola:
-- **sopra, la fila fissa**, uguale per tutte le categorie: Nascondi elementi, Nascondi
-  categoria, Mezzitoni, **Copia grafica** (come il matchprop di AutoCAD: con un elemento
+- **sopra, la fila fissa**, uguale per tutte le categorie: **Crea simile** (con un solo
+  elemento selezionato), Nascondi elementi, Nascondi categoria, Mezzitoni, **Copia grafica** (come il matchprop di AutoCAD: con un elemento
   selezionato clicchi quelli a cui copiarne la grafica nella vista, Esc per finire; con più
   elementi selezionati clicchi quello da cui copiarla) e Blocca/Sblocca;
 - **sotto, i tasti famiglia**: prima, in azzurro con bordo blu, gli strumenti CDV della
   selezione (vedi sotto), poi **Trasforma** (Sposta, Copia, Ruota, Specchia, Serie, Scala),
-  **Forma** (Allinea, Offset, Dividi, Taglia/Estendi, Crea simile), **Seleziona** (stesso tipo
+  **Forma** (Allinea, Offset, Dividi, Taglia/Estendi), **Seleziona** (stesso tipo
   nella vista o nel progetto, stessa categoria), **Isola** (temporaneo). Il tasto mostra
   l'ultimo strumento usato della famiglia e un clic lo rifà; **passando sopra** si apre la
   griglia con tutti gli strumenti, icona e nome.
@@ -32,7 +32,7 @@ strumenti comuni. Se la selezione arriva dal browser di progetto la palette va s
 superiore della selezione. **Palette On/Off** (pannello Modellazione) la spegne o la
 riaccende; lo stato resta dopo il riavvio. **Personalizza Palette** apre una finestra dove
 spunti, per ogni categoria, gli strumenti di ogni famiglia e scegli la fila fissa (al massimo
-6); vale subito, senza riavviare. Le scelte stanno in `%APPDATA%\pyRevit\CDVTools\palette.json`.
+7); vale subito, senza riavviare. Le scelte stanno in `%APPDATA%\pyRevit\CDVTools\palette.json`.
 
 Strumenti CDV della categoria (in tavola, cliccare il titolo seleziona la vista):
 - linea di sezione o riquadro di una sezione con sfondo attivo: **Profondità sezione**

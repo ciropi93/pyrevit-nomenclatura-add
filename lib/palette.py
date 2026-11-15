@@ -2,8 +2,8 @@
 """Palette contestuale "stile ArchiCAD" (senza API Revit).
 
 Selezionando qualcosa, accanto al cursore compare una palette piccola:
-  - sopra, la fila fissa (uguale per tutte le categorie): nascondi, mezzitoni,
-    copia grafica, blocca...;
+  - sopra, la fila fissa (uguale per tutte le categorie): crea simile, nascondi,
+    mezzitoni, copia grafica, blocca...;
   - sotto, una riga di tasti "famiglia": prima gli strumenti CDV del contesto
     (tasti_contestuali.py: Inverti muro, allineamenti...), poi Trasforma, Forma,
     Seleziona, Vista, Isola. Il tasto mostra l'ultimo strumento usato della famiglia
@@ -219,8 +219,8 @@ CATALOGO = [
 ]
 
 PER_ID = dict((c.id, c) for c in CATALOGO)
-MAX_FISSA = 6
-FISSA_PREDEFINITA = [u"nascondi_elementi", u"nascondi_categoria", u"mezzitoni",
+MAX_FISSA = 7
+FISSA_PREDEFINITA = [u"crea_simile", u"nascondi_elementi", u"nascondi_categoria", u"mezzitoni",
                      u"copia_grafica", u"blocca"]
 
 
@@ -281,7 +281,7 @@ def chiave_categoria(nome_ost, nome_classe=None):
 # ==============================================================================
 # CONFIGURAZIONE
 # ==============================================================================
-# {"attiva": bool, "fissa": [id...], "categorie": {chiave: [id...]}}
+# {"versione": int, "attiva": bool, "fissa": [id...], "categorie": {chiave: [id...]}}
 # Per ogni categoria: gli strumenti che compaiono nelle famiglie (quelli nella fila
 # fissa non si ripetono). Un comando non elencato e' nascosto per quella categoria.
 
@@ -318,8 +318,15 @@ def _predefiniti(chiave):
     return ammessi_per_categoria(chiave)
 
 
+# Versione 2: "Crea simile" passa nella fila fissa. Un file di versione precedente lo
+# riceve una volta; poi, salvato con la versione nuova, resta come lo lascia l'utente.
+VERSIONE_CONFIG = 2
+AGGIUNTI_ALLA_FISSA = {2: [u"crea_simile"]}
+
+
 def config_predefinita():
     return {
+        u"versione": VERSIONE_CONFIG,
         u"attiva": True,
         u"fissa": list(FISSA_PREDEFINITA),
         u"categorie": dict((k, _predefiniti(k)) for k in CHIAVI),
@@ -339,7 +346,15 @@ def unisci_config(utente):
     if u"attiva" in utente:
         cfg[u"attiva"] = bool(utente[u"attiva"])
     if isinstance(utente.get(u"fissa"), list):
-        cfg[u"fissa"] = [i for i in _lista_di_id(utente[u"fissa"]) if i in PER_ID][:MAX_FISSA]
+        fissa = [i for i in _lista_di_id(utente[u"fissa"]) if i in PER_ID]
+        versione = utente.get(u"versione")
+        if not isinstance(versione, int) or isinstance(versione, bool):
+            versione = 1
+        for v in sorted(AGGIUNTI_ALLA_FISSA):
+            if versione < v:
+                fissa += [i for i in AGGIUNTI_ALLA_FISSA[v] if i not in fissa]
+        fissa = [c.id for c in CATALOGO if c.id in fissa]
+        cfg[u"fissa"] = fissa[:MAX_FISSA]
     cat = utente.get(u"categorie")
     if isinstance(cat, dict):
         for k in CHIAVI:
@@ -468,7 +483,10 @@ def dentro(punto, finestra):
     return sx <= punto[0] <= dx and alto <= punto[1] <= basso
 
 
-def posizione_palette(cursore, finestra, larghezza, altezza, distacco=12):
+DISTACCO_CURSORE = 24   # pixel tra il cursore e la palette
+
+
+def posizione_palette(cursore, finestra, larghezza, altezza, distacco=DISTACCO_CURSORE):
     """Angolo in alto a sinistra della palette: in basso a destra del cursore.
 
     Se esce dalla vista si ribalta a sinistra e/o sopra il cursore, e comunque resta
@@ -554,6 +572,7 @@ def opacita_palette(distanza, sparita=False):
 def copia_config(cfg):
     """Copia indipendente (la finestra lavora su questa finche' non si salva)."""
     return {
+        u"versione": VERSIONE_CONFIG,
         u"attiva": bool(cfg.get(u"attiva", True)),
         u"fissa": list(cfg.get(u"fissa", [])),
         u"categorie": dict((k, list(v)) for k, v in cfg.get(u"categorie", {}).items()),
