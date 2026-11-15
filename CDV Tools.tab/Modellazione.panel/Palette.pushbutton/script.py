@@ -9,6 +9,11 @@ file appena cambia, quindi la palette si aggiorna senza riavviare.
 """
 import os
 
+import clr
+clr.AddReference("PresentationCore")
+clr.AddReference("PresentationFramework")
+clr.AddReference("WindowsBase")
+
 from System.Windows import FontWeights, Thickness, VerticalAlignment
 from System.Windows.Controls import CheckBox, Orientation, StackPanel, TextBlock
 
