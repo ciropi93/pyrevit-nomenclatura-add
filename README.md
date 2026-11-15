@@ -23,8 +23,10 @@ cursore compare una palette piccola:
   l'ultimo strumento usato della famiglia e un clic lo rifà; **passando sopra** si apre la
   griglia con tutti gli strumenti, icona e nome.
 
-I comandi di modifica sono quelli di Revit e partono con la selezione già fatta; durante un
-comando la palette sparisce e torna a comando finito. Le icone sono disegnate da noi nello
+Come la mini barra di Word, la palette compare **semitrasparente**, diventa piena quando ci
+vai sopra e **sparisce se allontani il mouse** (ricompare se torni vicino). I comandi di
+modifica sono quelli di Revit e partono con la selezione già fatta; durante un comando la
+palette sparisce e torna a comando finito, anche se lo annulli con Esc. Le icone sono disegnate da noi nello
 stile di Revit (blu l'oggetto, arancio l'azione). Con una selezione mista compaiono solo gli
 strumenti comuni. Se la selezione arriva dal browser di progetto la palette va sul bordo
 superiore della selezione. **Palette On/Off** (pannello Modellazione) la spegne o la

@@ -482,6 +482,47 @@ def posizione_palette(cursore, finestra, larghezza, altezza, distacco=12):
 
 
 # ==============================================================================
+# TRASPARENZA "ALLA OFFICE"
+# ==============================================================================
+# Come la mini barra di Word: la palette compare semitrasparente accanto al cursore,
+# diventa piena quando ci si avvicina e sparisce se ci si allontana; torna se il
+# cursore ritorna vicino al punto dove stava.
+
+OPACITA_VICINO = 1.0       # cursore sopra la palette
+OPACITA_COMPARSA = 0.75    # appena comparsa, cursore accanto
+DISTANZA_SPARISCE = 150    # pixel: oltre, la palette sparisce
+DISTANZA_RITORNA = 40      # pixel: sotto, una palette sparita ricompare
+
+
+def distanza_da_rettangolo(punto, rett):
+    """Distanza in pixel di un punto da un rettangolo (sinistra, alto, destra, basso); 0 dentro."""
+    x, y = punto
+    sx, alto, dx, basso = rett
+    ddx = max(sx - x, 0.0, x - dx)
+    ddy = max(alto - y, 0.0, y - basso)
+    return (ddx * ddx + ddy * ddy) ** 0.5
+
+
+def opacita_palette(distanza, sparita=False):
+    """(opacita', sparita) della palette con il cursore a 'distanza' pixel.
+
+    Sopra la palette e' piena; vicino e' semitrasparente e sbiadisce allontanandosi;
+    oltre DISTANZA_SPARISCE sparisce. Una volta sparita ricompare solo se il cursore
+    torna entro DISTANZA_RITORNA (cosi' non lampeggia sul bordo). L'opacita' e'
+    arrotondata a 0.05 per non ridisegnare la finestra a ogni pixel.
+    """
+    if sparita and distanza > DISTANZA_RITORNA:
+        return 0.0, True
+    if distanza <= 0:
+        return OPACITA_VICINO, False
+    if distanza >= DISTANZA_SPARISCE:
+        return 0.0, True
+    frazione = float(distanza) / DISTANZA_SPARISCE
+    valore = OPACITA_COMPARSA * (1.0 - frazione) + 0.15 * frazione
+    return round(valore * 20) / 20.0, False
+
+
+# ==============================================================================
 # MODIFICHE DALLA FINESTRA DI PERSONALIZZAZIONE
 # ==============================================================================
 

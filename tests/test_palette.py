@@ -227,3 +227,25 @@ def test_ripristina_e_copia_su_tutte():
     assert cfg[u"categorie"][u"porte"] == [u"sposta"]      # offset non ammesso
     PAL.ripristina_categoria(cfg, u"porte")
     assert cfg[u"categorie"][u"porte"] == PAL.config_predefinita()[u"categorie"][u"porte"]
+
+
+def test_distanza_da_rettangolo():
+    r = (100, 100, 200, 150)
+    assert PAL.distanza_da_rettangolo((150, 120), r) == 0
+    assert PAL.distanza_da_rettangolo((90, 120), r) == 10
+    assert PAL.distanza_da_rettangolo((230, 190), r) == 50   # 30, 40 -> 50
+
+
+def test_opacita_alla_office():
+    assert PAL.opacita_palette(0) == (1.0, False)              # sopra: piena
+    op, sparita = PAL.opacita_palette(12)                       # appena comparsa
+    assert 0.6 <= op <= 0.75 and not sparita
+    assert PAL.opacita_palette(100)[0] < op                     # allontanandosi sbiadisce
+    assert PAL.opacita_palette(PAL.DISTANZA_SPARISCE) == (0.0, True)
+    # sparita: resta via finche' non si torna vicino
+    assert PAL.opacita_palette(100, sparita=True) == (0.0, True)
+    assert PAL.opacita_palette(20, sparita=True)[1] is False
+    # valori arrotondati a 0.05 (niente ridisegni a ogni pixel)
+    for d in range(1, PAL.DISTANZA_SPARISCE):
+        v = PAL.opacita_palette(d)[0]
+        assert abs(v * 20 - round(v * 20)) < 1e-9
