@@ -38,7 +38,7 @@ clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 
 import System
-from System import Double, EventHandler, IntPtr, TimeSpan
+from System import Double, EventHandler, TimeSpan
 from System.Windows import Point, Size, Thickness, Visibility
 from System.Windows import CornerRadius, FontWeights, HorizontalAlignment, VerticalAlignment
 from System.Windows import TextAlignment, TextWrapping
@@ -63,6 +63,9 @@ import palette as PAL
 import palette_azioni as PA
 import allinea_oggetti as AO
 import icone_wpf as IW
+import finestre_wpf as FW
+import avviso as AV
+import avviso_wpf as AVW
 
 
 # Stessa chiave della prima versione: al Reload spegne anche il vecchio pannello
@@ -206,34 +209,20 @@ def _avvisa(msg):
         UI.TaskDialog.Show(TITOLO, msg)
 
 
+_UIAPP = [None]   # impostato da attiva(): serve all'avviso per trovare la vista attiva
+
+
 def _toast(msg):
-    try:
-        from pyrevit import forms
-        forms.toast(msg, title=TITOLO)
-    except Exception:
-        pass
+    """Esito: avviso piccolo in basso a destra nella vista (vedi avviso_wpf.py)."""
+    AVW.mostra(msg, AV.INFO, _UIAPP[0])
 
 
-def _non_attivabile(win, trasparente_ai_clic=False):
-    """Il pannello non prende il focus: Revit resta attivo (Esc, scorciatoie, ExternalEvent).
+def _errore(msg):
+    """Errore semplice (azione non possibile): avviso rosso, senza finestra da chiudere."""
+    AVW.mostra(msg, AV.ERRORE, _UIAPP[0])
 
-    trasparente_ai_clic: mouse e clic passano alla vista di Revit sotto (lettere E / I).
-    """
-    try:
-        import ctypes
-        hwnd = WindowInteropHelper(win).EnsureHandle().ToInt64()
-        user32 = ctypes.windll.user32
-        GWL_EXSTYLE = -20
-        WS_EX_NOACTIVATE = 0x08000000
-        WS_EX_TOOLWINDOW = 0x00000080
-        WS_EX_TRANSPARENT = 0x00000020
-        stile = user32.GetWindowLongW(ctypes.c_void_p(hwnd), GWL_EXSTYLE)
-        stile = stile | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
-        if trasparente_ai_clic:
-            stile = stile | WS_EX_TRANSPARENT
-        user32.SetWindowLongW(ctypes.c_void_p(hwnd), GWL_EXSTYLE, stile)
-    except Exception:
-        pass
+
+_non_attivabile = FW.non_attivabile
 
 
 class _IgnoraAvvisi(DB.IFailuresPreprocessor):
@@ -428,7 +417,7 @@ def _posta_comando(uiapp, nome):
     pc = getattr(UI.PostableCommand, nome, None)
     cid = UI.RevitCommandId.LookupPostableCommandId(pc) if pc is not None else None
     if cid is None or not uiapp.CanPostCommand(cid):
-        _avvisa(u"Il comando di Revit non si può avviare adesso.")
+        _errore(u"Il comando di Revit non si può avviare adesso.")
         return False
     uiapp.PostCommand(cid)
     return True
@@ -437,7 +426,7 @@ def _posta_comando(uiapp, nome):
 def _sincronizza(doc, madre_uid):
     madre = doc.GetElement(madre_uid)
     if madre is None:
-        _avvisa(u"Sezione non trovata nel documento attivo.")
+        _errore(u"Sezione non trovata nel documento attivo.")
         return
     coppie, _, _ = PS.trova_coppie_sezioni(doc)
     coppia = None
@@ -446,7 +435,7 @@ def _sincronizza(doc, madre_uid):
             coppia = c
             break
     if coppia is None:
-        _avvisa(u"La sezione '%s' non ha uno sfondo collegato." % madre.Name)
+        _errore(u"La sezione '%s' non ha uno sfondo collegato." % madre.Name)
         return
     cfg = coppia["cfg"] or {
         "modalita": u"totale", "valore_m": 20.0, "halftone": True,
@@ -495,7 +484,7 @@ class _GestoreAzione(UI.IExternalEventHandler):
                 try:
                     msg = PA.esegui(uidoc, comando)
                 except PA.AzioneErrore as ex:
-                    _avvisa(u"%s" % ex)
+                    _errore(u"%s" % ex)
                     return
                 if msg:
                     _toast(msg)
@@ -503,7 +492,7 @@ class _GestoreAzione(UI.IExternalEventHandler):
                 try:
                     _toast(PA.allinea_oggetti(uidoc, comando))
                 except PA.AzioneErrore as ex:
-                    _avvisa(u"%s" % ex)
+                    _errore(u"%s" % ex)
             elif comando == TC.SEZIONE_APRI:
                 _apri_profondita(uid)
             elif comando == TC.SEZIONE_SINCRONIZZA:
@@ -530,14 +519,7 @@ class _GestoreAzione(UI.IExternalEventHandler):
 # POSIZIONE SULLO SCHERMO
 # ==============================================================================
 
-def _scala_dpi():
-    """Pixel fisici per unita' WPF (1.0 a 96 dpi)."""
-    from System.Drawing import Graphics
-    g = Graphics.FromHwnd(IntPtr.Zero)
-    try:
-        return g.DpiX / 96.0
-    finally:
-        g.Dispose()
+_scala_dpi = FW.scala_dpi
 
 
 def _tasti_premuti():
@@ -1661,6 +1643,7 @@ def attiva(uiapp):
             vecchio.Invoke()
         except Exception:
             pass
+    _UIAPP[0] = uiapp
     overlay = TastiOverlay(uiapp)
     overlay.accendi()
     dominio.SetData(CHIAVE_APPDOMAIN, System.Action(overlay.spegni))

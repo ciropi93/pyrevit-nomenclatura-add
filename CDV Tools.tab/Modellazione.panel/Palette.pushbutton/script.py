@@ -19,6 +19,8 @@ from System.Windows.Controls import CheckBox, Orientation, StackPanel, TextBlock
 
 from pyrevit import forms
 
+import avviso_wpf as AVW
+
 import palette as PAL
 import icone_wpf as IW
 
@@ -215,7 +217,7 @@ class FinestraPalette(forms.WPFWindow):
         if self.cfg[u"attiva"] != self.originale[u"attiva"]:
             _aggiorna_icona_onoff(self.cfg[u"attiva"])
         self.Close()
-        forms.toast(u"Palette aggiornata", title=TITOLO)
+        AVW.mostra(u"Palette aggiornata")
 
 
 def main():

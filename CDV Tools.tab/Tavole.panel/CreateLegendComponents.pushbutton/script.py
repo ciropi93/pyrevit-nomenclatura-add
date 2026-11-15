@@ -32,6 +32,9 @@ from Autodesk.Revit.Exceptions import OperationCanceledException
 
 from pyrevit import revit, DB, UI, forms, script
 
+import avviso as AV
+import avviso_wpf as AVW
+
 # ==============================================================================
 # UTILITY
 # ==============================================================================
@@ -267,7 +270,7 @@ class LegendComponentsWindow(forms.WPFWindow):
             if lg.Id == new_id:
                 self.cmbTargetLegend.SelectedIndex = i
                 break
-        forms.toast(u"Legenda duplicata con successo!", title=u"CDV Tools")
+        AVW.mostra(u"Legenda duplicata con successo!")
 
     def on_item_property_changed(self, sender, args):
         if args.PropertyName == "IsSelected":
@@ -450,11 +453,11 @@ class LegendComponentsWindow(forms.WPFWindow):
         if success_count > 0:
             msg = u"Inseriti con successo {} componenti nella legenda '{}'!".format(success_count, target_legend.Name)
             if errors:
-                forms.alert(msg + u"\n\nErrori su {} tipi:\n{}".format(len(errors), u"\n".join(errors[:5])), title=u"CDV Tools")
+                AVW.attenzione(AV.con_errori(msg, errors))
             else:
-                forms.toast(msg, title=u"CDV Tools")
+                AVW.mostra(msg)
         elif errors:
-            forms.alert(u"Impossibile inserire i componenti selezionati:\n" + u"\n".join(errors[:5]), title=u"CDV Tools")
+            AVW.errore(AV.con_errori(u"Impossibile inserire i componenti selezionati", errors))
 
 
 # ==============================================================================
@@ -466,7 +469,7 @@ def main():
     uidoc = revit.uidoc
 
     if not doc or not uidoc:
-        forms.alert(u"Nessun documento attivo in Revit.", title=u"CDV Tools")
+        AVW.errore(u"Nessun documento attivo in Revit.")
         return
 
     # 1. Recupera gli elementi selezionati
@@ -525,7 +528,7 @@ def main():
             types_map[type_id] = (type_el, cat_name, fam_name, type_name, 1)
 
     if not types_map:
-        forms.alert(u"Nessun tipo valido o componente ricavabile dagli elementi selezionati.", title=u"CDV Tools")
+        AVW.errore(u"Nessun tipo valido o componente ricavabile dagli elementi selezionati.")
         return
 
     type_items = []

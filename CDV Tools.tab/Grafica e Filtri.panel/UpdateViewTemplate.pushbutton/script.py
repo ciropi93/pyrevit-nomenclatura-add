@@ -30,6 +30,8 @@ from Autodesk.Revit.UI import *
 
 from pyrevit import revit, DB, UI, forms, script
 
+import avviso_wpf as AVW
+
 # ==============================================================================
 # UTILITY E TIPI DI VISTA
 # ==============================================================================
@@ -343,7 +345,7 @@ class UpdateViewTemplateWindow(forms.WPFWindow):
         msg = u"Modello di vista '{}' aggiornato con successo!".format(target_name)
         if reassign:
             msg += u"\n(Riassegnato alla vista '{}')".format(v.Name)
-        forms.toast(msg, title=u"CDV Tools")
+        AVW.mostra(msg)
 
 
 # ==============================================================================
@@ -353,7 +355,7 @@ class UpdateViewTemplateWindow(forms.WPFWindow):
 def main():
     doc = revit.doc
     if not doc:
-        forms.alert(u"Nessun documento attivo in Revit.", title=u"CDV Tools")
+        AVW.errore(u"Nessun documento attivo in Revit.")
         return
 
     active_view = doc.ActiveView
@@ -366,7 +368,7 @@ def main():
             if not v.IsTemplate and v.ViewType in VALID_GRAPHICAL_VIEW_TYPES
         ]
         if not views:
-            forms.alert(u"Nessuna vista grafica valida trovata nel progetto.", title=u"CDV Tools")
+            AVW.errore(u"Nessuna vista grafica valida trovata nel progetto.")
             return
         initial_view = views[0]
 

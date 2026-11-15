@@ -20,6 +20,9 @@ from System.Windows.Media import BrushConverter
 from Autodesk.Revit import DB
 from pyrevit import revit, forms
 
+import avviso as AV
+import avviso_wpf as AVW
+
 import profondita_sezione as PS
 
 
@@ -295,7 +298,7 @@ class SectionDepthWindow(forms.WPFWindow):
         msg = u"Vista di sfondo '%s' %s con successo!" % (vista_sfondo.Name, azione)
         if tavole > 0:
             msg += u"\nTavole allineate: %d." % tavole
-        forms.toast(msg, title=u"CDV Tools")
+        AVW.mostra(msg)
 
     def on_sync_all(self, sender, args):
         if not self.coppie:
@@ -340,16 +343,13 @@ class SectionDepthWindow(forms.WPFWindow):
 
         self.Close()
         if errori:
-            forms.alert(
-                u"Sincronizzate %d sezioni (%d tavole).\n\nErrori (%d):\n%s"
-                % (ok, tavole_tot, len(errori), u"\n".join(errori[:5])),
-                title=u"CDV Tools",
-            )
+            AVW.attenzione(AV.con_errori(
+                u"Sincronizzate %d sezioni (%d tavole)" % (ok, tavole_tot), errori))
         else:
             msg = u"Sincronizzate %d sezioni con sfondo!" % ok
             if tavole_tot > 0:
                 msg += u"\nTavole allineate: %d." % tavole_tot
-            forms.toast(msg, title=u"CDV Tools")
+            AVW.mostra(msg)
 
 
 def main(madre_uid=None):
@@ -357,7 +357,7 @@ def main(madre_uid=None):
     doc = revit.doc
     uidoc = revit.uidoc
     if not doc or not uidoc:
-        forms.alert(u"Nessun documento attivo in Revit.", title=u"CDV Tools")
+        AVW.errore(u"Nessun documento attivo in Revit.")
         return
 
     coppie, madre_to_sfondo, sfondo_to_madre = PS.trova_coppie_sezioni(doc)
@@ -370,7 +370,7 @@ def main(madre_uid=None):
     all_views.sort(key=lambda x: (str(x.ViewType), x.Name))
 
     if not all_views:
-        forms.alert(u"Nessuna sezione o prospetto trovato nel progetto.", title=u"CDV Tools")
+        AVW.errore(u"Nessuna sezione o prospetto trovato nel progetto.")
         return
 
     initial_view = _rileva_madre_iniziale(doc, uidoc, all_views, sfondo_to_madre)

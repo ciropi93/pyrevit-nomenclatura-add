@@ -30,6 +30,9 @@ from Autodesk.Revit.UI import *
 
 from pyrevit import revit, DB, UI, forms, script
 
+import avviso as AV
+import avviso_wpf as AVW
+
 # ==============================================================================
 # UTILITY E TIPI DI VISTA
 # ==============================================================================
@@ -482,11 +485,11 @@ class CopyCropWindow(forms.WPFWindow):
         if success_count > 0:
             msg = u"Ritaglio copiato con successo su {} viste!".format(success_count) if success_count > 1 else u"Ritaglio copiato con successo su 1 vista!"
             if errors:
-                forms.alert(msg + u"\n\nErrori su {} viste:\n{}".format(len(errors), u"\n".join(errors[:5])), title=u"CDV Tools")
+                AVW.attenzione(AV.con_errori(msg, errors))
             else:
-                forms.toast(msg, title=u"CDV Tools")
+                AVW.mostra(msg)
         elif errors:
-            forms.alert(u"Impossibile applicare il ritaglio:\n" + u"\n".join(errors[:5]), title=u"CDV Tools")
+            AVW.errore(AV.con_errori(u"Impossibile applicare il ritaglio", errors))
 
 
 # ==============================================================================
@@ -496,12 +499,12 @@ class CopyCropWindow(forms.WPFWindow):
 def main():
     doc = revit.doc
     if not doc:
-        forms.alert(u"Nessun documento attivo in Revit.", title=u"CDV Tools")
+        AVW.errore(u"Nessun documento attivo in Revit.")
         return
 
     active_view = doc.ActiveView
     if not active_view or active_view.IsTemplate:
-        forms.alert(u"La vista attiva corrente non è valida o è un modello di vista.", title=u"CDV Tools")
+        AVW.errore(u"La vista attiva corrente non è valida o è un modello di vista.")
         return
 
     if active_view.ViewType not in VALID_VIEW_TYPES:

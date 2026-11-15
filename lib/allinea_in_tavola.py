@@ -13,6 +13,11 @@ except ImportError:
 
 import profondita_sezione as PS
 
+try:
+    import avviso_wpf as AVW
+except ImportError:   # fuori da Revit (test): niente WPF
+    AVW = None
+
 
 def _id_val(eid):
     if eid is None:
@@ -350,18 +355,27 @@ class _ViewportFilter(ISelectionFilter):
         return False
 
 
+def _errore(msg):
+    """Avviso rosso piccolo nella vista; senza WPF (es. nei test) la finestra di pyRevit."""
+    if AVW is not None:
+        AVW.errore(msg)
+        return
+    from pyrevit import forms
+    forms.alert(msg, title=u"CDV Tools")
+
+
 def esegui_da_ribbon(comando):
     """Esegue un comando Smart Align direttamente sulla tavola attiva."""
-    from pyrevit import revit, forms
+    from pyrevit import revit
 
     doc = revit.doc
     uidoc = revit.uidoc
     if not doc or not uidoc:
-        forms.alert(u"Nessun documento attivo in Revit.", title=u"CDV Tools")
+        _errore(u"Nessun documento attivo in Revit.")
         return
 
     if not isinstance(doc.ActiveView, DB.ViewSheet):
-        forms.alert(u"Apri una tavola per usare gli strumenti di allineamento.", title=u"CDV Tools")
+        _errore(u"Apri una tavola per usare gli strumenti di allineamento.")
         return
 
     sheet = doc.ActiveView
@@ -396,7 +410,7 @@ def esegui_da_ribbon(comando):
                 )
                 vps = [doc.GetElement(r) for r in refs]
             if len(vps) < 3:
-                forms.alert(u"Seleziona almeno 3 viste nella tavola per distribuirle.", title=u"CDV Tools")
+                _errore(u"Seleziona almeno 3 viste nella tavola per distribuirle.")
                 return
 
             asse = u"x" if comando == u"distribuisci_x" else u"y"

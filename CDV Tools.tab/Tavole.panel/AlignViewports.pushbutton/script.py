@@ -31,6 +31,9 @@ from Autodesk.Revit.UI import *
 
 from pyrevit import revit, DB, UI, forms, script
 
+import avviso as AV
+import avviso_wpf as AVW
+
 # ==============================================================================
 # UTILITY E TIPI DI VISTA
 # ==============================================================================
@@ -356,11 +359,11 @@ class AlignViewportsWindow(forms.WPFWindow):
         if success_count > 0:
             msg = u"Allineate con successo {} viste!".format(success_count) if success_count > 1 else u"Allineata 1 vista con successo!"
             if errors:
-                forms.alert(msg + u"\n\nErrori su {} viste:\n{}".format(len(errors), u"\n".join(errors[:5])), title=u"CDV Tools")
+                AVW.attenzione(AV.con_errori(msg, errors))
             else:
-                forms.toast(msg, title=u"CDV Tools")
+                AVW.mostra(msg)
         elif errors:
-            forms.alert(u"Impossibile allineare le viste selezionate:\n" + u"\n".join(errors[:5]), title=u"CDV Tools")
+            AVW.errore(AV.con_errori(u"Impossibile allineare le viste selezionate", errors))
 
 
 # ==============================================================================
@@ -372,13 +375,13 @@ def main():
     uidoc = revit.uidoc
 
     if not doc or not uidoc:
-        forms.alert(u"Nessun documento attivo in Revit.", title=u"CDV Tools")
+        AVW.errore(u"Nessun documento attivo in Revit.")
         return
 
     # 1. Verifica se ci sono tavole nel progetto
     sheet_collector = FilteredElementCollector(doc).OfClass(ViewSheet).ToElements()
     if not sheet_collector or len(sheet_collector) == 0:
-        forms.alert(u"Il progetto corrente non contiene alcuna tavola.", title=u"CDV Tools")
+        AVW.errore(u"Il progetto corrente non contiene alcuna tavola.")
         return
 
     # 2. Rileva eventuale Viewport pre-selezionato

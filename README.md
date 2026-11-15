@@ -10,6 +10,12 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 | **Tavole e Legende** | Allinea viste su tavole, Allinea Viste (stack: Distribuisci Viste, Allinea Viste Orizz., Allinea Viste Vert. sul puro CropBox), Allinea Titoli, Componenti in legenda, Allinea al Nord reale |
 | **Nomenclatura** | Controllo e correzione dei nomi secondo il BIMMS ADD2024 (vedi sotto) |
 
+**Avvisi.** L'esito dei comandi CDV (palette e pulsanti) compare come una riga di testo
+piccola in basso a destra nella vista attiva: ✓ blu = fatto, ! arancio = fatto con qualche
+errore, ✕ rosso = non si può fare. Sparisce da sola dopo pochi secondi, un messaggio nuovo
+sostituisce il vecchio e lo stesso messaggio ripetuto mostra "×3". Niente più notifiche di
+Windows; la finestra con OK resta solo per errori imprevisti e domande.
+
 **Palette contestuale (stile ArchiCAD).** Quando selezioni qualcosa nella vista, accanto al
 cursore compare una palette piccola:
 - **sopra, la fila fissa**, uguale per tutte le categorie: **Crea simile** (con un solo

@@ -24,6 +24,9 @@ from Autodesk.Revit.Exceptions import OperationCanceledException
 
 from pyrevit import revit, DB, UI, forms
 
+import avviso as AV
+import avviso_wpf as AVW
+
 
 class WarningSwallower(IFailuresPreprocessor):
     """Elimina silenziosamente gli avvisi non critici di Revit (es. rimappatura vincoli)."""
@@ -49,7 +52,7 @@ def main():
     uidoc = revit.uidoc
 
     if not doc or not uidoc:
-        forms.alert("Nessun documento attivo in Revit.", title="CDV Tools")
+        AVW.errore("Nessun documento attivo in Revit.")
         return
 
     # Rileva Shift-Click (per impostare permanentemente su Asse del Muro)
@@ -160,13 +163,13 @@ def main():
             msg += "\n({} muri in gruppi ignorati)".format(skipped_groups)
 
         if failed_walls:
-            forms.alert(msg + "\n\nErrori su {} muri:\n{}".format(len(failed_walls), "\n".join(failed_walls[:5])), title="CDV Tools")
+            AVW.attenzione(AV.con_errori(msg, failed_walls))
         else:
-            forms.toast(msg, title="CDV Tools")
+            AVW.mostra(msg)
     elif skipped_groups > 0:
-        forms.alert("I muri selezionati fanno parte di un gruppo e non possono essere modificati singolarmente.", title="CDV Tools")
+        AVW.errore("I muri selezionati fanno parte di un gruppo e non possono essere modificati singolarmente.")
     elif failed_walls:
-        forms.alert("Impossibile invertire i muri selezionati:\n" + "\n".join(failed_walls[:5]), title="CDV Tools")
+        AVW.errore(AV.con_errori("Impossibile invertire i muri selezionati", failed_walls))
 
 
 if __name__ == "__main__":

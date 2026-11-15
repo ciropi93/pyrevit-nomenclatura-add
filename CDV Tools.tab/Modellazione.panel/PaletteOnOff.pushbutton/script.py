@@ -4,7 +4,9 @@
 Lo stato sta in %APPDATA%\\pyRevit\\CDVTools\\palette.json: l'overlay lo rilegge da solo
 appena cambia, quindi non serve ricaricare pyRevit.
 """
-from pyrevit import forms, script
+from pyrevit import script
+
+import avviso_wpf as AVW
 
 import palette as PAL
 
@@ -27,7 +29,7 @@ def main():
         script.toggle_icon(attiva)
     except Exception:
         pass
-    forms.toast(u"Palette attiva" if attiva else u"Palette spenta", title=u"CDV Tools")
+    AVW.mostra(u"Palette attiva" if attiva else u"Palette spenta")
 
 
 if __name__ == "__main__":
