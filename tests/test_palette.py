@@ -249,3 +249,16 @@ def test_opacita_alla_office():
     for d in range(1, PAL.DISTANZA_SPARISCE):
         v = PAL.opacita_palette(d)[0]
         assert abs(v * 20 - round(v * 20)) < 1e-9
+
+
+def test_esc_per_uscire_dai_comandi_di_revit():
+    # comandi "una volta sola": un Esc li chiude
+    for cid in (u"sposta", u"copia", u"ruota", u"specchia", u"serie", u"scala"):
+        assert PAL.PER_ID[cid].esc_per_uscire == 1, cid
+    # comandi che restano attivi dopo ogni operazione: due Esc
+    for cid in (u"allinea", u"offset", u"dividi", u"taglia_estendi", u"crea_simile"):
+        assert PAL.PER_ID[cid].esc_per_uscire == 2, cid
+    # solo i comandi di Revit possono essere ripetibili
+    for c in PAL.CATALOGO:
+        if c.ripetibile:
+            assert c.esecuzione == PAL.REVIT, c.id

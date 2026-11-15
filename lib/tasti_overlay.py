@@ -290,19 +290,23 @@ def _nome_ost(el):
     return _NOMI_OST[v]
 
 
-_CACHE_COPPIE = {u"chiave": None, u"valore": None}
+def _coppie_sezioni(doc, cache):
+    """PS.trova_coppie_sezioni scorre tutte le viste: si rifa' solo se il modello cambia.
+
+    cache: {"versione", "chiave", "valore"} dell'overlay; "versione" sale a ogni modifica
+    del modello e la cache si svuota quando un documento si chiude (gli elementi di un
+    documento chiuso non si possono piu' leggere).
+    """
+    if cache is None:
+        return PS.trova_coppie_sezioni(doc)
+    chiave = (doc.PathName or doc.Title, cache.get(u"versione", 0))
+    if cache.get(u"chiave") != chiave:
+        cache[u"valore"] = PS.trova_coppie_sezioni(doc)
+        cache[u"chiave"] = chiave
+    return cache[u"valore"]
 
 
-def _coppie_sezioni(doc, versione):
-    """PS.trova_coppie_sezioni scorre tutte le viste: si rifa' solo se il modello cambia."""
-    chiave = (doc.PathName or doc.Title, versione)
-    if _CACHE_COPPIE[u"chiave"] != chiave:
-        _CACHE_COPPIE[u"valore"] = PS.trova_coppie_sezioni(doc)
-        _CACHE_COPPIE[u"chiave"] = chiave
-    return _CACHE_COPPIE[u"valore"]
-
-
-def _gruppi_cdv(doc, elementi, versione=0):
+def _gruppi_cdv(doc, elementi, cache=None):
     """Strumenti CDV legati al contesto: (gruppi, madre_uid).
 
     Muri: Inverti sul centro. Soli riquadri di vista (in tavola) o una sola linea di
@@ -326,7 +330,7 @@ def _gruppi_cdv(doc, elementi, versione=0):
     else:
         return [], None
 
-    coppie, _, sfondo_to_madre = _coppie_sezioni(doc, versione)
+    coppie, _, sfondo_to_madre = _coppie_sezioni(doc, cache)
     madri = dict((PS._id_val(c["madre"].Id), c["madre"]) for c in coppie)
     righe = [
         (PS._id_val(c["madre"].Id), c["madre"].Name, PS._id_val(c["sfondo"].Id), c["sfondo"].Name)
@@ -355,11 +359,11 @@ def _gruppi_cdv(doc, elementi, versione=0):
     return gruppi, (madre.UniqueId if madre is not None else None)
 
 
-def _analizza_selezione(doc, ids, cfg, disponibili, versione=0):
+def _analizza_selezione(doc, ids, cfg, disponibili, cache=None):
     """Ritorna (struttura, madre_uid) oppure None se non c'e' nulla da proporre.
 
     struttura: vedi palette.struttura_palette (fila fissa e famiglie, prima quelle CDV).
-    versione: cambia a ogni modifica del modello (per la cache delle sezioni).
+    cache: cache delle coppie sezione/sfondo dell'overlay (vedi _coppie_sezioni).
     """
     if doc is None or doc.IsFamilyDocument or not ids or not cfg.get(u"attiva", True):
         return None
@@ -367,7 +371,7 @@ def _analizza_selezione(doc, ids, cfg, disponibili, versione=0):
     if not elementi:
         return None
     chiavi = set(PAL.chiave_categoria(_nome_ost(e), e.GetType().Name) for e in elementi)
-    cdv, madre_uid = _gruppi_cdv(doc, elementi, versione)
+    cdv, madre_uid = _gruppi_cdv(doc, elementi, cache)
     struttura = PAL.struttura_palette(chiavi, len(elementi), cfg, disponibili, cdv)
     if struttura is None:
         return None
@@ -550,7 +554,8 @@ class _Gancio(object):
         filtro, su_evento = self.filtro, self.su_evento
 
         def proc(n_code, w_param, l_param):
-            if n_code >= 0:
+            # solo HC_ACTION (0): con HC_NOREMOVE (3) lo stesso messaggio arriverebbe due volte
+            if n_code == 0:
                 try:
                     evento = filtro(w_param, l_param)
                     if evento is not None:
@@ -590,8 +595,18 @@ class _GancioMouse(_Gancio):
                           WM_MOUSEHWHEEL])
 
     def __init__(self, su_evento):
+        # segui_movimento: il movimento serve solo con la palette accanto al cursore;
+        # altrimenti si scarta subito, senza chiamare l'overlay.
+        self.segui_movimento = False
         messaggi = self.MESSAGGI
-        _Gancio.__init__(self, lambda w, l: w if w in messaggi else None, su_evento)
+        mossa = self.WM_MOUSEMOVE
+
+        def filtro(w, l):
+            if w == mossa:
+                return w if self.segui_movimento else None
+            return w if w in messaggi else None
+
+        _Gancio.__init__(self, filtro, su_evento)
 
 
 class _GancioTastiera(_Gancio):
@@ -861,6 +876,7 @@ class TastiOverlay(object):
         self.ancora = None          # punto del clic, in coordinate della vista
         self.sospesa = False        # comando in corso: palette via fino alla fine
         self.sospesa_revit = False  # ... ed e' un comando di Revit (torna con DocumentChanged)
+        self.sospesa_ripetibile = False  # ... che resta attivo dopo ogni operazione
         self.win_menu = None        # griglia della famiglia sotto il mouse
         self.menu_da = None         # tasto famiglia che l'ha aperta
         self.da_aprire = None
@@ -873,12 +889,16 @@ class TastiOverlay(object):
         self.ha_evento_selezione = False   # Revit 2023+: la selezione arriva con l'evento
         self.doc_vista = None       # (documento, vista) dell'ultima selezione letta
         self.cfg_letta = 0.0        # quando si e' guardato l'ultima volta palette.json
-        self.versione_doc = 0       # +1 a ogni modifica del modello
         self.firma = None           # ultima vista/zoom su cui si e' posizionato tutto
         self.sporco = True          # qualcosa e' cambiato: riposizionare anche a vista ferma
         self.firma_struttura = None # palette uguale alla precedente: niente ricostruzione
         self.rett_palette = None    # dove sta la palette sullo schermo (pixel fisici)
         self.sparita = False        # allontanandosi col mouse la palette sparisce
+        self.in_movimento = False   # pan/zoom in corso: niente da mostrare fino al prossimo Idling
+        self.forza_analisi = False  # modello cambiato: rianalizzare la selezione corrente
+        self.esc_contati = 0        # Esc premuti durante il comando di Revit lanciato
+        self.esc_necessari = 1
+        self.cache_coppie = {}      # coppie sezione/sfondo (vedi _coppie_sezioni)
 
     # --- finestra -------------------------------------------------------------
     def _crea_finestra(self):
@@ -922,6 +942,7 @@ class TastiOverlay(object):
 
     def _vista_in_movimento(self):
         """Pan o zoom: via palette, griglia e lettere; tornano al prossimo Idling."""
+        self.in_movimento = True
         self._chiudi_menu()
         self._nascondi_finestra()
         self._nascondi_lettere()
@@ -930,7 +951,8 @@ class TastiOverlay(object):
     def _su_movimento(self):
         """Trasparenza "alla Office": piena sopra, sbiadita lontano, sparisce oltre."""
         if (self.win is None or not self.attivo or self.sospesa or self.ancora is None
-                or self.rett_palette is None):
+                or self.rett_palette is None or self.in_movimento):
+            # durante pan/zoom rett_palette e' vecchio: la palette torna con l'Idling
             return
         mp = Control.MousePosition
         if self._sotto_cursore(self.win_menu):
@@ -949,10 +971,13 @@ class TastiOverlay(object):
             self.win.Opacity = opacita
 
     def _su_esc(self, evento):
-        # Esc durante un comando di Revit lanciato dalla palette: il comando e' annullato
-        # e DocumentChanged non arriva; la palette torna subito.
+        # Esc durante un comando di Revit lanciato dalla palette. Il comando finisce dopo
+        # 1 Esc (Sposta, Copia...) o 2 (Allinea, Offset... dove il primo annulla solo il
+        # passo in corso): solo allora la palette torna, senza aspettare una modifica.
         if self.sospesa and self.sospesa_revit:
-            self._riprendi()
+            self.esc_contati += 1
+            if self.esc_contati >= self.esc_necessari:
+                self._riprendi()
 
     def _sotto_cursore(self, win):
         if win is None or win.Visibility != Visibility.Visible:
@@ -1012,6 +1037,14 @@ class TastiOverlay(object):
         self.ultime_lettere = None
         if self.win_lettere is not None and self.win_lettere.Visibility == Visibility.Visible:
             self.win_lettere.Hide()
+
+    def _aggiorna_segui(self):
+        """Il movimento del mouse serve solo con la palette ancorata al cursore e visibile
+        (o sparita allontanandosi, per farla tornare)."""
+        if self.gancio is not None:
+            self.gancio.segui_movimento = bool(
+                self.attivo and not self.sospesa and self.ancora is not None
+                and self.rett_palette is not None)
 
     def _aggiorna_lettere(self, uidoc, ctx=None):
         """Lettere E / I ai lati dei muri selezionati (seguono zoom, pan e inversioni)."""
@@ -1273,12 +1306,25 @@ class TastiOverlay(object):
         firma = _firma_vista(ctx)
         if firma == self.firma and not self.sporco:
             return      # vista ferma e niente di nuovo: nessun calcolo
-        self.firma = firma
+        # La firma si salva solo a lavoro riuscito: se qualcosa fallisce si riprova al
+        # prossimo Idling (sporco resta vero), invece di restare nascosti per sempre.
         self.sporco = False
+        try:
+            self._posiziona(uidoc, ctx)
+        except Exception:
+            self.sporco = True
+            raise
+        self.firma = firma
+        self.in_movimento = False
+        self._aggiorna_segui()
+
+    def _posiziona(self, uidoc, ctx):
+        """Lettere E/I e palette per la vista 'ctx' (chiamata da riposiziona)."""
         try:
             self._aggiorna_lettere(uidoc, ctx)
         except Exception:
             self._nascondi_lettere()
+            self.sporco = True      # si riprova al prossimo Idling
         pos = None
         dim = self.win.Content.DesiredSize
         larg, alt = dim.Width * self.scala, dim.Height * self.scala
@@ -1310,18 +1356,20 @@ class TastiOverlay(object):
         if self.win.Visibility != Visibility.Visible:
             self.win.Show()
 
-    def mostra(self, uidoc, ids, struttura, madre_uid):
+    def mostra(self, uidoc, ids, struttura, madre_uid, stessa=False):
         if self.win is None:
             self._crea_finestra()
         self.madre_uid = madre_uid
         self.ids = list(ids)
         self.muri = any(v[0] == TC.MURO_INVERTI for f in struttura[u"famiglie"] for v in f[u"voci"])
         self.ultime_lettere = None
-        self.cache_muri = {}
-        self.ancora = self._ancora_cursore(uidoc)
         self.attivo = True
         self.sporco = True
-        self.sparita = False
+        if not stessa:
+            # selezione nuova: palette accanto al cursore, semitrasparente
+            self.cache_muri = {}
+            self.ancora = self._ancora_cursore(uidoc)
+            self.sparita = False
         # il timer serve solo se l'hook del mouse non e' partito
         if self.gancio is None and self.timer is not None and not self.timer.IsEnabled:
             self.timer.Start()
@@ -1331,9 +1379,10 @@ class TastiOverlay(object):
             self.firma_struttura = firma
         else:
             self._chiudi_menu()       # stessa palette di prima: si sposta e basta
-        if self.ancora is not None:
+        if self.ancora is not None and not stessa:
             # comparsa semitrasparente, poi la regola il movimento del mouse
             self.win.Opacity = PAL.OPACITA_COMPARSA
+        self._aggiorna_segui()
         self.riposiziona(uidoc)
 
     def _ancora_cursore(self, uidoc):
@@ -1358,6 +1407,8 @@ class TastiOverlay(object):
     def nascondi(self):
         self._chiudi_menu()
         self.attivo = False
+        self.rett_palette = None
+        self._aggiorna_segui()
         self.ids = []
         self.muri = False
         if self.timer is not None:
@@ -1388,8 +1439,12 @@ class TastiOverlay(object):
             # o quando cambia la selezione.
             self.sospesa = True
             self.sospesa_revit = cmd.esecuzione == PAL.REVIT
+            self.sospesa_ripetibile = cmd.ripetibile
+            self.esc_contati = 0
+            self.esc_necessari = cmd.esc_per_uscire
             self._nascondi_finestra()
             self._nascondi_lettere()
+            self._aggiorna_segui()
         elif comando == TC.SEZIONE_APRI:
             # Si apre una finestra: i tasti si tolgono di mezzo e tornano dopo
             # (chiave azzerata = la selezione viene riletta al prossimo Idling).
@@ -1417,7 +1472,6 @@ class TastiOverlay(object):
 
     def aggiorna(self, uidoc, ids):
         try:
-            self._rileggi_config()
             ids = list(ids)
             doc = uidoc.Document if uidoc is not None else None
             if doc is None:
@@ -1425,22 +1479,29 @@ class TastiOverlay(object):
             else:
                 self.doc_vista = _doc_vista(doc)
                 chiave = self.doc_vista + (tuple(sorted(PS._id_val(i) for i in ids)),)
-            if chiave == self.chiave_sel:
+            stessa = chiave == self.chiave_sel
+            if stessa and not self.forza_analisi:
                 return
+            self.forza_analisi = False
             self.chiave_sel = chiave
-            self.sospesa = False
-            self.sospesa_revit = False
-            esito = _analizza_selezione(doc, ids, self.cfg, self.disponibili, self.versione_doc)
+            if not stessa:
+                # selezione nuova: un eventuale comando in corso non la riguarda piu'
+                self.sospesa = False
+                self.sospesa_revit = False
+            if self.sospesa:
+                return      # stessa selezione durante un comando: si rianalizza alla fine
+            esito = _analizza_selezione(doc, ids, self.cfg, self.disponibili, self.cache_coppie)
             if esito is None:
                 self.nascondi()
             else:
                 struttura, madre_uid = esito
-                self.mostra(uidoc, ids, struttura, madre_uid)
+                self.mostra(uidoc, ids, struttura, madre_uid, stessa=stessa)
         except Exception:
             # Un errore qui non deve mai disturbare il lavoro in Revit
             self.nascondi()
 
     def _su_selezione(self, sender, args):
+        self._rileggi_config()
         self.aggiorna(self.uiapp.ActiveUIDocument, args.GetSelectedElements())
 
     def _su_idling(self, sender, args):
@@ -1452,13 +1513,11 @@ class TastiOverlay(object):
                 self.chiave_sel = None
                 self.nascondi()
                 return
-            if self.ha_evento_selezione:
-                # Revit 2023+: la selezione arriva con l'evento; qui si rilegge solo se
-                # serve (configurazione cambiata, altro documento o altra vista).
-                self._rileggi_config()
-                if self.chiave_sel is None or _doc_vista(uidoc.Document) != self.doc_vista:
-                    self.aggiorna(uidoc, uidoc.Selection.GetElementIds())
-            else:
+            self._rileggi_config()
+            # Revit 2023+: la selezione arriva con SelectionChanged; qui si rilegge solo
+            # se serve (configurazione o modello cambiati, altro documento o altra vista).
+            if (not self.ha_evento_selezione or self.chiave_sel is None or self.forza_analisi
+                    or _doc_vista(uidoc.Document) != self.doc_vista):
                 self.aggiorna(uidoc, uidoc.Selection.GetElementIds())
             self.riposiziona(uidoc)
         except Exception:
@@ -1467,14 +1526,20 @@ class TastiOverlay(object):
 
     def _su_chiusura(self, sender, args):
         self.chiave_sel = None
+        self.cache_coppie.clear()   # niente riferimenti a elementi di un documento chiuso
         self.nascondi()
 
     def _su_modifica(self, sender, args):
         # Comando di Revit finito (es. Sposta): la palette torna, sul bordo della
         # selezione perche' gli elementi si sono spostati dal punto del clic.
-        self.versione_doc += 1
+        # La cache delle sezioni scade e la selezione si rianalizza al prossimo Idling
+        # (elementi cancellati o annullati, sfondo di una sezione appena creato...).
+        self.cache_coppie[u"versione"] = self.cache_coppie.get(u"versione", 0) + 1
+        self.forza_analisi = True
         self.sporco = True          # muri invertiti o spostati: lettere e palette da rifare
-        if self.sospesa and self.sospesa_revit:
+        # Un comando "una volta sola" (Sposta...) e' finito; quelli ripetibili (Allinea...)
+        # salvano a ogni operazione e restano attivi: per loro si aspetta l'Esc.
+        if self.sospesa and self.sospesa_revit and not self.sospesa_ripetibile:
             self._riprendi()
 
     def _fine_azione(self, comando):
@@ -1491,6 +1556,8 @@ class TastiOverlay(object):
         self.ultima_pos = None
         self.sporco = True
         self.sparita = False
+        self.forza_analisi = True   # durante il comando la stessa selezione non si e' rianalizzata
+        self._aggiorna_segui()
 
     # --- attivazione ----------------------------------------------------------
     def accendi(self):
@@ -1561,6 +1628,7 @@ class TastiOverlay(object):
         self.win = None
         self.win_lettere = None
         self.win_menu = None
+        self.cache_coppie.clear()
 
 
 def attiva(uiapp):

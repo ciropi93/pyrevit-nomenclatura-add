@@ -132,7 +132,8 @@ ICONE = {
 
 class Comando(object):
     def __init__(self, id_, famiglia, etichetta, suggerimento, esecuzione,
-                 postable=None, categorie=None, max_elementi=None, interattivo=False):
+                 postable=None, categorie=None, max_elementi=None, interattivo=False,
+                 ripetibile=False):
         self.id = id_
         self.famiglia = famiglia
         self.etichetta = etichetta
@@ -143,6 +144,15 @@ class Comando(object):
         self.categorie = categorie        # None = tutte; altrimenti insieme di chiavi
         self.max_elementi = max_elementi  # es. 1 per "Crea simile"
         self.interattivo = interattivo    # chiede di cliccare nella vista: palette via intanto
+        # Comando di Revit che resta attivo dopo ogni operazione (Allinea, Offset...):
+        # ogni operazione salva il modello, quindi non si puo' capire dalla modifica che
+        # il comando e' finito; se ne esce con due Esc (il primo annulla solo il passo).
+        self.ripetibile = ripetibile
+
+    @property
+    def esc_per_uscire(self):
+        """Quanti Esc servono per uscire dal comando di Revit (Sposta 1, Allinea 2)."""
+        return 2 if self.ripetibile else 1
 
     def ammesso(self, chiavi, n):
         if self.max_elementi is not None and n > self.max_elementi:
@@ -175,17 +185,17 @@ CATALOGO = [
             REVIT, postable=u"Scale", categorie=frozenset([u"linee", u"muri"])),
     # --- Forma -------------------------------------------------------------------------
     Comando(u"allinea", FORMA, u"Allinea", u"Allinea a un riferimento (Revit: Allinea)",
-            REVIT, postable=u"Align"),
+            REVIT, postable=u"Align", ripetibile=True),
     Comando(u"offset", FORMA, u"Offset", u"Sposta o copia parallelamente (Revit: Offset)",
-            REVIT, postable=u"Offset", categorie=_LINEARI),
+            REVIT, postable=u"Offset", categorie=_LINEARI, ripetibile=True),
     Comando(u"dividi", FORMA, u"Dividi", u"Dividi l'elemento in un punto (Revit: Dividi elemento)",
-            REVIT, postable=u"SplitElement", categorie=_LINEARI),
+            REVIT, postable=u"SplitElement", categorie=_LINEARI, ripetibile=True),
     Comando(u"taglia_estendi", FORMA, u"Taglia/Estendi",
             u"Taglia o estendi fino a formare un angolo (Revit: Taglia/Estendi ad angolo)",
-            REVIT, postable=u"TrimOrExtendToCorner", categorie=_LINEARI),
+            REVIT, postable=u"TrimOrExtendToCorner", categorie=_LINEARI, ripetibile=True),
     Comando(u"crea_simile", FORMA, u"Crea simile",
             u"Disegna un nuovo elemento dello stesso tipo (Revit: Crea simile)",
-            REVIT, postable=u"CreateSimilar", max_elementi=1),
+            REVIT, postable=u"CreateSimilar", max_elementi=1, ripetibile=True),
     # --- Seleziona ---------------------------------------------------------------------
     Comando(u"sel_tipo_vista", SELEZIONA, u"Stesso tipo nella vista",
             u"Seleziona tutti gli elementi dello stesso tipo visibili nella vista", API),
