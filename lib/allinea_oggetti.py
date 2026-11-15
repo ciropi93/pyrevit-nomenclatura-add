@@ -6,7 +6,8 @@ Le funzioni pure lavorano sugli ingombri degli oggetti nel piano della vista:
   - Sinistra / Destra / Alto / Basso: riferimento = l'oggetto piu' esterno;
   - Centro X / Centro Y: riferimento = il centro dell'ingombro di tutto il gruppo;
   - Distribuisci: stessa distanza tra gli oggetti, i due estremi restano fermi.
-esegui() fa gli spostamenti in Revit in un'unica transazione (annullabile).
+Vale in pianta, sezione, prospetto, dettaglio e legenda, non nelle viste 3D.
+Gli spostamenti in Revit li fa palette_azioni.allinea_oggetti (una transazione).
 """
 import allinea_in_tavola as AIT
 
@@ -51,56 +52,60 @@ def spostamenti(boxes, comando):
     return out
 
 
-# ==============================================================================
-# REVIT
-# ==============================================================================
-
-def _ingombro(el, vista, destra, alto):
-    from Autodesk.Revit import DB
-    bb = el.get_BoundingBox(vista)
-    if bb is None:
-        return None
-    us, vs = [], []
-    for x in (bb.Min.X, bb.Max.X):
-        for y in (bb.Min.Y, bb.Max.Y):
-            for z in (bb.Min.Z, bb.Max.Z):
-                p = bb.Transform.OfPoint(DB.XYZ(x, y, z))
-                us.append(p.DotProduct(destra))
-                vs.append(p.DotProduct(alto))
-    return min(us), min(vs), max(us), max(vs)
+# Per ogni comando: asse (0 = orizzontale, 1 = verticale) e lato dell'ingombro che conta
+_RIFERIMENTO = {
+    u"ogg_sinistra": (0, u"min"), u"ogg_centro_x": (0, u"centro"), u"ogg_destra": (0, u"max"),
+    u"ogg_basso": (1, u"min"), u"ogg_centro_y": (1, u"centro"), u"ogg_alto": (1, u"max"),
+    u"ogg_distribuisci_x": (0, u"min"), u"ogg_distribuisci_y": (1, u"min"),
+}
 
 
-def esegui(uidoc, comando):
-    """Allinea/distribuisce gli oggetti selezionati nella vista attiva; ritorna il messaggio."""
-    from Autodesk.Revit import DB
-    doc = uidoc.Document
-    vista = doc.ActiveView
-    destra, alto = vista.RightDirection, vista.UpDirection
-    boxes, saltati = [], 0
-    for eid in uidoc.Selection.GetElementIds():
-        el = doc.GetElement(eid)
-        if el is None:
-            continue
-        if el.Pinned or el.GroupId != DB.ElementId.InvalidElementId:
-            saltati += 1
-            continue
-        box = _ingombro(el, vista, destra, alto)
-        if box is not None:
-            boxes.append((eid,) + box)
+def _quota(box, asse, lato):
+    minimo, massimo = box[1 + asse], box[3 + asse]
+    if lato == u"min":
+        return minimo
+    if lato == u"max":
+        return massimo
+    return (minimo + massimo) / 2.0
+
+
+def bersagli(boxes, comando):
+    """{id: quota} dove deve finire, lungo l'asse del comando, il lato che conta di OGNI
+    oggetto: il bordo destro per "Destra", il centro per i "Centro", il sinistro per
+    "Sinistra" e "Distribuisci"... Anche di quelli che restano fermi: se un altro li
+    trascina vanno rimessi a posto."""
+    asse, lato = _RIFERIMENTO[comando]
     mosse = spostamenti(boxes, comando)
-    if mosse:
-        t = DB.Transaction(doc, u"Palette: allinea oggetti")
-        t.Start()
-        try:
-            for eid, (du, dv) in mosse.items():
-                DB.ElementTransformUtils.MoveElement(
-                    doc, eid, destra.Multiply(du).Add(alto.Multiply(dv)))
-            t.Commit()
-        except Exception:
-            if t.HasStarted() and not t.HasEnded():
-                t.RollBack()
-            raise
-    msg = u"%d oggetti spostati." % len(mosse) if mosse else u"Gli oggetti erano già allineati."
-    if saltati:
-        msg += u"\n(%d bloccati o in gruppi: saltati)" % saltati
-    return msg
+    out = {}
+    for b in boxes:
+        out[b[0]] = _quota(b, asse, lato) + mosse.get(b[0], (0.0, 0.0))[asse]
+    return out
+
+
+def residui(boxes, obiettivi, comando, tolleranza=1e-6):
+    """{id: (du, dv)} che manca a ogni oggetto per arrivare al suo bersaglio.
+
+    Serve dopo il primo giro di spostamenti: un oggetto ne trascina altri (il muro la
+    sua porta, l'elemento la sua etichetta) e quelli vanno corretti sulla posizione
+    nuova, non su quella di partenza. Si guarda solo l'asse del comando e il lato che
+    conta, cosi' un ingombro che cambia un po' forma non rovina l'allineamento.
+    """
+    asse, lato = _RIFERIMENTO[comando]
+    out = {}
+    for b in boxes:
+        if b[0] not in obiettivi:
+            continue
+        d = obiettivi[b[0]] - _quota(b, asse, lato)
+        if abs(d) > tolleranza:
+            out[b[0]] = (d, 0.0) if asse == 0 else (0.0, d)
+    return out
+
+
+# Viste dove destra/alto della vista sono direzioni sensate per spostare gli oggetti
+# (nomi di Autodesk.Revit.DB.ViewType). Nelle viste 3D "alto" e' obliquo: niente.
+VISTE_AMMESSE = frozenset([u"FloorPlan", u"CeilingPlan", u"EngineeringPlan", u"AreaPlan",
+                           u"Section", u"Elevation", u"Detail", u"DraftingView", u"Legend"])
+
+
+def vista_ammessa(tipo_vista):
+    return tipo_vista in VISTE_AMMESSE

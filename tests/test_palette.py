@@ -215,6 +215,7 @@ def test_imposta_fissa():
     assert PAL.imposta_fissa(cfg, u"blocca", False)
     assert u"blocca" not in cfg[u"fissa"]
     assert u"blocca" in cfg[u"categorie"][u"porte"]                     # torna nella famiglia
+    assert not PAL.imposta_fissa(cfg, u"inventato", True)
     assert cfg[u"fissa"] == [u"nascondi_elementi", u"nascondi_categoria", u"mezzitoni",
                              u"copia_grafica", u"isola_elementi"]
 
@@ -251,14 +252,51 @@ def test_opacita_alla_office():
         assert abs(v * 20 - round(v * 20)) < 1e-9
 
 
-def test_esc_per_uscire_dai_comandi_di_revit():
-    # comandi "una volta sola": un Esc li chiude
-    for cid in (u"sposta", u"copia", u"ruota", u"specchia", u"serie", u"scala"):
-        assert PAL.PER_ID[cid].esc_per_uscire == 1, cid
-    # comandi che restano attivi dopo ogni operazione: due Esc
-    for cid in (u"allinea", u"offset", u"dividi", u"taglia_estendi", u"crea_simile"):
-        assert PAL.PER_ID[cid].esc_per_uscire == 2, cid
-    # solo i comandi di Revit possono essere ripetibili
-    for c in PAL.CATALOGO:
-        if c.ripetibile:
-            assert c.esecuzione == PAL.REVIT, c.id
+
+def test_fila_fissa_non_tocca_le_scelte_per_categoria():
+    cfg = PAL.copia_config(PAL.config_predefinita())
+    PAL.imposta_comando(cfg, u"locali", u"sposta", False)
+    prima = PAL.copia_config(cfg)[u"categorie"]
+    # dentro e fuori dalla fila fissa (un clic sbagliato e uno per correggere)
+    PAL.imposta_fissa(cfg, u"blocca", False)
+    assert PAL.imposta_fissa(cfg, u"sposta", True)
+    assert PAL.imposta_fissa(cfg, u"sposta", False)
+    assert cfg[u"categorie"] == prima
+    assert u"sposta" not in cfg[u"categorie"][u"locali"]
+    assert u"copia" not in cfg[u"categorie"][u"viste_tavola"]
+    PAL.ripristina_fissa(cfg)
+    assert cfg[u"fissa"] == PAL.FISSA_PREDEFINITA and cfg[u"categorie"] == prima
+
+
+def test_config_con_forma_sbagliata_non_da_errore(tmp_path):
+    strane = [
+        {u"fissa": [[u"sposta"], 3, None, u"blocca"]},
+        {u"categorie": {u"muri": {u"vista": None, u"menu": 5}}},
+        {u"categorie": {u"muri": [[u"sposta"], {u"a": 1}, u"copia"]}},
+        {u"categorie": [u"muri"]},
+        [u"non", u"un", u"oggetto"],
+    ]
+    for dati in strane:
+        cfg = PAL.unisci_config(dati)
+        assert set(cfg[u"categorie"]) == set(PAL.CHIAVI)
+    assert PAL.unisci_config(strane[0])[u"fissa"] == [u"blocca"]
+    assert PAL.unisci_config(strane[1])[u"categorie"][u"muri"] == []
+    assert PAL.unisci_config(strane[2])[u"categorie"][u"muri"] == [u"copia"]
+    # anche dal file: mai un'eccezione, al massimo la predefinita
+    percorso = str(tmp_path / u"palette.json")
+    with open(percorso, "w") as f:
+        f.write('{"fissa": [["sposta"]], "categorie": {"muri": {"vista": null}}}')
+    assert PAL.carica_config(percorso)[u"attiva"] is True
+
+
+def test_posizione_griglia_sul_monitor_della_palette():
+    principale = (0, 0, 1920, 1040)
+    secondo = (1920, 0, 3840, 1040)          # monitor a destra del principale
+    # sotto la palette, allineata a sinistra
+    assert PAL.posizione_griglia(300, 200, 150, 210, 130, principale) == (300, 204)
+    # sul secondo monitor resta li', non torna sul principale
+    assert PAL.posizione_griglia(2500, 200, 150, 210, 130, secondo) == (2500, 204)
+    # in basso non c'e' posto: va sopra la palette
+    assert PAL.posizione_griglia(300, 1000, 950, 210, 130, principale) == (300, 950 - 4 - 130)
+    # vicino al bordo destro resta dentro il monitor
+    assert PAL.posizione_griglia(3800, 200, 150, 210, 130, secondo)[0] == 3840 - 210

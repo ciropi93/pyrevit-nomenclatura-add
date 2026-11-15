@@ -45,6 +45,7 @@ Strumenti CDV della categoria (in tavola, cliccare il titolo seleziona la vista)
 - due o più oggetti del modello o di dettaglio: **Allinea oggetti** (sinistra, centro, destra,
   alto, basso sull'oggetto più esterno; i centri sul centro del gruppo) e, da tre, **Distribuisci
   oggetti** (gli estremi restano fermi); oggetti bloccati o in gruppi vengono saltati.
+  Vale in pianta, sezione, prospetto, dettaglio e legenda, non nelle viste 3D.
 - uno o più muri: **Inverti muro sul centro** (Maiusc+clic: linea di ubicazione su Asse del muro);
   accanto a ogni muro selezionato compaiono le lettere **E** (esterno, rossa) e **I** (interno, blu)
   sui due lati, in pianta e in sezione, così si vede subito come è girata la stratigrafia.

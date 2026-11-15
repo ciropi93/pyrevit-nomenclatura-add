@@ -39,7 +39,7 @@ clr.AddReference("RevitAPIUI")
 
 import System
 from System import Double, EventHandler, IntPtr, TimeSpan
-from System.Windows import Point, Size, SystemParameters, Thickness, Visibility
+from System.Windows import Point, Size, Thickness, Visibility
 from System.Windows import CornerRadius, FontWeights, HorizontalAlignment, VerticalAlignment
 from System.Windows import TextAlignment, TextWrapping
 from System.Windows.Controls import (Border, Button, Canvas, Grid, Orientation, StackPanel,
@@ -47,10 +47,11 @@ from System.Windows.Controls import (Border, Button, Canvas, Grid, Orientation, 
 from System.Windows.Input import Keyboard, ModifierKeys
 from System.Windows.Interop import WindowInteropHelper
 from System.Windows.Markup import XamlReader
-from System.Windows.Media import BrushConverter, Geometry
+from System.Windows.Media import Geometry
 from System.Windows.Shapes import Path
 from System.Windows.Threading import DispatcherTimer
-from System.Windows.Forms import Control, MouseButtons
+from System.Windows.Forms import Control, MouseButtons, Screen
+from System.Drawing import Point as PuntoSchermo
 from Autodesk.Revit import DB, UI
 
 # Import qui, all'avvio: quando poi scatta l'ExternalEvent la cartella lib
@@ -80,6 +81,8 @@ DIM_LETTERA = 14          # cerchietto della lettera E / I
 DISTACCO_LETTERA = 10     # pixel tra la faccia del muro e il centro della lettera
 CONTROLLO_MOUSE_MS = 40   # timer di riserva (solo se l'hook del mouse non parte)
 CONTROLLO_CONFIG_S = 1.0  # ogni quanto, al massimo, si guarda se palette.json e' cambiato
+DURATA_CACHE_SEZIONI_S = 20.0  # oltre, le coppie sezione/sfondo si rileggono comunque
+ATTESA_COMANDO_S = 0.4    # dopo aver lanciato un comando di Revit, prima di credere che sia finito
 MAX_MURI_LETTERE = 150    # oltre, niente lettere (troppe per leggerle)
 COLORE_ESTERNO = "#DC2626"
 COLORE_INTERNO = "#2563EB"
@@ -175,6 +178,8 @@ _FINESTRA = u"""
 XAML = _FINESTRA % (_STILI, 5, u"2", 4)
 XAML_MENU = _FINESTRA % (_STILI, 8, u"6", 8)
 
+# Famiglie CDV che non dipendono dalle viste del modello (le altre: sezioni, titoli, viste)
+NOMI_CDV_OGGETTI = frozenset([u"Muri", u"Allinea oggetti", u"Distribuisci oggetti"])
 TEMPO_APERTURA_MS = 250   # mouse fermo su una famiglia: si apre la griglia
 TEMPO_CHIUSURA_MS = 350   # mouse fuori da famiglia e griglia: si chiude
 CASELLE_PER_RIGA = 3
@@ -190,11 +195,7 @@ XAML_LETTERE = u"""
 </Window>
 """
 
-_PENNELLI = BrushConverter()
-
-
-def _colore(hex_):
-    return _PENNELLI.ConvertFromString(hex_)
+_colore = IW.colore
 
 
 def _avvisa(msg):
@@ -290,19 +291,33 @@ def _nome_ost(el):
     return _NOMI_OST[v]
 
 
-def _coppie_sezioni(doc, cache):
-    """PS.trova_coppie_sezioni scorre tutte le viste: si rifa' solo se il modello cambia.
+def _coppie_valide(valore):
+    try:
+        return all(c["madre"].IsValidObject and c["sfondo"].IsValidObject for c in valore[0])
+    except Exception:
+        return False
 
-    cache: {"versione", "chiave", "valore"} dell'overlay; "versione" sale a ogni modifica
-    del modello e la cache si svuota quando un documento si chiude (gli elementi di un
-    documento chiuso non si possono piu' leggere).
+
+def _coppie_sezioni(doc, cache):
+    """PS.trova_coppie_sezioni scorre tutte le viste: si rifa' solo quando serve.
+
+    cache: {"versione", "chiave", "valore", "quando"} dell'overlay. Si rilegge se:
+      - "versione" e' salita (una vista o un riquadro e' cambiato in questo Revit);
+      - sono passati DURATA_CACHE_SEZIONI_S (modifiche che non passano da DocumentChanged:
+        Ricarica ultimi / sincronizzazione di un modello condiviso);
+      - una vista in cache non e' piu' valida.
+    La cache si svuota quando un documento si chiude.
     """
     if cache is None:
         return PS.trova_coppie_sezioni(doc)
     chiave = (doc.PathName or doc.Title, cache.get(u"versione", 0))
-    if cache.get(u"chiave") != chiave:
+    adesso = time.time()
+    if (cache.get(u"chiave") != chiave
+            or adesso - cache.get(u"quando", 0.0) > DURATA_CACHE_SEZIONI_S
+            or not _coppie_valide(cache.get(u"valore"))):
         cache[u"valore"] = PS.trova_coppie_sezioni(doc)
         cache[u"chiave"] = chiave
+        cache[u"quando"] = adesso
     return cache[u"valore"]
 
 
@@ -311,12 +326,16 @@ def _gruppi_cdv(doc, elementi, cache=None):
 
     Muri: Inverti sul centro. Soli riquadri di vista (in tavola) o una sola linea di
     sezione/prospetto: Profondita' Sezione e allineamenti in tavola. Altri oggetti
-    (2 o piu'): allinea e distribuisci nella vista.
+    (2 o piu'): allinea e distribuisci nella vista (non in 3D).
     """
+    # Allinea/Distribuisci oggetti: non nelle viste 3D (li' "alto" e' una direzione obliqua)
+    vista = doc.ActiveView
+    n_allinea = len(elementi) if (vista is not None
+                                  and AO.vista_ammessa(str(vista.ViewType))) else 0
     muri = [e for e in elementi if isinstance(e, DB.Wall)]
     if muri and len(muri) == len(elementi):
         return TC.comandi_per_selezione(0, in_tavola=False, n_muri=len(muri),
-                                        n_oggetti=len(muri)), None
+                                        n_oggetti=n_allinea), None
     viewports = [e for e in elementi if isinstance(e, DB.Viewport)]
     viewers = [e for e in elementi if _e_viewer(e)]
 
@@ -326,7 +345,7 @@ def _gruppi_cdv(doc, elementi, cache=None):
         voci = [(u"viewer", viewers[0].Name)]
     elif not viewports:
         # oggetti del modello o di dettaglio: allinea / distribuisci da 2 in su
-        return TC.comandi_per_selezione(0, in_tavola=False, n_oggetti=len(elementi)), None
+        return TC.comandi_per_selezione(0, in_tavola=False, n_oggetti=n_allinea), None
     else:
         return [], None
 
@@ -404,13 +423,15 @@ def _comandi_disponibili():
 
 
 def _posta_comando(uiapp, nome):
-    """Lancia un comando nativo di Revit: parte dopo l'ExternalEvent, con la selezione attuale."""
+    """Lancia un comando nativo di Revit: parte dopo l'ExternalEvent, con la selezione attuale.
+    Ritorna True se il comando e' stato lanciato."""
     pc = getattr(UI.PostableCommand, nome, None)
     cid = UI.RevitCommandId.LookupPostableCommandId(pc) if pc is not None else None
     if cid is None or not uiapp.CanPostCommand(cid):
         _avvisa(u"Il comando di Revit non si può avviare adesso.")
-        return
+        return False
     uiapp.PostCommand(cid)
+    return True
 
 
 def _sincronizza(doc, madre_uid):
@@ -457,18 +478,19 @@ class _GestoreAzione(UI.IExternalEventHandler):
         self.comando = None
         self.madre_uid = None
         self.maiuscolo = False
-        self.al_termine = None   # chiamata a fine azione (la palette torna)
+        self.al_termine = None   # al_termine(comando, avviato): a fine azione
 
     def Execute(self, uiapp):
         comando, uid = self.comando, self.madre_uid
         self.comando = None
+        avviato = False          # un comando di Revit e' stato lanciato davvero
         try:
             uidoc = uiapp.ActiveUIDocument
             if uidoc is None or not comando:
                 return
             cmd = PAL.PER_ID.get(comando)
             if cmd is not None and cmd.esecuzione == PAL.REVIT:
-                _posta_comando(uiapp, cmd.postable)
+                avviato = _posta_comando(uiapp, cmd.postable)
             elif cmd is not None:
                 try:
                     msg = PA.esegui(uidoc, comando)
@@ -478,7 +500,10 @@ class _GestoreAzione(UI.IExternalEventHandler):
                 if msg:
                     _toast(msg)
             elif comando in AO.COMANDI:
-                _toast(AO.esegui(uidoc, comando))
+                try:
+                    _toast(PA.allinea_oggetti(uidoc, comando))
+                except PA.AzioneErrore as ex:
+                    _avvisa(u"%s" % ex)
             elif comando == TC.SEZIONE_APRI:
                 _apri_profondita(uid)
             elif comando == TC.SEZIONE_SINCRONIZZA:
@@ -493,7 +518,7 @@ class _GestoreAzione(UI.IExternalEventHandler):
         finally:
             if self.al_termine is not None:
                 try:
-                    self.al_termine(comando)
+                    self.al_termine(comando, avviato)
                 except Exception:
                     pass
 
@@ -523,7 +548,7 @@ def _tasti_premuti():
 
 
 class _Gancio(object):
-    """Hook di Windows sul thread di Revit (WH_MOUSE o WH_KEYBOARD).
+    """Hook di Windows sul thread di Revit.
 
     filtro(w_param, l_param) ritorna l'evento da passare a su_evento, o None per
     ignorare il messaggio. Il filtro deve essere velocissimo: gira a ogni messaggio.
@@ -609,18 +634,6 @@ class _GancioMouse(_Gancio):
         _Gancio.__init__(self, filtro, su_evento)
 
 
-class _GancioTastiera(_Gancio):
-    """Esc premuto: un comando di Revit lanciato dalla palette e' stato annullato."""
-    TIPO = 2                      # WH_KEYBOARD
-    VK_ESCAPE = 0x1B
-
-    def __init__(self, su_evento):
-        vk = self.VK_ESCAPE
-        # bit 31 di l_param = 0 quando il tasto viene premuto (non rilasciato)
-        _Gancio.__init__(self, lambda w, l: u"esc" if w == vk and not (l >> 31) & 1 else None,
-                         su_evento)
-
-
 def _contesto_vista(uidoc):
     """(vista, uv, zoom, finestra) della vista attiva, oppure None.
 
@@ -681,13 +694,7 @@ def _riquadro_selezione(uidoc, ids, ctx=None):
             punti.append(uv(o.MinimumPoint))
             punti.append(uv(o.MaximumPoint))
         else:
-            bb = el.get_BoundingBox(vista)
-            if bb is None:
-                continue
-            for x in (bb.Min.X, bb.Max.X):
-                for y in (bb.Min.Y, bb.Max.Y):
-                    for z in (bb.Min.Z, bb.Max.Z):
-                        punti.append(uv(bb.Transform.OfPoint(DB.XYZ(x, y, z))))
+            punti.extend(uv(p) for p in PA.angoli_ingombro(el, vista))
     riquadro = TC.riquadro_schermo(punti, zoom, finestra)
     if riquadro is None:
         return None
@@ -851,6 +858,12 @@ def _firma_struttura(st):
             tuple((f[u"id"], tuple(v[0] for v in f[u"voci"])) for f in st[u"famiglie"]))
 
 
+# Le coppie sezione/sfondo dipendono solo dalle viste (nome e parametri), non dalle tavole
+# ne' dai riquadri: spostare una vista in tavola non le cambia.
+_FILTRO_VISTE = DB.LogicalAndFilter(DB.ElementClassFilter(DB.View),
+                                    DB.ElementClassFilter(DB.ViewSheet, True))
+
+
 class TastiOverlay(object):
     def __init__(self, uiapp):
         self.uiapp = uiapp
@@ -876,7 +889,7 @@ class TastiOverlay(object):
         self.ancora = None          # punto del clic, in coordinate della vista
         self.sospesa = False        # comando in corso: palette via fino alla fine
         self.sospesa_revit = False  # ... ed e' un comando di Revit (torna con DocumentChanged)
-        self.sospesa_ripetibile = False  # ... che resta attivo dopo ogni operazione
+        self.comando_lanciato = None     # quando Revit ha ricevuto il comando (time.time)
         self.win_menu = None        # griglia della famiglia sotto il mouse
         self.menu_da = None         # tasto famiglia che l'ha aperta
         self.da_aprire = None
@@ -885,7 +898,6 @@ class TastiOverlay(object):
         self.famiglie = {}          # id famiglia -> (tasto, famiglia)
         self.fam_di = {}            # comando -> id famiglia
         self.ultimi = {}            # id famiglia -> ultimo strumento usato (in questa sessione)
-        self.gancio_tastiera = None
         self.ha_evento_selezione = False   # Revit 2023+: la selezione arriva con l'evento
         self.doc_vista = None       # (documento, vista) dell'ultima selezione letta
         self.cfg_letta = 0.0        # quando si e' guardato l'ultima volta palette.json
@@ -896,8 +908,8 @@ class TastiOverlay(object):
         self.sparita = False        # allontanandosi col mouse la palette sparisce
         self.in_movimento = False   # pan/zoom in corso: niente da mostrare fino al prossimo Idling
         self.forza_analisi = False  # modello cambiato: rianalizzare la selezione corrente
-        self.esc_contati = 0        # Esc premuti durante il comando di Revit lanciato
-        self.esc_necessari = 1
+        self.ids_val = frozenset()  # id (interi) degli elementi selezionati
+        self.con_viste = False      # la selezione contiene riquadri di vista o linee di sezione
         self.cache_coppie = {}      # coppie sezione/sfondo (vedi _coppie_sezioni)
 
     # --- finestra -------------------------------------------------------------
@@ -969,15 +981,6 @@ class TastiOverlay(object):
                 self.win.Show()
         if not sparita and abs(self.win.Opacity - opacita) > 0.01:
             self.win.Opacity = opacita
-
-    def _su_esc(self, evento):
-        # Esc durante un comando di Revit lanciato dalla palette. Il comando finisce dopo
-        # 1 Esc (Sposta, Copia...) o 2 (Allinea, Offset... dove il primo annulla solo il
-        # passo in corso): solo allora la palette torna, senza aspettare una modifica.
-        if self.sospesa and self.sospesa_revit:
-            self.esc_contati += 1
-            if self.esc_contati >= self.esc_necessari:
-                self._riprendi()
 
     def _sotto_cursore(self, win):
         if win is None or win.Visibility != Visibility.Visible:
@@ -1266,15 +1269,14 @@ class TastiOverlay(object):
         self.win_menu.Content.Measure(Size(Double.PositiveInfinity, Double.PositiveInfinity))
         dim = self.win_menu.Content.DesiredSize
         # sotto la palette, allineata al suo bordo sinistro; sopra se in basso non c'e' posto
+        # (dentro il monitor dove sta la palette, non quello principale: se finisse su un
+        # altro schermo il mouse non ci arriverebbe prima che si richiuda)
         k = self.scala
         alto = self.win.PointToScreen(Point(0, 0))
         basso = tasto.PointToScreen(Point(0, tasto.ActualHeight))
-        x, y = alto.X / k, basso.Y / k + 4
-        schermo = SystemParameters.WorkArea
-        if y + dim.Height > schermo.Bottom:
-            y = alto.Y / k - dim.Height - 2
-        if x + dim.Width > schermo.Right:
-            x = schermo.Right - dim.Width
+        a = Screen.FromPoint(PuntoSchermo(int(alto.X), int(alto.Y))).WorkingArea
+        x, y = PAL.posizione_griglia(alto.X / k, basso.Y / k, alto.Y / k, dim.Width, dim.Height,
+                                     (a.Left / k, a.Top / k, a.Right / k, a.Bottom / k))
         self.win_menu.Left, self.win_menu.Top = x, y
         self.menu_da = tasto
         if self.win_menu.Visibility != Visibility.Visible:
@@ -1361,6 +1363,9 @@ class TastiOverlay(object):
             self._crea_finestra()
         self.madre_uid = madre_uid
         self.ids = list(ids)
+        self.ids_val = frozenset(PS._id_val(i) for i in self.ids)
+        self.con_viste = any(f[u"cdv"] and f[u"nome"] not in NOMI_CDV_OGGETTI
+                             for f in struttura[u"famiglie"])
         self.muri = any(v[0] == TC.MURO_INVERTI for f in struttura[u"famiglie"] for v in f[u"voci"])
         self.ultime_lettere = None
         self.attivo = True
@@ -1407,6 +1412,8 @@ class TastiOverlay(object):
     def nascondi(self):
         self._chiudi_menu()
         self.attivo = False
+        self.ids_val = frozenset()
+        self.con_viste = False
         self.rett_palette = None
         self._aggiorna_segui()
         self.ids = []
@@ -1435,13 +1442,11 @@ class TastiOverlay(object):
         cmd = PAL.PER_ID.get(comando)
         if cmd is not None and (cmd.esecuzione == PAL.REVIT or cmd.interattivo):
             # Sposta, Copia, Copia grafica...: la palette si toglie e torna a comando
-            # finito (DocumentChanged per i comandi di Revit, fine azione per i nostri)
+            # finito (vedi _su_idling per i comandi di Revit, _fine_azione per i nostri)
             # o quando cambia la selezione.
             self.sospesa = True
             self.sospesa_revit = cmd.esecuzione == PAL.REVIT
-            self.sospesa_ripetibile = cmd.ripetibile
-            self.esc_contati = 0
-            self.esc_necessari = cmd.esc_per_uscire
+            self.comando_lanciato = None
             self._nascondi_finestra()
             self._nascondi_lettere()
             self._aggiorna_segui()
@@ -1480,7 +1485,9 @@ class TastiOverlay(object):
                 self.doc_vista = _doc_vista(doc)
                 chiave = self.doc_vista + (tuple(sorted(PS._id_val(i) for i in ids)),)
             stessa = chiave == self.chiave_sel
-            if stessa and not self.forza_analisi:
+            if stessa and (self.sospesa or not self.forza_analisi):
+                # niente di nuovo; durante un comando la rianalisi chiesta da una modifica
+                # resta in attesa e si fa quando la palette torna
                 return
             self.forza_analisi = False
             self.chiave_sel = chiave
@@ -1488,8 +1495,7 @@ class TastiOverlay(object):
                 # selezione nuova: un eventuale comando in corso non la riguarda piu'
                 self.sospesa = False
                 self.sospesa_revit = False
-            if self.sospesa:
-                return      # stessa selezione durante un comando: si rianalizza alla fine
+                self.comando_lanciato = None
             esito = _analizza_selezione(doc, ids, self.cfg, self.disponibili, self.cache_coppie)
             if esito is None:
                 self.nascondi()
@@ -1513,6 +1519,8 @@ class TastiOverlay(object):
                 self.chiave_sel = None
                 self.nascondi()
                 return
+            if self._comando_revit_finito():
+                self._riprendi()
             self._rileggi_config()
             # Revit 2023+: la selezione arriva con SelectionChanged; qui si rilegge solo
             # se serve (configurazione o modello cambiati, altro documento o altra vista).
@@ -1530,33 +1538,54 @@ class TastiOverlay(object):
         self.nascondi()
 
     def _su_modifica(self, sender, args):
-        # Comando di Revit finito (es. Sposta): la palette torna, sul bordo della
-        # selezione perche' gli elementi si sono spostati dal punto del clic.
-        # La cache delle sezioni scade e la selezione si rianalizza al prossimo Idling
-        # (elementi cancellati o annullati, sfondo di una sezione appena creato...).
-        self.cache_coppie[u"versione"] = self.cache_coppie.get(u"versione", 0) + 1
-        self.forza_analisi = True
-        self.sporco = True          # muri invertiti o spostati: lettere e palette da rifare
-        # Un comando "una volta sola" (Sposta...) e' finito; quelli ripetibili (Allinea...)
-        # salvano a ogni operazione e restano attivi: per loro si aspetta l'Esc.
-        if self.sospesa and self.sospesa_revit and not self.sospesa_ripetibile:
+        """Il modello e' cambiato: si rifa' solo quello che la modifica tocca."""
+        self.sporco = True          # oggetti spostati o invertiti: palette e lettere da rimettere
+        try:
+            eliminati = args.GetDeletedElementIds()
+            # Viste aggiunte/cambiate, oppure qualcosa eliminato (non si puo' piu' sapere
+            # cosa fosse): le coppie sezione/sfondo vanno rilette.
+            if (eliminati.Count or args.GetAddedElementIds(_FILTRO_VISTE).Count
+                    or args.GetModifiedElementIds(_FILTRO_VISTE).Count):
+                self.cache_coppie[u"versione"] = self.cache_coppie.get(u"versione", 0) + 1
+                # la palette si rilegge solo se la modifica la riguarda: selezione con
+                # viste/sezioni (tasti CDV) o elementi selezionati eliminati
+                if self.madre_uid is not None or self.con_viste \
+                        or any(PS._id_val(i) in self.ids_val for i in eliminati):
+                    self.forza_analisi = True
+        except Exception:
+            # nel dubbio si rilegge tutto
+            self.cache_coppie[u"versione"] = self.cache_coppie.get(u"versione", 0) + 1
+            self.forza_analisi = True
+
+    def _fine_azione(self, comando, avviato):
+        """Dall'ExternalEvent, a fine azione."""
+        if not self.sospesa:
+            return
+        if self.sospesa_revit and avviato:
+            # Il comando di Revit e' partito: finisce quando Revit torna a mandare Idling
+            # (vedi _su_idling). Da adesso si conta l'attesa minima.
+            self.comando_lanciato = time.time()
+        else:
+            # Azione nostra finita (es. Copia grafica dopo Esc), oppure il comando di
+            # Revit non e' partito (non disponibile per questa selezione): la palette torna.
             self._riprendi()
 
-    def _fine_azione(self, comando):
-        # Azione nostra finita (es. Copia grafica dopo Esc): la palette torna
-        cmd = PAL.PER_ID.get(comando)
-        if self.sospesa and cmd is not None and not self.sospesa_revit:
-            self._riprendi()
+    def _comando_revit_finito(self):
+        """Revit manda Idling solo fuori da strumenti e transazioni: il primo Idling dopo
+        che il comando e' partito vuol dire che e' finito, comunque sia finito (operazione
+        fatta, Esc, clic su Modifica, Annulla dal tasto destro...)."""
+        return (self.sospesa and self.sospesa_revit and self.comando_lanciato is not None
+                and time.time() - self.comando_lanciato >= ATTESA_COMANDO_S)
 
     def _riprendi(self):
         # Torna sul bordo della selezione: gli elementi possono essersi spostati
         self.sospesa = False
         self.sospesa_revit = False
+        self.comando_lanciato = None
         self.ancora = None
         self.ultima_pos = None
         self.sporco = True
         self.sparita = False
-        self.forza_analisi = True   # durante il comando la stessa selezione non si e' rianalizzata
         self._aggiorna_segui()
 
     # --- attivazione ----------------------------------------------------------
@@ -1587,12 +1616,6 @@ class TastiOverlay(object):
         except Exception:
             # senza hook resta il timer (piu' lento con pan veloci)
             self.gancio = None
-        try:
-            tastiera = _GancioTastiera(self._su_esc)
-            if tastiera.attacca():
-                self.gancio_tastiera = tastiera
-        except Exception:
-            self.gancio_tastiera = None
 
 
     def spegni(self):
@@ -1609,11 +1632,9 @@ class TastiOverlay(object):
             except Exception:
                 pass
         self.delegati = []
-        for gancio in (self.gancio, self.gancio_tastiera):
-            if gancio is not None:
-                gancio.stacca()
-        self.gancio = None
-        self.gancio_tastiera = None
+        if self.gancio is not None:
+            self.gancio.stacca()
+            self.gancio = None
         if self.timer is not None:
             try:
                 self.timer.Stop()

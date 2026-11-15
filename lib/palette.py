@@ -132,8 +132,7 @@ ICONE = {
 
 class Comando(object):
     def __init__(self, id_, famiglia, etichetta, suggerimento, esecuzione,
-                 postable=None, categorie=None, max_elementi=None, interattivo=False,
-                 ripetibile=False):
+                 postable=None, categorie=None, max_elementi=None, interattivo=False):
         self.id = id_
         self.famiglia = famiglia
         self.etichetta = etichetta
@@ -144,15 +143,6 @@ class Comando(object):
         self.categorie = categorie        # None = tutte; altrimenti insieme di chiavi
         self.max_elementi = max_elementi  # es. 1 per "Crea simile"
         self.interattivo = interattivo    # chiede di cliccare nella vista: palette via intanto
-        # Comando di Revit che resta attivo dopo ogni operazione (Allinea, Offset...):
-        # ogni operazione salva il modello, quindi non si puo' capire dalla modifica che
-        # il comando e' finito; se ne esce con due Esc (il primo annulla solo il passo).
-        self.ripetibile = ripetibile
-
-    @property
-    def esc_per_uscire(self):
-        """Quanti Esc servono per uscire dal comando di Revit (Sposta 1, Allinea 2)."""
-        return 2 if self.ripetibile else 1
 
     def ammesso(self, chiavi, n):
         if self.max_elementi is not None and n > self.max_elementi:
@@ -185,17 +175,17 @@ CATALOGO = [
             REVIT, postable=u"Scale", categorie=frozenset([u"linee", u"muri"])),
     # --- Forma -------------------------------------------------------------------------
     Comando(u"allinea", FORMA, u"Allinea", u"Allinea a un riferimento (Revit: Allinea)",
-            REVIT, postable=u"Align", ripetibile=True),
+            REVIT, postable=u"Align"),
     Comando(u"offset", FORMA, u"Offset", u"Sposta o copia parallelamente (Revit: Offset)",
-            REVIT, postable=u"Offset", categorie=_LINEARI, ripetibile=True),
+            REVIT, postable=u"Offset", categorie=_LINEARI),
     Comando(u"dividi", FORMA, u"Dividi", u"Dividi l'elemento in un punto (Revit: Dividi elemento)",
-            REVIT, postable=u"SplitElement", categorie=_LINEARI, ripetibile=True),
+            REVIT, postable=u"SplitElement", categorie=_LINEARI),
     Comando(u"taglia_estendi", FORMA, u"Taglia/Estendi",
             u"Taglia o estendi fino a formare un angolo (Revit: Taglia/Estendi ad angolo)",
-            REVIT, postable=u"TrimOrExtendToCorner", categorie=_LINEARI, ripetibile=True),
+            REVIT, postable=u"TrimOrExtendToCorner", categorie=_LINEARI),
     Comando(u"crea_simile", FORMA, u"Crea simile",
             u"Disegna un nuovo elemento dello stesso tipo (Revit: Crea simile)",
-            REVIT, postable=u"CreateSimilar", max_elementi=1, ripetibile=True),
+            REVIT, postable=u"CreateSimilar", max_elementi=1),
     # --- Seleziona ---------------------------------------------------------------------
     Comando(u"sel_tipo_vista", SELEZIONA, u"Stesso tipo nella vista",
             u"Seleziona tutti gli elementi dello stesso tipo visibili nella vista", API),
@@ -300,11 +290,16 @@ def ammessi_per_categoria(chiave):
     return [c.id for c in CATALOGO if c.ammesso([chiave], 1)]
 
 
-def _unici(ids):
+_TESTO = (type(u""), str)
+
+
+def _lista_di_id(valore):
+    """Solo le stringhe di una lista, senza doppioni ([] se non e' una lista)."""
     out = []
-    for i in ids:
-        if i not in out:
-            out.append(i)
+    if isinstance(valore, list):
+        for i in valore:
+            if isinstance(i, _TESTO) and i not in out:
+                out.append(i)
     return out
 
 
@@ -344,15 +339,15 @@ def unisci_config(utente):
     if u"attiva" in utente:
         cfg[u"attiva"] = bool(utente[u"attiva"])
     if isinstance(utente.get(u"fissa"), list):
-        cfg[u"fissa"] = [i for i in _unici(utente[u"fissa"]) if i in PER_ID][:MAX_FISSA]
+        cfg[u"fissa"] = [i for i in _lista_di_id(utente[u"fissa"]) if i in PER_ID][:MAX_FISSA]
     cat = utente.get(u"categorie")
     if isinstance(cat, dict):
         for k in CHIAVI:
             voce = cat.get(k)
             if isinstance(voce, dict):
-                voce = list(voce.get(u"vista", [])) + list(voce.get(u"menu", []))
+                voce = _lista_di_id(voce.get(u"vista")) + _lista_di_id(voce.get(u"menu"))
             if isinstance(voce, list):
-                cfg[u"categorie"][k] = _pulisci(k, voce)
+                cfg[u"categorie"][k] = _pulisci(k, _lista_di_id(voce))
     return cfg
 
 
@@ -371,7 +366,11 @@ def carica_config(percorso=None):
                 dati = json.load(f)
         except Exception:
             dati = None
-    return unisci_config(dati)
+    try:
+        return unisci_config(dati)
+    except Exception:
+        # JSON valido ma con una forma inattesa: meglio la palette predefinita di un errore
+        return config_predefinita()
 
 
 def salva_config(cfg, percorso=None):
@@ -491,6 +490,22 @@ def posizione_palette(cursore, finestra, larghezza, altezza, distacco=12):
 
 
 
+def posizione_griglia(sx, sotto, sopra, larghezza, altezza, area, distacco=4):
+    """Angolo in alto a sinistra della griglia di una famiglia.
+
+    sx: bordo sinistro della palette; sotto / sopra: y del bordo inferiore e superiore
+    della palette; area: (sinistra, alto, destra, basso) del monitor DOVE STA la palette
+    (non del monitor principale). La griglia va sotto la palette, attaccata; sopra se in
+    basso non c'e' posto; in orizzontale resta dentro il monitor.
+    """
+    a_sx, a_alto, a_dx, a_basso = area
+    y = sotto + distacco
+    if y + altezza > a_basso and sopra - distacco - altezza >= a_alto:
+        y = sopra - distacco - altezza
+    x = max(min(sx, a_dx - larghezza), a_sx)
+    return x, y
+
+
 # ==============================================================================
 # TRASPARENZA "ALLA OFFICE"
 # ==============================================================================
@@ -561,19 +576,22 @@ def imposta_comando(cfg, chiave, comando, attivo):
 def imposta_fissa(cfg, comando, attivo):
     """Aggiunge/toglie un comando dalla fila fissa (False se e' gia' piena).
 
-    Nella fila fissa un comando non compare piu' nella sua famiglia; tolto dalla fila
-    torna nella famiglia per le categorie dove e' ammesso.
+    Le scelte per categoria non cambiano: finche' sta nella fila fissa il comando non
+    si ripete nella sua famiglia; tolto dalla fila ricompare nelle categorie dove era
+    spuntato (e resta nascosto dove l'utente lo aveva tolto).
     """
     fissa = [i for i in cfg.get(u"fissa", []) if i != comando]
     if attivo:
-        if len(fissa) >= MAX_FISSA:
+        if comando not in PER_ID or len(fissa) >= MAX_FISSA:
             return False
         fissa.append(comando)
-    else:
-        for k in CHIAVI:
-            imposta_comando(cfg, k, comando, True)
     cfg[u"fissa"] = [c.id for c in CATALOGO if c.id in fissa]
     return True
+
+
+def ripristina_fissa(cfg):
+    cfg[u"fissa"] = list(FISSA_PREDEFINITA)
+    return cfg
 
 
 def ripristina_categoria(cfg, chiave):

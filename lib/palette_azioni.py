@@ -16,6 +16,8 @@ from Autodesk.Revit import DB
 from Autodesk.Revit.Exceptions import OperationCanceledException
 from Autodesk.Revit.UI.Selection import ObjectType
 
+import allinea_oggetti as AO
+
 
 class AzioneErrore(Exception):
     pass
@@ -44,6 +46,18 @@ def _transazione(doc, nome, fn):
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         raise
+
+
+def angoli_ingombro(el, vista):
+    """Gli 8 angoli (XYZ, coordinate del modello) dell'ingombro di un elemento nella vista;
+    lista vuota se l'elemento non ha ingombro in quella vista."""
+    bb = el.get_BoundingBox(vista)
+    if bb is None:
+        return []
+    return [bb.Transform.OfPoint(DB.XYZ(x, y, z))
+            for x in (bb.Min.X, bb.Max.X)
+            for y in (bb.Min.Y, bb.Max.Y)
+            for z in (bb.Min.Z, bb.Max.Z)]
 
 
 def _elementi(doc, ids):
@@ -270,6 +284,87 @@ def copia_grafica(uidoc, ids):
     destinatari = [e.Id for e in elementi if e.Id != sorgente.Id]
     _applica_grafica(doc, vista, destinatari, ogs)
     return u"Grafica copiata su %d elementi." % len(destinatari)
+
+
+# ==============================================================================
+# ALLINEA / DISTRIBUISCI OGGETTI NELLA VISTA
+# ==============================================================================
+
+MAX_GIRI_ALLINEA = 3
+
+
+def _ingombri(doc, vista, per_id):
+    """[(chiave, u_min, v_min, u_max, v_max)] nel piano della vista."""
+    destra, alto = vista.RightDirection, vista.UpDirection
+    out = []
+    for k, eid in per_id.items():
+        el = doc.GetElement(eid)
+        punti = angoli_ingombro(el, vista) if el is not None else []
+        if punti:
+            us = [p.DotProduct(destra) for p in punti]
+            vs = [p.DotProduct(alto) for p in punti]
+            out.append((k, min(us), min(vs), max(us), max(vs)))
+    return out
+
+
+def allinea_oggetti(uidoc, comando):
+    """Allinea o distribuisce gli oggetti selezionati nella vista attiva (annullabile).
+
+    Un oggetto ne puo' trascinare altri selezionati (il muro la sua porta, l'elemento la
+    sua etichetta): dopo il primo giro si rileggono gli ingombri e si corregge chi non e'
+    arrivato al suo bersaglio, per al massimo MAX_GIRI_ALLINEA giri.
+    """
+    doc = uidoc.Document
+    vista = _vista(doc)
+    if not AO.vista_ammessa(str(vista.ViewType)):
+        raise AzioneErrore(u"Allinea e Distribuisci funzionano in pianta, sezione, prospetto "
+                           u"e viste di dettaglio, non in questa vista.")
+    destra, alto = vista.RightDirection, vista.UpDirection
+    per_id, saltati = {}, 0
+    for eid in uidoc.Selection.GetElementIds():
+        el = doc.GetElement(eid)
+        if el is None:
+            continue
+        if el.Pinned or el.GroupId != DB.ElementId.InvalidElementId:
+            saltati += 1
+            continue
+        per_id[_id_val(eid)] = eid
+    iniziali = _ingombri(doc, vista, per_id)
+    obiettivi = AO.bersagli(iniziali, comando)
+    mosse = AO.spostamenti(iniziali, comando)
+    spostati, falliti = set(), set()
+
+    def fn():
+        da_fare = mosse
+        for _giro in range(MAX_GIRI_ALLINEA):
+            if not da_fare:
+                break
+            for k, (du, dv) in da_fare.items():
+                if k in falliti:
+                    continue
+                try:
+                    DB.ElementTransformUtils.MoveElement(
+                        doc, per_id[k], destra.Multiply(du).Add(alto.Multiply(dv)))
+                    spostati.add(k)
+                except Exception:
+                    falliti.add(k)      # es. una porta non puo' uscire dal suo muro
+            doc.Regenerate()
+            da_fare = AO.residui(_ingombri(doc, vista, per_id), obiettivi, comando)
+
+    if mosse:
+        _transazione(doc, u"Palette: allinea oggetti", fn)
+    spostati -= falliti
+    if spostati:
+        msg = u"%d oggetti spostati." % len(spostati)
+    elif falliti:
+        msg = u"Nessun oggetto spostato."
+    else:
+        msg = u"Gli oggetti erano già allineati."
+    if falliti:
+        msg += u"\n(%d non si possono spostare così)" % len(falliti)
+    if saltati:
+        msg += u"\n(%d bloccati o in gruppi: saltati)" % saltati
+    return msg
 
 
 AZIONI = {

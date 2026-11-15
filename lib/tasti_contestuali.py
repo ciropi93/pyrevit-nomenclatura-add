@@ -157,18 +157,19 @@ ICONE = {
                        u"A2.4,2.4 0 1 1 12,5.6 Z"),
     u"distribuisci_x": u"F1 M1,3 H4 V13 H1 Z M6.5,3 H9.5 V13 H6.5 Z M12,3 H15 V13 H12 Z",
     u"distribuisci_y": u"F1 M3,1 V4 H13 V1 Z M3,6.5 V9.5 H13 V6.5 Z M3,12 V15 H13 V12 Z",
-    u"ogg_sinistra": u"F1 M1,1 H2.5 V15 H1 Z M4,3 H14 V7 H4 Z M4,9 H10 V13 H4 Z",
-    u"ogg_centro_x": u"F1 M7.25,1 H8.75 V15 H7.25 Z M2,3 H14 V7 H2 Z M4,9 H12 V13 H4 Z",
-    u"ogg_destra": u"F1 M13.5,1 H15 V15 H13.5 Z M2,3 H12 V7 H2 Z M6,9 H12 V13 H6 Z",
-    u"ogg_alto": u"F1 M1,1 V2.5 H15 V1 Z M3,4 V14 H7 V4 Z M9,4 V10 H13 V4 Z",
-    u"ogg_centro_y": u"F1 M1,7.25 V8.75 H15 V7.25 Z M3,2 V14 H7 V2 Z M9,4 V12 H13 V4 Z",
-    u"ogg_basso": u"F1 M1,13.5 V15 H15 V13.5 Z M3,2 V12 H7 V2 Z M9,6 V12 H13 V6 Z",
-    u"ogg_distribuisci_x": u"F1 M1,3 H4 V13 H1 Z M6.5,3 H9.5 V13 H6.5 Z M12,3 H15 V13 H12 Z",
-    u"ogg_distribuisci_y": u"F1 M3,1 V4 H13 V1 Z M3,6.5 V9.5 H13 V6.5 Z M3,12 V15 H13 V12 Z",
     # asse fisso al centro, frecce opposte ai due lati
     MURO_INVERTI: (u"F1 M7.25,1 H8.75 V15 H7.25 Z M1,4.5 L4,1.5 V3.5 H6 V5.5 H4 V7.5 Z "
                    u"M15,11.5 L12,8.5 V10.5 H10 V12.5 H12 V14.5 Z"),
 }
+
+
+# Allinea/distribuisci oggetti: stesse icone degli allineamenti delle viste in tavola
+for _ogg, _vista in ((u"ogg_sinistra", u"box_sinistra"), (u"ogg_centro_x", u"box_centro_x"),
+                     (u"ogg_destra", u"box_destra"), (u"ogg_alto", u"box_alto"),
+                     (u"ogg_centro_y", u"box_centro_y"), (u"ogg_basso", u"box_basso"),
+                     (u"ogg_distribuisci_x", u"distribuisci_x"),
+                     (u"ogg_distribuisci_y", u"distribuisci_y")):
+    ICONE[_ogg] = ICONE[_vista]
 
 
 def proietta(punto_uv, zoom_uv, finestra):

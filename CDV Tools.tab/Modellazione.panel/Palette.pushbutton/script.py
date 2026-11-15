@@ -174,10 +174,7 @@ class FinestraPalette(forms.WPFWindow):
 
     def su_ripristina_categoria(self, sender, args):
         if self.chiave == FISSA:
-            for cid in list(self.cfg[u"fissa"]):
-                PAL.imposta_fissa(self.cfg, cid, False)
-            for cid in PAL.FISSA_PREDEFINITA:
-                PAL.imposta_fissa(self.cfg, cid, True)
+            PAL.ripristina_fissa(self.cfg)
             self.riempi_categorie()
         else:
             PAL.ripristina_categoria(self.cfg, self.chiave)
