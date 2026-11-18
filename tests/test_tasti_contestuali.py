@@ -154,3 +154,10 @@ def test_posizioni_da_facce():
     assert TC.posizioni_da_facce((50.0, 50.0), (50.0, 50.0),
                                  asse=((50.0, 50.0), (50.0, 50.0))) is None
     assert TC.posizioni_da_facce((50.0, 50.0), (50.0, 50.0)) is None
+
+
+def test_ritaglia_solo_con_una_immagine():
+    gruppi = TC.comandi_per_selezione(0, in_tavola=False, n_immagini=1)
+    assert _comandi(gruppi) == [TC.IMMAGINE_RITAGLIA]
+    assert TC.comandi_per_selezione(0, in_tavola=False, n_immagini=2) == []
+    assert TC.IMMAGINE_RITAGLIA in TC.ICONE

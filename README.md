@@ -7,7 +7,7 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 | **Grafica e Filtri** | Copia proprietà grafiche categoria/elemento (anche tra legende: lanciato da una legenda copia la grafica dei componenti sui componenti uguali delle altre legende), Aggiorna modello di vista, Copia ritaglio di vista, Cambia livello della pianta, Crea filtro da selezione, Profondità sezione (sfondo vettoriale) |
 | **Campiture** | Campitura da polilinea/offset, Campitura da sezione |
 | **Modellazione** | Inverti muro sull'asse centrale, Palette On/Off, Personalizza Palette |
-| **Tavole e Legende** | Allinea viste su tavole, Allinea Viste (stack: Distribuisci Viste, Allinea Viste Orizz., Allinea Viste Vert. sul puro CropBox), Allinea Titoli, Componenti in legenda, Allinea al Nord reale |
+| **Tavole e Legende** | Allinea viste su tavole, Allinea Viste (stack: Distribuisci Viste, Allinea Viste Orizz., Allinea Viste Vert. sul puro CropBox), Allinea Titoli, Componenti in legenda, Allinea al Nord reale, Ritaglia immagine (come in Word; riaprendolo si allarga il ritaglio o si ripristina l'immagine intera) |
 | **Nomenclatura** | Controllo e correzione dei nomi secondo il BIMMS ADD2024 (vedi sotto) |
 
 **Avvisi.** L'esito dei comandi CDV (palette e pulsanti) compare come una riga di testo
@@ -40,6 +40,12 @@ riaccende; lo stato resta dopo il riavvio. **Personalizza Palette** apre una fin
 spunti, per ogni categoria, gli strumenti di ogni famiglia e scegli la fila fissa (al massimo
 7); vale subito, senza riavviare. Le scelte stanno in `%APPDATA%\pyRevit\CDVTools\palette.json`.
 
+**Doppio clic dove non c'è nulla** (in pianta, sezione, prospetto, dettaglio, legenda o
+tavola): compare la palette delle annotazioni, con le famiglie **Quote** (allineata, lineare,
+angolare, altimetrica), **Campiture** (regione di riempimento, area di mascheratura),
+**Testo** ed **Etichette** (per categoria, materiale, locale, tutti gli elementi non
+etichettati). Sono i comandi di Revit; un clic altrove la chiude.
+
 Strumenti CDV della categoria (in tavola, cliccare il titolo seleziona la vista):
 - linea di sezione o riquadro di una sezione con sfondo attivo: **Profondità sezione**
   (apre la finestra già su quella sezione) e **Sincronizza sfondo**; se lo sfondo non c'è
@@ -55,6 +61,7 @@ Strumenti CDV della categoria (in tavola, cliccare il titolo seleziona la vista)
 - uno o più muri: **Inverti muro sul centro** (Maiusc+clic: linea di ubicazione su Asse del muro);
   accanto a ogni muro selezionato compaiono le lettere **E** (esterno, rossa) e **I** (interno, blu)
   sui due lati, in pianta e in sezione, così si vede subito come è girata la stratigrafia.
+- una immagine raster: **Ritaglia immagine**.
 - mentre sposti o zoomi la vista (rotellina) palette e lettere spariscono e tornano al loro posto.
 
 La palette resta aperta, quindi puoi fare più allineamenti di fila; ogni tasto si annulla con

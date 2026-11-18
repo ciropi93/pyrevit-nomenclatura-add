@@ -14,7 +14,10 @@ Selezionando qualcosa nella vista, accanto al cursore compare una palette di ico
   - due o piu' viste/titoli in tavola: allineamento di titoli e riquadri;
   - tre o piu': anche distribuzione;
   - uno o piu' muri: "Inverti muro sul centro", e accanto a ogni muro le lettere
-    E (esterno) e I (interno) sui due lati, in pianta e in sezione.
+    E (esterno) e I (interno) sui due lati, in pianta e in sezione;
+  - una immagine raster: "Ritaglia immagine".
+Doppio clic dove non c'e' nulla (selezione vuota): palette per creare annotazioni
+(quote, campiture, testo, etichette); un clic altrove la chiude.
 Se la selezione arriva dal browser di progetto (cursore fuori dalla vista) la palette
 sta sul bordo superiore della selezione. Il pulsante "Palette On/Off" la spegne tutta.
 
@@ -25,6 +28,7 @@ UIView.GetZoomCorners / GetWindowRectangle. I tasti lavorano tramite ExternalEve
 """
 import os
 import imp
+import sys
 import time
 
 import clr
@@ -50,7 +54,7 @@ from System.Windows.Markup import XamlReader
 from System.Windows.Media import Geometry
 from System.Windows.Shapes import Path
 from System.Windows.Threading import DispatcherTimer
-from System.Windows.Forms import Control, MouseButtons, Screen
+from System.Windows.Forms import Control, MouseButtons, Screen, SystemInformation
 from System.Drawing import Point as PuntoSchermo
 from Autodesk.Revit import DB, UI
 
@@ -79,6 +83,12 @@ SCRIPT_INVERTI_MURO = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     u"CDV Tools.tab", u"Modellazione.panel", u"FlipWallCenter.pushbutton", u"script.py",
 )
+SCRIPT_RITAGLIA = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    u"CDV Tools.tab", u"Tavole.panel", u"CropImage.pushbutton", u"script.py",
+)
+_LIB = os.path.dirname(os.path.abspath(__file__))
+ATTESA_DOPPIO_CLIC_S = 0.8   # oltre, il doppio clic non apre piu' la palette annotazioni
 DIM_TASTO = 22
 DIM_LETTERA = 14          # cerchietto della lettera E / I
 DISTACCO_LETTERA = 10     # pixel tra la faccia del muro e il centro della lettera
@@ -182,7 +192,7 @@ XAML = _FINESTRA % (_STILI, 5, u"2", 4)
 XAML_MENU = _FINESTRA % (_STILI, 8, u"6", 8)
 
 # Famiglie CDV che non dipendono dalle viste del modello (le altre: sezioni, titoli, viste)
-NOMI_CDV_OGGETTI = frozenset([u"Muri", u"Allinea oggetti", u"Distribuisci oggetti"])
+NOMI_CDV_OGGETTI = frozenset([u"Muri", u"Allinea oggetti", u"Distribuisci oggetti", u"Immagine"])
 TEMPO_APERTURA_MS = 250   # mouse fermo su una famiglia: si apre la griglia
 TEMPO_CHIUSURA_MS = 350   # mouse fuori da famiglia e griglia: si chiude
 CASELLE_PER_RIGA = 3
@@ -333,8 +343,12 @@ def _gruppi_cdv(doc, elementi, cache=None):
     elif len(viewers) == 1 and len(elementi) == 1:
         voci = [(u"viewer", viewers[0].Name)]
     elif not viewports:
-        # oggetti del modello o di dettaglio: allinea / distribuisci da 2 in su
-        return TC.comandi_per_selezione(0, in_tavola=False, n_oggetti=n_allinea), None
+        # oggetti del modello o di dettaglio: allinea / distribuisci da 2 in su;
+        # solo immagini raster: Ritaglia (con una)
+        immagini = [e for e in elementi if isinstance(e, DB.ImageInstance)]
+        n_immagini = len(immagini) if len(immagini) == len(elementi) else 0
+        return TC.comandi_per_selezione(0, in_tavola=False, n_oggetti=n_allinea,
+                                        n_immagini=n_immagini), None
     else:
         return [], None
 
@@ -402,10 +416,20 @@ def _inverti_muri(maiuscolo):
     modulo.main()
 
 
+def _ritaglia_immagine():
+    """Apre Ritaglia Immagine sull'immagine selezionata."""
+    # lo script importa ritaglio_immagine: dentro l'ExternalEvent la cartella lib
+    # dell'estensione non e' piu' nel sys.path
+    if _LIB not in sys.path:
+        sys.path.append(_LIB)
+    modulo = imp.load_source("cdv_cropimage_script", SCRIPT_RITAGLIA)
+    modulo.main()
+
+
 def _comandi_disponibili():
     """Id della palette utilizzabili in questa versione di Revit."""
     out = set()
-    for c in PAL.CATALOGO:
+    for c in PAL.CATALOGO + PAL.ANNOTAZIONI:
         if c.esecuzione != PAL.REVIT or getattr(UI.PostableCommand, c.postable, None) is not None:
             out.add(c.id)
     return out
@@ -499,6 +523,8 @@ class _GestoreAzione(UI.IExternalEventHandler):
                 _sincronizza(uidoc.Document, uid)
             elif comando == TC.MURO_INVERTI:
                 _inverti_muri(self.maiuscolo)
+            elif comando == TC.IMMAGINE_RITAGLIA:
+                _ritaglia_immagine()
             else:
                 # Allineamenti: lavorano sulla selezione corrente della tavola attiva
                 AIT.esegui_da_ribbon(comando)
@@ -595,11 +621,12 @@ class _GancioMouse(_Gancio):
     TIPO = 7                      # WH_MOUSE
     WM_MOUSEMOVE = 0x0200
     WM_LBUTTONDOWN = 0x0201
+    WM_LBUTTONDBLCLK = 0x0203     # solo per le finestre che chiedono i doppi clic
     WM_MBUTTONDOWN = 0x0207
     WM_MOUSEWHEEL = 0x020A
     WM_MOUSEHWHEEL = 0x020E
-    MESSAGGI = frozenset([WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_MBUTTONDOWN, WM_MOUSEWHEEL,
-                          WM_MOUSEHWHEEL])
+    MESSAGGI = frozenset([WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_LBUTTONDBLCLK, WM_MBUTTONDOWN,
+                          WM_MOUSEWHEEL, WM_MOUSEHWHEEL])
 
     def __init__(self, su_evento):
         # segui_movimento: il movimento serve solo con la palette accanto al cursore;
@@ -893,6 +920,9 @@ class TastiOverlay(object):
         self.ids_val = frozenset()  # id (interi) degli elementi selezionati
         self.con_viste = False      # la selezione contiene riquadri di vista o linee di sezione
         self.cache_coppie = {}      # coppie sezione/sfondo (vedi _coppie_sezioni)
+        self.modo_annotazioni = False   # palette del doppio clic (annotazioni) aperta
+        self.ultimo_clic = None     # (secondi, x, y) dell'ultimo clic sinistro
+        self.doppio_clic = None     # doppio clic da controllare al prossimo Idling
 
     # --- finestra -------------------------------------------------------------
     def _crea_finestra(self):
@@ -921,11 +951,14 @@ class TastiOverlay(object):
         """Dall'hook: rotellina premuta o girata = la vista si muove, via subito tutto.
         Clic sinistro = forse si trascina un muro, via le lettere.
         Tornano al prossimo Idling, gia' nella posizione nuova."""
+        clic = messaggio in (_GancioMouse.WM_LBUTTONDOWN, _GancioMouse.WM_LBUTTONDBLCLK)
+        if clic:
+            self._clic_sinistro(messaggio)
         if not self.attivo:
             return
         if messaggio == _GancioMouse.WM_MOUSEMOVE:
             self._su_movimento()
-        elif messaggio == _GancioMouse.WM_LBUTTONDOWN:
+        elif clic:
             self._nascondi_lettere()
             self.sporco = True
             # clic fuori da palette e menu: il menu si chiude
@@ -933,6 +966,44 @@ class TastiOverlay(object):
                 self._chiudi_menu()
         else:
             self._vista_in_movimento()
+
+    def _clic_sinistro(self, messaggio):
+        """Dall'hook. Un clic fuori dalle nostre finestre chiude la palette annotazioni;
+        un doppio clic si segna e si controlla al prossimo Idling (_controlla_doppio_clic),
+        quando Revit ha gia' aggiornato la selezione."""
+        if self._sotto_cursore(self.win) or self._sotto_cursore(self.win_menu):
+            self.ultimo_clic = None
+            return
+        if self.modo_annotazioni:
+            self.nascondi()
+        mp = Control.MousePosition
+        clic = (time.time(), mp.X, mp.Y)
+        if messaggio == _GancioMouse.WM_LBUTTONDBLCLK or PAL.doppio_clic(
+                self.ultimo_clic, clic, SystemInformation.DoubleClickTime / 1000.0,
+                max(SystemInformation.DoubleClickSize.Width, SystemInformation.DoubleClickSize.Height)):
+            self.doppio_clic = clic
+            self.ultimo_clic = None
+        else:
+            self.ultimo_clic = clic
+
+    def _controlla_doppio_clic(self, uidoc):
+        """Doppio clic nella vista dove non c'e' nulla: palette per creare annotazioni."""
+        clic, self.doppio_clic = self.doppio_clic, None
+        if clic is None or time.time() - clic[0] > ATTESA_DOPPIO_CLIC_S:
+            return
+        doc = uidoc.Document
+        vista = doc.ActiveView
+        if (not self.cfg.get(u"attiva", True) or doc.IsFamilyDocument or vista is None
+                or str(vista.ViewType) not in PAL.VISTE_ANNOTAZIONI
+                or uidoc.Selection.GetElementIds().Count):
+            return      # doppio clic su un elemento (o in una vista senza annotazioni)
+        ctx = _contesto_vista(uidoc)
+        if ctx is None or not PAL.dentro((clic[1], clic[2]), ctx[3]):
+            return      # doppio clic fuori dalla vista (es. browser di progetto)
+        st = PAL.struttura_annotazioni(self.disponibili)
+        if st is not None:
+            self.mostra(uidoc, [], st, None)
+            self.modo_annotazioni = True
 
     def _vista_in_movimento(self):
         """Pan o zoom: via palette, griglia e lettere; tornano al prossimo Idling."""
@@ -1343,6 +1414,7 @@ class TastiOverlay(object):
     def mostra(self, uidoc, ids, struttura, madre_uid, stessa=False):
         if self.win is None:
             self._crea_finestra()
+        self.modo_annotazioni = False
         self.madre_uid = madre_uid
         self.ids = list(ids)
         self.ids_val = frozenset(PS._id_val(i) for i in self.ids)
@@ -1394,6 +1466,7 @@ class TastiOverlay(object):
     def nascondi(self):
         self._chiudi_menu()
         self.attivo = False
+        self.modo_annotazioni = False
         self.ids_val = frozenset()
         self.con_viste = False
         self.rett_palette = None
@@ -1422,7 +1495,10 @@ class TastiOverlay(object):
                 b, fam = self.famiglie[fam_id]
                 self._aggiorna_famiglia(b, fam)
         cmd = PAL.PER_ID.get(comando)
-        if cmd is not None and (cmd.esecuzione == PAL.REVIT or cmd.interattivo):
+        if self.modo_annotazioni:
+            # palette del doppio clic: si chiude, il comando di Revit fa il resto
+            self.nascondi()
+        elif cmd is not None and (cmd.esecuzione == PAL.REVIT or cmd.interattivo):
             # Sposta, Copia, Copia grafica...: la palette si toglie e torna a comando
             # finito (vedi _su_idling per i comandi di Revit, _fine_azione per i nostri)
             # o quando cambia la selezione.
@@ -1432,7 +1508,7 @@ class TastiOverlay(object):
             self._nascondi_finestra()
             self._nascondi_lettere()
             self._aggiorna_segui()
-        elif comando == TC.SEZIONE_APRI:
+        elif comando in (TC.SEZIONE_APRI, TC.IMMAGINE_RITAGLIA):
             # Si apre una finestra: i tasti si tolgono di mezzo e tornano dopo
             # (chiave azzerata = la selezione viene riletta al prossimo Idling).
             self.nascondi()
@@ -1509,6 +1585,8 @@ class TastiOverlay(object):
             if (not self.ha_evento_selezione or self.chiave_sel is None or self.forza_analisi
                     or _doc_vista(uidoc.Document) != self.doc_vista):
                 self.aggiorna(uidoc, uidoc.Selection.GetElementIds())
+            if self.doppio_clic is not None:
+                self._controlla_doppio_clic(uidoc)
             self.riposiziona(uidoc)
         except Exception:
             self._nascondi_finestra()

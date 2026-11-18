@@ -29,7 +29,7 @@ def test_catalogo_valido():
 
 
 def test_icone_a_livelli():
-    assert set(PAL.ICONE) == set(c.id for c in PAL.CATALOGO)
+    assert set(PAL.ICONE) == set(c.id for c in PAL.CATALOGO + PAL.ANNOTAZIONI)
     for cid, livelli in PAL.ICONE.items():
         assert livelli, cid
         for liv in livelli:
@@ -322,3 +322,37 @@ def test_versione_config_crea_simile_aggiunto_una_volta_sola():
     assert u"crea_simile" not in PAL.unisci_config(salvata)[u"fissa"]
     # un file gia' nuovo non viene toccato
     assert PAL.unisci_config({u"versione": 2, u"fissa": [u"blocca"]})[u"fissa"] == [u"blocca"]
+
+
+def test_annotazioni_valide_e_separate_dalle_selezioni():
+    ids = [c.id for c in PAL.ANNOTAZIONI]
+    assert len(ids) == len(set(ids))
+    assert not set(ids) & set(c.id for c in PAL.CATALOGO)
+    assert not set(ids) & set(TC.ICONE)
+    famiglie = [f for f, _ in PAL.FAMIGLIE_ANNOTAZIONI]
+    for c in PAL.ANNOTAZIONI:
+        assert c.famiglia in famiglie and c.esecuzione == PAL.REVIT and c.postable, c.id
+        assert PAL.PER_ID[c.id] is c
+    # non compaiono nella palette di una selezione
+    cfg = PAL.config_predefinita()
+    st = PAL.struttura_palette([u"annotazioni"], 1, cfg)
+    usati = set(v[0] for v in st[u"fissa"]) | set(v[0] for f in st[u"famiglie"] for v in f[u"voci"])
+    assert not usati & set(ids)
+
+
+def test_struttura_annotazioni():
+    st = PAL.struttura_annotazioni()
+    assert st[u"fissa"] == []
+    assert [f[u"nome"] for f in st[u"famiglie"]] == [u"Quote", u"Campiture", u"Testo", u"Etichette"]
+    # comandi non disponibili in questo Revit: la famiglia vuota sparisce
+    st = PAL.struttura_annotazioni(disponibili=set([u"testo", u"quota_lineare"]))
+    assert [(f[u"id"], [v[0] for v in f[u"voci"]]) for f in st[u"famiglie"]] == [
+        (u"ann_quote", [u"quota_lineare"]), (u"ann_testo", [u"testo"])]
+    assert PAL.struttura_annotazioni(disponibili=set()) is None
+
+
+def test_doppio_clic():
+    assert PAL.doppio_clic((1.0, 100, 100), (1.3, 102, 99), 0.5, 4)
+    assert not PAL.doppio_clic((1.0, 100, 100), (1.6, 100, 100), 0.5, 4)   # troppo lento
+    assert not PAL.doppio_clic((1.0, 100, 100), (1.2, 110, 100), 0.5, 4)   # troppo lontano
+    assert not PAL.doppio_clic(None, (1.2, 100, 100), 0.5, 4)

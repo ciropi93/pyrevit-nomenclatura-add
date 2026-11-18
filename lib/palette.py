@@ -127,6 +127,48 @@ ICONE = {
                                                  u"M11,10 H14.5 V13.5 H11 Z")],
     u"ripristina_temporaneo": _OCCHIALI + [(u"s", ARANCIO, u"M3.5,11 A4.6,3.6 0 0 0 12.2,12", 1.5),
                                            (u"f", ARANCIO, u"M14.6,10.6 L12.8,14.6 L10.2,11.6 Z")],
+    # --- palette annotazioni (doppio clic dove non c'e' nulla) ---
+    u"quota_allineata": [(u"s", GRIGIO, u"M5,14 L14,5", 1.4),
+                         (u"s", SCURO, u"M5,14 L1.5,10.5 M14,5 L10.5,1.5", 0.9),
+                         (u"s", BLU, u"M2.5,11.5 L11.5,2.5", 1.2),
+                         (u"s", ARANCIO, u"M1.5,11.5 H3.5 M10.5,2.5 H12.5", 1.4)],
+    u"quota_lineare": [(u"s", SCURO, u"M2,4 V15 M14,4 V15", 0.9),
+                       (u"s", BLU, u"M1,11 H15", 1.2),
+                       (u"s", ARANCIO, u"M0.8,12.2 L3.2,9.8 M12.8,12.2 L15.2,9.8", 1.4),
+                       (u"f", BLU, u"M5,5.5 H11 V8 H5 Z")],
+    u"quota_angolare": [(u"s", SCURO, u"M1.5,14.5 H15.5 M1.5,14.5 L11,3", 1.1),
+                        (u"s", BLU, u"M12,14.5 A10.5,10.5 0 0 0 8.2,6.4", 1.2),
+                        (u"f", ARANCIO, u"M12,12.6 A1.4,1.4 0 1 1 12,15.4 A1.4,1.4 0 1 1 12,12.6 Z "
+                                        u"M8.2,5 A1.4,1.4 0 1 1 8.2,7.8 A1.4,1.4 0 1 1 8.2,5 Z")],
+    u"quota_altimetrica": [(u"s", SCURO, u"M1,14.5 H15", 1.2),
+                           (u"f", ARANCIO, u"M2.5,8 H9.5 L6,13.5 Z"),
+                           (u"s", BLU, u"M6,8 V4 H15", 1.1),
+                           (u"f", BLU, u"M9,1 H15 V3 H9 Z")],
+    u"campitura": [(u"f", AZZURRO, u"M2,2 H14 V14 H2 Z"),
+                   (u"s", BLU, u"M2,8 L8,2 M2,14 L14,2 M8,14 L14,8", 0.9),
+                   (u"s", BLU, u"M2,2 H14 V14 H2 Z", 1.2)],
+    u"area_mascheratura": [(u"f", GRIGIO, u"M0.5,7 H9 V15.5 H0.5 Z"),
+                           (u"f", BIANCO, u"M4,1 H15 V12 H4 Z"),
+                           (u"s", SCURO, u"M4,1 H15 V12 H4 Z", 1.1, (1.6, 1.2))],
+    u"testo": [(u"f", BLU, u"F0 M7,1 H9 L14,13 H11.8 L10.7,10 H5.3 L4.2,13 H2 Z M6,8 H10 L8,3.2 Z"),
+               (u"s", ARANCIO, u"M1,15 H15", 1.3)],
+    u"etichetta_categoria": [(u"f", AZZURRO, u"M6,1.5 H15 V7.5 H6 Z"),
+                             (u"s", BLU, u"M6,1.5 H15 V7.5 H6 Z", 1.1),
+                             (u"s", SCURO, u"M7,7.5 L3,12.5", 1),
+                             (u"f", ARANCIO, u"M3,10.8 A1.8,1.8 0 1 1 3,14.4 A1.8,1.8 0 1 1 3,10.8 Z")],
+    u"etichetta_materiale": [(u"f", AZZURRO, u"M6,1.5 H15 V7.5 H6 Z"),
+                             (u"s", BLU, u"M6,1.5 H15 V7.5 H6 Z", 1.1),
+                             (u"s", SCURO, u"M7,7.5 L4.5,10", 1),
+                             (u"f", ARANCIO, u"M0.5,10 H7 V15.5 H0.5 Z"),
+                             (u"s", BIANCO, u"M0.5,13 L3.5,10 M3,15.5 L7,11.5", 0.9)],
+    u"etichetta_locale": [(u"s", SCURO, u"M1,1 H15 V15 H1 Z", 1, (1.6, 1.2)),
+                          (u"f", AZZURRO, u"M3.5,5.5 H12.5 V10.5 H3.5 Z"),
+                          (u"s", BLU, u"M3.5,5.5 H12.5 V10.5 H3.5 Z", 1.1),
+                          (u"s", ARANCIO, u"M5.5,8 H10.5", 1.3)],
+    u"etichetta_tutti": [(u"f", AZZURRO, u"M1,1.5 H7 V5.5 H1 Z M9,1.5 H15 V5.5 H9 Z M5,10.5 H11 V14.5 H5 Z"),
+                         (u"s", BLU, u"M1,1.5 H7 V5.5 H1 Z M9,1.5 H15 V5.5 H9 Z M5,10.5 H11 V14.5 H5 Z", 1),
+                         (u"s", ARANCIO, u"M3,3.5 H5 M11,3.5 H13 M7,12.5 H9", 1.2),
+                         (u"s", SCURO, u"M4,5.5 V8 M12,5.5 V8 M4,8 H12 M8,8 V10.5", 0.8)],
 }
 
 
@@ -222,6 +264,70 @@ PER_ID = dict((c.id, c) for c in CATALOGO)
 MAX_FISSA = 7
 FISSA_PREDEFINITA = [u"crea_simile", u"nascondi_elementi", u"nascondi_categoria", u"mezzitoni",
                      u"copia_grafica", u"blocca"]
+
+
+# ==============================================================================
+# PALETTE ANNOTAZIONI
+# ==============================================================================
+# Doppio clic dove non c'e' nulla (selezione vuota): palette con i comandi di Revit
+# per creare annotazioni. Non si configura: non dipende da categorie.
+
+FAMIGLIE_ANNOTAZIONI = [
+    (u"ann_quote", u"Quote"),
+    (u"ann_campiture", u"Campiture"),
+    (u"ann_testo", u"Testo"),
+    (u"ann_etichette", u"Etichette"),
+]
+
+ANNOTAZIONI = [
+    Comando(u"quota_allineata", u"ann_quote", u"Quota allineata",
+            u"Quota parallela ai riferimenti (Revit: Quota allineata)", REVIT,
+            postable=u"AlignedDimension"),
+    Comando(u"quota_lineare", u"ann_quote", u"Quota lineare",
+            u"Quota orizzontale o verticale (Revit: Quota lineare)", REVIT,
+            postable=u"LinearDimension"),
+    Comando(u"quota_angolare", u"ann_quote", u"Quota angolare",
+            u"Angolo tra due riferimenti (Revit: Quota angolare)", REVIT,
+            postable=u"AngularDimension"),
+    Comando(u"quota_altimetrica", u"ann_quote", u"Quota altimetrica",
+            u"Quota di un punto (Revit: Quota altimetrica)", REVIT, postable=u"SpotElevation"),
+    Comando(u"campitura", u"ann_campiture", u"Regione di riempimento",
+            u"Disegna una campitura (Revit: Regione di riempimento)", REVIT,
+            postable=u"FilledRegion"),
+    Comando(u"area_mascheratura", u"ann_campiture", u"Area di mascheratura",
+            u"Disegna una regione che copre il disegno sotto (Revit: Area di mascheratura)",
+            REVIT, postable=u"MaskingRegion"),
+    Comando(u"testo", u"ann_testo", u"Testo", u"Scrivi un testo (Revit: Testo)", REVIT,
+            postable=u"Text"),
+    Comando(u"etichetta_categoria", u"ann_etichette", u"Etichetta per categoria",
+            u"Etichetta l'elemento cliccato (Revit: Etichetta per categoria)", REVIT,
+            postable=u"TagByCategory"),
+    Comando(u"etichetta_materiale", u"ann_etichette", u"Etichetta materiale",
+            u"Etichetta il materiale dell'elemento (Revit: Etichetta materiale)", REVIT,
+            postable=u"MaterialTag"),
+    Comando(u"etichetta_locale", u"ann_etichette", u"Etichetta locale",
+            u"Etichetta un locale (Revit: Etichetta locale)", REVIT, postable=u"RoomTag"),
+    Comando(u"etichetta_tutti", u"ann_etichette", u"Etichetta tutti",
+            u"Etichetta tutti gli elementi non etichettati della vista "
+            u"(Revit: Etichetta tutti gli elementi non etichettati)", REVIT,
+            postable=u"TagAllNotTagged"),
+]
+PER_ID.update((c.id, c) for c in ANNOTAZIONI)
+
+# Viste dove si disegnano annotazioni (nomi di Autodesk.Revit.DB.ViewType)
+VISTE_ANNOTAZIONI = frozenset([u"FloorPlan", u"CeilingPlan", u"EngineeringPlan", u"AreaPlan",
+                               u"Section", u"Elevation", u"Detail", u"DraftingView", u"Legend",
+                               u"DrawingSheet"])
+
+
+def doppio_clic(primo, secondo, tempo_max, distanza_max):
+    """True se due clic (secondi, x, y) formano un doppio clic, con le soglie di Windows."""
+    if primo is None or secondo is None:
+        return False
+    t0, x0, y0 = primo
+    t1, x1, y1 = secondo
+    return (0 <= t1 - t0 <= tempo_max
+            and abs(x1 - x0) <= distanza_max and abs(y1 - y0) <= distanza_max)
 
 
 # ==============================================================================
@@ -461,6 +567,18 @@ def struttura_palette(chiavi, n, cfg, disponibili=None, cdv=None):
     if not (famiglie or fissa):
         return None
     return {u"fissa": fissa, u"famiglie": famiglie}
+
+
+def struttura_annotazioni(disponibili=None):
+    """Palette del doppio clic: una famiglia per Quote, Campiture, Testo, Etichette
+    (stesso formato di struttura_palette), None se nessun comando e' disponibile."""
+    famiglie = []
+    for fid, nome in FAMIGLIE_ANNOTAZIONI:
+        voci = [_voce(c) for c in ANNOTAZIONI
+                if c.famiglia == fid and (disponibili is None or c.id in disponibili)]
+        if voci:
+            famiglie.append({u"id": fid, u"nome": nome, u"cdv": False, u"voci": voci})
+    return {u"fissa": [], u"famiglie": famiglie} if famiglie else None
 
 
 # ==============================================================================
