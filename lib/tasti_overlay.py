@@ -541,6 +541,21 @@ class _GestoreAzione(UI.IExternalEventHandler):
         return u"CDV Tools - Tasti in sovraimpressione"
 
 
+class _GestoreChiamata(UI.IExternalEventHandler):
+    """ExternalEvent che chiama funzione(uiapp) in contesto API (es. dall'hook del mouse)."""
+    def __init__(self, funzione):
+        self.funzione = funzione
+
+    def Execute(self, uiapp):
+        try:
+            self.funzione(uiapp)
+        except Exception:
+            pass
+
+    def GetName(self):
+        return u"CDV Tools - Doppio clic"
+
+
 # ==============================================================================
 # POSIZIONE SULLO SCHERMO
 # ==============================================================================
@@ -922,7 +937,8 @@ class TastiOverlay(object):
         self.cache_coppie = {}      # coppie sezione/sfondo (vedi _coppie_sezioni)
         self.modo_annotazioni = False   # palette del doppio clic (annotazioni) aperta
         self.ultimo_clic = None     # (secondi, x, y) dell'ultimo clic sinistro
-        self.doppio_clic = None     # doppio clic da controllare al prossimo Idling
+        self.doppio_clic = None     # doppio clic da controllare (evento_doppio o Idling)
+        self.evento_doppio = None   # ExternalEvent: Revit non sempre manda Idling dopo un clic
 
     # --- finestra -------------------------------------------------------------
     def _crea_finestra(self):
@@ -983,8 +999,16 @@ class TastiOverlay(object):
                 max(SystemInformation.DoubleClickSize.Width, SystemInformation.DoubleClickSize.Height)):
             self.doppio_clic = clic
             self.ultimo_clic = None
+            if self.evento_doppio is not None:
+                self.evento_doppio.Raise()
         else:
             self.ultimo_clic = clic
+
+    def _su_doppio_clic(self, uiapp):
+        """Dall'ExternalEvent alzato dall'hook: Revit ha gia' aggiornato la selezione."""
+        uidoc = uiapp.ActiveUIDocument
+        if uidoc is not None and self.doppio_clic is not None:
+            self._controlla_doppio_clic(uidoc)
 
     def _controlla_doppio_clic(self, uidoc):
         """Doppio clic nella vista dove non c'e' nulla: palette per creare annotazioni."""
@@ -1669,6 +1693,10 @@ class TastiOverlay(object):
             self.disponibili = _comandi_disponibili()
         except Exception:
             self.disponibili = None
+        try:
+            self.evento_doppio = UI.ExternalEvent.Create(_GestoreChiamata(self._su_doppio_clic))
+        except Exception:
+            self.evento_doppio = None   # resta il controllo in Idling
         try:
             gancio = _GancioMouse(self._su_mouse)
             if gancio.attacca():
