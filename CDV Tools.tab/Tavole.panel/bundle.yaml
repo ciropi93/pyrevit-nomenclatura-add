@@ -5,3 +5,4 @@ layout:
   - AlignTitles
   - CreateLegendComponents
   - AlignTrueNorth
+  - CropImage
