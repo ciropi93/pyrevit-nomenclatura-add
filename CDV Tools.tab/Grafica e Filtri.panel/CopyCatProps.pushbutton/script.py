@@ -6,6 +6,10 @@ mezzitoni e visibilita) di una categoria o elemento da una vista/modello sorgent
 ad una o piu viste di destinazione.
 Se le viste di destinazione hanno modelli di vista assegnati, avvisa l'utente
 e consente di scollegarli in sicurezza per applicare le sovrascritture.
+
+Legende: lanciato da una legenda copia la grafica dei componenti (quelli selezionati,
+o tutti) sui componenti delle legende di destinazione che disegnano la stessa cosa
+(stesso tipo e stessa vista del componente).
 """
 
 import os
@@ -23,6 +27,8 @@ from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventAr
 from pyrevit import revit, DB, UI, forms, script
 from Autodesk.Revit.Exceptions import OperationCanceledException
 
+import abbina_legende as AL
+
 # ==============================================================================
 # UTILITY FUNCTIONS
 # ==============================================================================
@@ -39,6 +45,26 @@ def get_id_val(elem_id):
         return int(elem_id)
     except Exception:
         return None
+
+
+def legend_key(el):
+    """(id del tipo, vista del componente) di un componente legenda, None per altri elementi."""
+    try:
+        p_tipo = el.get_Parameter(DB.BuiltInParameter.LEGEND_COMPONENT)
+        p_vista = el.get_Parameter(DB.BuiltInParameter.LEGEND_COMPONENT_VIEW)
+    except Exception:
+        return None
+    if p_tipo is None or p_vista is None:
+        return None
+    return (get_id_val(p_tipo.AsElementId()), p_vista.AsInteger())
+
+
+def legend_components(doc, view):
+    """Componenti legenda presenti nella vista."""
+    return list(DB.FilteredElementCollector(doc, view.Id)
+                .OfCategory(DB.BuiltInCategory.OST_LegendComponents)
+                .WhereElementIsNotElementType()
+                .ToElements())
 
 
 def extract_element_categories(doc, element):
@@ -239,12 +265,16 @@ class ViewItem(ObservableObject):
 # ==============================================================================
 
 class CopyPropsWindow(forms.WPFWindow):
-    def __init__(self, xaml_file, doc, source_view, initial_element=None, initial_categories=None):
+    def __init__(self, xaml_file, doc, source_view, initial_element=None, initial_categories=None,
+                 legend_sources=None):
         forms.WPFWindow.__init__(self, xaml_file)
         self.doc = doc
         self.source_view = source_view
         self.selected_element = initial_element
         self.categories = initial_categories or []
+        # Componenti della legenda sorgente: la loro grafica va sui componenti uguali
+        # delle legende di destinazione
+        self.legend_sources = legend_sources or []
         self.all_view_items = []
         self.applied = False
 
@@ -263,6 +293,8 @@ class CopyPropsWindow(forms.WPFWindow):
         self.btnChangeCategory.Click += self.on_change_category
         self.btnApply.Click += self.on_apply
         self.btnCancel.Click += self.on_cancel
+        if self.legend_sources:
+            self.on_filter_changed(None, None)  # mostra subito solo le legende
 
     def setup_source_info(self):
         # Vista sorgente
@@ -271,6 +303,12 @@ class CopyPropsWindow(forms.WPFWindow):
             self.lblSourceView.Text = u"Vista Sorgente: {} [Modello: {}]".format(self.source_view.Name, src_tpl.Name)
         else:
             self.lblSourceView.Text = u"Vista Sorgente: {} (Senza modello)".format(self.source_view.Name)
+
+        if self.legend_sources:
+            self.lblSourceElement.Text = u"Componenti legenda da copiare: {}".format(len(self.legend_sources))
+            self.lblSourceCategory.Text = u"Legende: la grafica va sui componenti uguali (stesso tipo e stessa vista)."
+            self.lblSourceOverrides.Text = u"Spunta le legende di destinazione (filtro 'Legende')."
+            return
 
         # Elemento
         if self.selected_element:
@@ -310,7 +348,8 @@ class CopyPropsWindow(forms.WPFWindow):
             DB.ViewType.ThreeD,
             DB.ViewType.Detail,
             DB.ViewType.EngineeringPlan,
-            DB.ViewType.AreaPlan
+            DB.ViewType.AreaPlan,
+            DB.ViewType.Legend
         ]
 
         self.all_view_items = []
@@ -330,10 +369,11 @@ class CopyPropsWindow(forms.WPFWindow):
             "Piante (Pavimento / Controsoffitto / Aree)",
             "Prospetti e Sezioni",
             "Viste 3D",
+            "Legende",
             "Solo Senza Modello di Vista"
         ]
         self.cmbViewTypeFilter.ItemsSource = filter_options
-        self.cmbViewTypeFilter.SelectedIndex = 0
+        self.cmbViewTypeFilter.SelectedIndex = 4 if self.legend_sources else 0
 
     def on_item_property_changed(self, sender, args):
         if args.PropertyName == "IsSelected":
@@ -361,6 +401,8 @@ class CopyPropsWindow(forms.WPFWindow):
                 type_match = vt in [DB.ViewType.Elevation, DB.ViewType.Section, DB.ViewType.Detail]
             elif "3D" in selected_type:
                 type_match = vt == DB.ViewType.ThreeD
+            elif "Legende" in selected_type:
+                type_match = vt == DB.ViewType.Legend
             elif "Solo Senza" in selected_type:
                 type_match = not item.HasTemplate
 
@@ -417,10 +459,50 @@ class CopyPropsWindow(forms.WPFWindow):
     def on_cancel(self, sender, args):
         self.Close()
 
+    def apply_legends(self, selected_items):
+        """Grafica dei componenti della legenda sorgente sui componenti uguali delle legende scelte."""
+        legends = [item.view for item in selected_items if item.view.ViewType == DB.ViewType.Legend]
+        if not legends:
+            forms.alert(u"Tra le viste spuntate non c'è nessuna legenda.", title="Attenzione")
+            return
+
+        src = self.source_view
+        sources = [(legend_key(c), c.Id) for c in self.legend_sources]
+        ogs_by_id = dict((get_id_val(c.Id), src.GetElementOverrides(c.Id)) for c in self.legend_sources)
+
+        updated, unmatched, legends_done = 0, 0, 0
+        with revit.Transaction("Copia grafica legende"):
+            for v in legends:
+                targets = [(legend_key(c), c.Id) for c in legend_components(self.doc, v)]
+                pairs, missing = AL.abbina(sources, targets)
+                unmatched += missing
+                done_here = 0
+                for src_id, dst_id in pairs:
+                    try:
+                        v.SetElementOverrides(dst_id, ogs_by_id[get_id_val(src_id)])
+                        done_here += 1
+                    except Exception as ex:
+                        print(u"Errore nella legenda {}: {}".format(v.Name, ex))
+                updated += done_here
+                if done_here:
+                    legends_done += 1
+
+        self.applied = True
+        self.Close()
+
+        msg = u"Grafica copiata su {} componenti in {} legende.".format(updated, legends_done)
+        if unmatched:
+            msg += u"\n{} componenti non hanno un corrispondente nella legenda sorgente e sono rimasti com'erano.".format(unmatched)
+        forms.alert(msg, title="Completato")
+
     def on_apply(self, sender, args):
         selected_items = [item for item in self.all_view_items if item.IsSelected]
         if not selected_items:
             forms.alert(u"Nessuna vista di destinazione selezionata.\nSeleziona almeno una vista con la casella di controllo.", title="Attenzione")
+            return
+
+        if self.legend_sources:
+            self.apply_legends(selected_items)
             return
 
         if not self.categories:
@@ -547,8 +629,16 @@ def main():
     selection = revit.get_selection()
     target_element = None
     categories = []
+    legend_sources = []
 
-    if selection and len(selection) > 0:
+    if active_view.ViewType == DB.ViewType.Legend:
+        # In legenda: componenti selezionati, altrimenti tutti quelli della legenda
+        legend_sources = [e for e in (selection or []) if legend_key(e) is not None]
+        if not legend_sources:
+            legend_sources = [e for e in legend_components(doc, active_view) if legend_key(e) is not None]
+        if not legend_sources:
+            forms.alert(u"In questa legenda non ci sono componenti legenda da copiare.", exitscript=True)
+    elif selection and len(selection) > 0:
         target_element = selection[0]
         categories = extract_element_categories(doc, target_element)
     else:
@@ -582,7 +672,7 @@ def main():
         except Exception:
             pass
 
-    if not categories and not target_element:
+    if not categories and not target_element and not legend_sources:
         forms.alert(u"Nessun elemento o categoria valido selezionato.", exitscript=True)
 
     # 2. Percorso file XAML
@@ -596,7 +686,8 @@ def main():
         doc=doc,
         source_view=active_view,
         initial_element=target_element,
-        initial_categories=categories
+        initial_categories=categories,
+        legend_sources=legend_sources
     )
     window.ShowDialog()
 
