@@ -1,0 +1,4 @@
+title: "Campitura\nsezionato"
+tooltip: "Crea una campitura sulla parte sezionata degli elementi selezionati (pianta o sezione), anche da link RVT. Shift+clic: impostazioni (campiture singole o unica, tipo campitura)."
+author: CDV Tools
+context: doc-project
