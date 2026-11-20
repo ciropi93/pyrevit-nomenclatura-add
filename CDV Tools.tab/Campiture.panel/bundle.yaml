@@ -3,3 +3,4 @@ layout:
   - OffsetFilledRegion
   - SectionFilledRegion
   - CutFilledRegion
+  - DiffFilledRegion

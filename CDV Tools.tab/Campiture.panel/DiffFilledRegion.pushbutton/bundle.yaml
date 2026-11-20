@@ -1,0 +1,4 @@
+title: "Campitura\ndifferenza"
+tooltip: "Selezionati gli elementi dello stato di fatto e quelli dello stato di progetto, crea sul piano di taglio della vista le campiture di cio' che e' stato TOLTO e di cio' che e' stato AGGIUNTO (anche da link RVT). Shift+clic: tipi campitura."
+author: CDV Tools
+context: doc-project
