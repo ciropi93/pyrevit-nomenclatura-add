@@ -43,6 +43,7 @@ clr.AddReference("RevitAPIUI")
 
 import System
 from System import Double, EventHandler, TimeSpan
+from System.Collections.Generic import List
 from System.Windows import Point, Size, Thickness, Visibility
 from System.Windows import CornerRadius, FontWeights, HorizontalAlignment, VerticalAlignment
 from System.Windows import TextAlignment, TextWrapping
@@ -1018,12 +1019,19 @@ class TastiOverlay(object):
         doc = uidoc.Document
         vista = doc.ActiveView
         if (not self.cfg.get(u"attiva", True) or doc.IsFamilyDocument or vista is None
-                or str(vista.ViewType) not in PAL.VISTE_ANNOTAZIONI
-                or uidoc.Selection.GetElementIds().Count):
-            return      # doppio clic su un elemento (o in una vista senza annotazioni)
+                or str(vista.ViewType) not in PAL.VISTE_ANNOTAZIONI):
+            return      # vista senza annotazioni
+        sel = uidoc.Selection.GetElementIds()
+        # In sezione i link riempiono la vista: un doppio clic su un link conta come vuoto
+        if any(not isinstance(doc.GetElement(i), DB.RevitLinkInstance) for i in sel):
+            return      # doppio clic su un elemento
         ctx = _contesto_vista(uidoc)
         if ctx is None or not PAL.dentro((clic[1], clic[2]), ctx[3]):
             return      # doppio clic fuori dalla vista (es. browser di progetto)
+        if sel.Count:
+            uidoc.Selection.SetElementIds(List[DB.ElementId]())
+            # selezione vuota gia' "vista": SelectionChanged non deve chiudere la palette
+            self.chiave_sel = _doc_vista(doc) + ((),)
         st = PAL.struttura_annotazioni(self.disponibili)
         if st is not None:
             self.mostra(uidoc, [], st, None)

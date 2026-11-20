@@ -144,6 +144,12 @@ ICONE = {
                            (u"f", ARANCIO, u"M2.5,8 H9.5 L6,13.5 Z"),
                            (u"s", BLU, u"M6,8 V4 H15", 1.1),
                            (u"f", BLU, u"M9,1 H15 V3 H9 Z")],
+    u"linea_dettaglio": [(u"s", BLU, u"M2,14 L14,2", 1.4),
+                         (u"f", ARANCIO, u"M0.5,12.5 H3.5 V15.5 H0.5 Z M12.5,0.5 H15.5 V3.5 H12.5 Z")],
+    u"linea_modello": [(u"s", BLU, u"M1.5,10 L9,2.5", 1.4),
+                       (u"f", AZZURRO, u"M8.5,9 L12,7.5 L15.5,9 V12.5 L12,14.5 L8.5,12.5 Z"),
+                       (u"s", SCURO, u"M8.5,9 L12,7.5 L15.5,9 V12.5 L12,14.5 L8.5,12.5 Z "
+                                     u"M8.5,9 L12,10.5 L15.5,9 M12,10.5 V14.5", 0.9)],
     u"campitura": [(u"f", AZZURRO, u"M2,2 H14 V14 H2 Z"),
                    (u"s", BLU, u"M2,8 L8,2 M2,14 L14,2 M8,14 L14,8", 0.9),
                    (u"s", BLU, u"M2,2 H14 V14 H2 Z", 1.2)],
@@ -274,6 +280,7 @@ FISSA_PREDEFINITA = [u"crea_simile", u"nascondi_elementi", u"nascondi_categoria"
 
 FAMIGLIE_ANNOTAZIONI = [
     (u"ann_quote", u"Quote"),
+    (u"ann_linee", u"Linee"),
     (u"ann_campiture", u"Campiture"),
     (u"ann_testo", u"Testo"),
     (u"ann_etichette", u"Etichette"),
@@ -291,6 +298,12 @@ ANNOTAZIONI = [
             postable=u"AngularDimension"),
     Comando(u"quota_altimetrica", u"ann_quote", u"Quota altimetrica",
             u"Quota di un punto (Revit: Quota altimetrica)", REVIT, postable=u"SpotElevation"),
+    Comando(u"linea_dettaglio", u"ann_linee", u"Linea di dettaglio",
+            u"Disegna una linea solo in questa vista (Revit: Linea di dettaglio)", REVIT,
+            postable=u"DetailLine"),
+    Comando(u"linea_modello", u"ann_linee", u"Linea di modello",
+            u"Disegna una linea del modello, visibile in tutte le viste (Revit: Linea di modello)",
+            REVIT, postable=u"ModelLine"),
     Comando(u"campitura", u"ann_campiture", u"Regione di riempimento",
             u"Disegna una campitura (Revit: Regione di riempimento)", REVIT,
             postable=u"FilledRegion"),

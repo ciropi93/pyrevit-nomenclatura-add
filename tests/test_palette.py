@@ -343,7 +343,9 @@ def test_annotazioni_valide_e_separate_dalle_selezioni():
 def test_struttura_annotazioni():
     st = PAL.struttura_annotazioni()
     assert st[u"fissa"] == []
-    assert [f[u"nome"] for f in st[u"famiglie"]] == [u"Quote", u"Campiture", u"Testo", u"Etichette"]
+    assert [f[u"nome"] for f in st[u"famiglie"]] == [u"Quote", u"Linee", u"Campiture", u"Testo",
+                                                    u"Etichette"]
+    assert _ids_fam(st, u"Linee") == [u"linea_dettaglio", u"linea_modello"]
     # comandi non disponibili in questo Revit: la famiglia vuota sparisce
     st = PAL.struttura_annotazioni(disponibili=set([u"testo", u"quota_lineare"]))
     assert [(f[u"id"], [v[0] for v in f[u"voci"]]) for f in st[u"famiglie"]] == [
