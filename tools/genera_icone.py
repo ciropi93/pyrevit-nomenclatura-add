@@ -13,6 +13,7 @@ Questo e' uno strumento di sviluppo: pyRevit usa solo i PNG generati.
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -46,6 +47,8 @@ def _n(v):
 
 
 def R(x, y, w, h, fill="none", stroke=None, sw=1.6, dash=None, rx=0, op=None):
+    if dash and stroke:
+        return R(x, y, w, h, fill, None, op=op) + rett_tratti(x, y, w, h, stroke, sw)
     a = 'x="%s" y="%s" width="%s" height="%s" fill="%s"' % (_n(x), _n(y), _n(w), _n(h), fill)
     if rx:
         a += ' rx="%s"' % _n(rx)
@@ -58,12 +61,47 @@ def R(x, y, w, h, fill="none", stroke=None, sw=1.6, dash=None, rx=0, op=None):
     return "<rect %s/>" % a
 
 
+_SEG = re.compile(r"M\s*([-\d.]+)[, ]\s*([-\d.]+)\s*([HVL])\s*([-\d.]+)(?:[, ]\s*([-\d.]+))?")
+
+
+def tratti(x1, y1, x2, y2, col, sw=1.6, d=3.4, g=2.2):
+    """Linea tratteggiata che inizia e finisce con un trattino intero e passo regolare."""
+    lung = math.hypot(x2 - x1, y2 - y1)
+    n = max(2, int(round((lung + g) / (d + g))))
+    g2 = (lung - n * d) / (n - 1)
+    while g2 < 1.3 and n > 2:
+        n -= 1
+        g2 = (lung - n * d) / (n - 1)
+    return ('<path d="M%s,%s L%s,%s" fill="none" stroke="%s" stroke-width="%s" '
+            'stroke-dasharray="%s %s" stroke-linecap="butt"/>'
+            % (_n(x1), _n(y1), _n(x2), _n(y2), col, _n(sw), _n(d), _n(g2)))
+
+
 def L(d, stroke, sw=1.6, dash=None, cap="butt"):
-    a = 'd="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s" stroke-linejoin="round"' % (
-        d, stroke, _n(sw), cap)
     if dash:
-        a += ' stroke-dasharray="%s"' % dash
-    return "<path %s/>" % a
+        # tratteggio regolare: solo per segmenti rettilinei "Mx,y Hx" / "Vy" / "Lx,y"
+        out = ""
+        for m in _SEG.finditer(d):
+            x1, y1, t, a, b = float(m.group(1)), float(m.group(2)), m.group(3), float(m.group(4)), m.group(5)
+            x2, y2 = (a, y1) if t == "H" else ((x1, a) if t == "V" else (a, float(b)))
+            out += tratti(x1, y1, x2, y2, stroke, sw)
+        return out
+    return '<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="%s" stroke-linejoin="round"/>' % (
+        d, stroke, _n(sw), cap)
+
+
+def rett_tratti(x, y, w, h, stroke, sw=1.6):
+    """Rettangolo a tratti: ogni lato inizia e finisce con un trattino (angoli pieni)."""
+    return (tratti(x, y, x + w, y, stroke, sw) + tratti(x + w, y, x + w, y + h, stroke, sw)
+            + tratti(x + w, y + h, x, y + h, stroke, sw) + tratti(x, y + h, x, y, stroke, sw))
+
+
+def poligono_tratti(pt, stroke, sw=1.6):
+    out = ""
+    for i in range(len(pt)):
+        a, b = pt[i], pt[(i + 1) % len(pt)]
+        out += tratti(a[0], a[1], b[0], b[1], stroke, sw, 3, 2)
+    return out
 
 
 def P(d, fill, stroke=None, sw=1.4, dash=None):
@@ -82,24 +120,20 @@ def C(cx, cy, r, fill="none", stroke=None, sw=1.4):
     return "<circle %s/>" % a
 
 
-def testa(x, y, ang, col=ARANCIO, s=4.2):
-    """Punta di freccia con la punta in (x, y), rivolta verso 'ang' gradi."""
-    return ('<path d="M0,0 L%s,%s L%s,%s Z" fill="%s" transform="translate(%s %s) rotate(%s)"/>'
-            % (_n(-s), _n(-s * 0.58), _n(-s), _n(s * 0.58), col, _n(x), _n(y), _n(ang)))
+def testa(x, y, ang, col=ARANCIO, s=4.2, sw=1.8):
+    """Punta di freccia a V aperta con la punta in (x, y), rivolta verso 'ang' gradi."""
+    return ('<path d="M%s,%s L0,0 L%s,%s" fill="none" stroke="%s" stroke-width="%s" '
+            'stroke-linecap="round" stroke-linejoin="round" transform="translate(%s %s) rotate(%s)"/>'
+            % (_n(-s), _n(-s * 0.85), _n(-s), _n(s * 0.85), col, _n(sw), _n(x), _n(y), _n(ang)))
 
 
 def freccia(x1, y1, x2, y2, col=ARANCIO, sw=1.8, doppia=False, s=4.2):
     """Freccia da (x1,y1) a (x2,y2); 'doppia' mette la punta anche all'inizio."""
     ang = math.degrees(math.atan2(y2 - y1, x2 - x1))
-    lung = math.hypot(x2 - x1, y2 - y1)
-    ux, uy = (x2 - x1) / lung, (y2 - y1) / lung
-    a0 = s * 0.8 if doppia else 0
-    sx, sy = x1 + ux * a0, y1 + uy * a0
-    ex, ey = x2 - ux * s * 0.8, y2 - uy * s * 0.8
-    out = L("M%s,%s L%s,%s" % (_n(sx), _n(sy), _n(ex), _n(ey)), col, sw)
-    out += testa(x2, y2, ang, col, s)
+    out = L("M%s,%s L%s,%s" % (_n(x1), _n(y1), _n(x2), _n(y2)), col, sw, cap="round")
+    out += testa(x2, y2, ang, col, s, sw)
     if doppia:
-        out += testa(x1, y1, ang + 180, col, s)
+        out += testa(x1, y1, ang + 180, col, s, sw)
     return out
 
 
@@ -111,13 +145,10 @@ def arco(cx, cy, r, a0, a1, col=ARANCIO, sw=2, testa_fine=True, s=4.2):
     x1, y1 = pt(a1)
     sweep = 1 if a1 > a0 else 0
     grande = 1 if abs(a1 - a0) > 180 else 0
-    # accorcia di un poco la fine, dove sta la punta
-    corr = math.degrees((s * 0.8) / r) * (1 if a1 > a0 else -1)
-    xe, ye = pt(a1 - corr)
     out = L("M%s,%s A%s,%s 0 %d %d %s,%s" % (_n(x0), _n(y0), _n(r), _n(r), grande, sweep,
-                                           _n(xe), _n(ye)), col, sw)
+                                           _n(x1), _n(y1)), col, sw, cap="round")
     if testa_fine:
-        out += testa(x1, y1, a1 + (90 if a1 > a0 else -90), col, s)
+        out += testa(x1, y1, a1 + (90 if a1 > a0 else -90), col, s, sw)
     return out
 
 
@@ -185,8 +216,8 @@ I["UpdateViewTemplate"] = (
 # --- Campiture ---------------------------------------------------------------
 I["CutFilledRegion"] = (
     R(4, 7, 24, 18, AZZURRO, BLU, 1.8) + R(4, 7, 24, 18, "url(#h)")
-    + L("M1,16 H31", ARANCIO, 2, "4.5 2.2")
-    + P("M1,12.8 L5.2,16 L1,19.2 Z", ARANCIO) + P("M31,12.8 L26.8,16 L31,19.2 Z", ARANCIO))
+    + L("M3,16 H29", ARANCIO, 2, "4.4 2")
+    + L("M1.5,12 V20 M30.5,12 V20", ARANCIO, 2.2))
 
 I["OffsetFilledRegion"] = (
     P("M3,27 V8 H29 V16 H11 V27 Z", AZZURRO) + P("M3,27 V8 H29 V16 H11 V27 Z", "url(#h)")
@@ -234,7 +265,7 @@ I["Palette"] = (
 
 I["FlipWallCenter"] = (
     R(2, 10.5, 20, 5.5, BLU, BLU, 1) + R(2, 16, 20, 5.5, AZZURRO, BLU, 1.2)
-    + L("M0,16 H24.5", SCURO, 1.3, "4 2")
+    + L("M1,16 H24", SCURO, 1.3, "4 2")
     + L("M25.5,5 C32.5,10 32.5,22 25.5,27.5", ARANCIO, 2.2)
     + testa(25.5, 27.5, 140) + testa(25.5, 5, -140))
 
@@ -244,7 +275,7 @@ I["AlignTitles"] = (
 I["TitoloColonna"] = (
     titolo(7, 8, 20) + titolo(7, 16, 13) + titolo(7, 24, 17) + L("M7,3 V29", ARANCIO, 2.2, "4 2"))
 I["TitoloRiga"] = (
-    L("M0,23 H32", ARANCIO, 2.2, "4 2")
+    L("M1,28 H31", ARANCIO, 2.2, "4 2")
     + vista(2, 5, 8, 12) + vista(12, 9, 8, 8) + vista(22, 3, 8, 14)
     + L("M2,23 H10 M12,23 H20 M22,23 H30", SCURO, 1.8))
 I["TitoloBordoSinistro"] = (
@@ -272,30 +303,32 @@ I["CropImage"] = (
 I["AllineaAlto"] = R(3, 7, 11, 18, AZZURRO, BLU) + R(18, 7, 11, 11, AZZURRO, BLU) + L("M0,7 H32", ARANCIO, 2.4)
 I["AllineaBasso"] = R(3, 7, 11, 18, AZZURRO, BLU) + R(18, 14, 11, 11, AZZURRO, BLU) + L("M0,25 H32", ARANCIO, 2.4)
 I["AllineaCentroY"] = (R(3, 6, 11, 20, AZZURRO, BLU) + R(18, 10, 11, 12, AZZURRO, BLU)
-                       + L("M0,16 H32", ARANCIO, 2.2, "5 2"))
+                       + L("M1,16 H31", ARANCIO, 2.2, "5 2"))
 I["AllineaModelloY"] = (
     R(2, 7, 10, 17, AZZURRO, BLU) + R(14, 11, 9, 13, AZZURRO, BLU)
-    + L("M0,24 H26", ARANCIO, 2.2, "5 2") + P("M24.5,24 L27.5,19.5 L30.5,24 Z", SCURO)
+    + L("M1,24 H25", ARANCIO, 2.2, "5 2") + P("M24.5,24 L27.5,19.5 L30.5,24 Z", SCURO)
     + L("M27.5,24 V29", SCURO, 1.4))
 I["AllineaSinistra"] = R(7, 3, 21, 10, AZZURRO, BLU) + R(7, 19, 12, 10, AZZURRO, BLU) + L("M4.5,0 V32", ARANCIO, 2.4)
 I["AllineaDestra"] = R(4, 3, 21, 10, AZZURRO, BLU) + R(13, 19, 12, 10, AZZURRO, BLU) + L("M27.5,0 V32", ARANCIO, 2.4)
 I["AllineaCentroX"] = (R(5, 3, 22, 10, AZZURRO, BLU) + R(10, 19, 12, 10, AZZURRO, BLU)
-                       + L("M16,0 V32", ARANCIO, 2.2, "5 2"))
+                       + L("M16,1 V31", ARANCIO, 2.2, "5 2"))
 I["AllineaModelloX"] = (
     R(3, 9, 16, 8, AZZURRO, BLU) + R(11, 20, 17, 8, AZZURRO, BLU)
     + L("M15,9 V31", ARANCIO, 2.2, "5 2") + C(15, 5, 3.6, BIANCO, SCURO, 1.5))
 I["DistribuisciX"] = (
-    R(2, 7, 5.5, 18, AZZURRO, BLU) + R(13.2, 7, 5.5, 18, AZZURRO, BLU) + R(24.5, 7, 5.5, 18, AZZURRO, BLU)
-    + freccia(7.8, 16, 12.9, 16, doppia=True, sw=1.5, s=2.8) + freccia(19, 16, 24.2, 16, doppia=True, sw=1.5, s=2.8))
+    R(2, 3, 5, 18, AZZURRO, BLU) + R(13.5, 3, 5, 18, AZZURRO, BLU) + R(25, 3, 5, 18, AZZURRO, BLU)
+    + L("M4.5,22 V30 M16,22 V30 M27.5,22 V30", ARANCIO, 1.4, cap="round")
+    + freccia(4.5, 26, 14.5, 26, doppia=True, sw=1.6, s=3) + freccia(17.5, 26, 27.5, 26, doppia=True, sw=1.6, s=3))
 I["DistribuisciY"] = (
-    R(7, 2, 18, 5.5, AZZURRO, BLU) + R(7, 13.2, 18, 5.5, AZZURRO, BLU) + R(7, 24.5, 18, 5.5, AZZURRO, BLU)
-    + freccia(16, 7.8, 16, 12.9, doppia=True, sw=1.5, s=2.8) + freccia(16, 19, 16, 24.2, doppia=True, sw=1.5, s=2.8))
+    R(3, 2, 18, 5, AZZURRO, BLU) + R(3, 13.5, 18, 5, AZZURRO, BLU) + R(3, 25, 18, 5, AZZURRO, BLU)
+    + L("M22,4.5 H30 M22,16 H30 M22,27.5 H30", ARANCIO, 1.4, cap="round")
+    + freccia(26, 4.5, 26, 14.5, doppia=True, sw=1.6, s=3) + freccia(26, 17.5, 26, 27.5, doppia=True, sw=1.6, s=3))
 
 I["AlignViewports"] = (
     R(2, 3, 13, 26, BIANCO, SCURO, 1.4, rx=1.5) + R(17, 3, 13, 26, BIANCO, SCURO, 1.4, rx=1.5)
     + R(4, 7, 9, 10, AZZURRO, BLU, 1.4) + R(19, 7, 9, 10, AZZURRO, BLU, 1.4)
     + L("M4,23 H13 M19,23 H28", SCURO, 1.6)
-    + L("M0,12 H32", ARANCIO, 1.6, "3 2") + C(8.5, 12, 1.8, ARANCIO) + C(23.5, 12, 1.8, ARANCIO))
+    + L("M1,12 H31", ARANCIO, 1.6, "3 2") + C(8.5, 12, 1.8, ARANCIO) + C(23.5, 12, 1.8, ARANCIO))
 
 I["CreateLegendComponents"] = (
     R(3, 3, 26, 26, BIANCO, SCURO, 1.5, rx=2)
@@ -306,11 +339,11 @@ I["CreateLegendComponents"] = (
 
 I["AlignTrueNorth"] = (
     '<g transform="rotate(38 16 16)">'
-    + P("M16,3 L20.5,16 H11.5 Z", "none", GRIGIO, 1.4, "2.4 1.8")
-    + P("M16,29 L20.5,16 H11.5 Z", "none", GRIGIO, 1.4, "2.4 1.8") + "</g>"
+    + poligono_tratti([(16, 3), (20.5, 16), (11.5, 16)], GRIGIO, 1.5)
+    + poligono_tratti([(16, 29), (20.5, 16), (11.5, 16)], GRIGIO, 1.5) + "</g>"
     + P("M16,3 L20.5,16 H11.5 Z", BLU) + P("M16,29 L20.5,16 H11.5 Z", AZZURRO, BLU, 1.4)
     + C(16, 16, 1.5, BIANCO)
-    + arco(16, 16, 14, -52, -88, sw=2.2, s=4))
+    + arco(16, 16, 12.5, -48, -84, sw=2.2, s=3.4))
 
 # pulldown: stessa icona di un loro comando tipico
 I["AllineaVisteVert"] = I["AllineaCentroY"]
