@@ -1,6 +1,0 @@
-title: Impostazioni
-tooltip: >-
-  Apre le impostazioni (codice bene, codici fabbricato, fase, categorie escluse,
-  esclusioni dei materiali). Quelle di progetto stanno in NomenclaturaADD.json accanto al modello
-  e prevalgono su quelle personali in %APPDATA%\NomenclaturaADD.
-author: Ciro

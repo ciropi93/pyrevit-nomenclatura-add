@@ -2,6 +2,6 @@
   "name": "CDVTools",
   "type": "extension",
   "rocket_mode_compatible": true,
-  "description": "CDV Tools: grafica e filtri, campiture, modellazione, tavole e controllo/correzione della nomenclatura BIM secondo il BIMMS dell'Agenzia del Demanio (ADD2024)",
-  "author": "Ciro"
+  "description": "CDV Tools: grafica e filtri, campiture, modellazione e tavole",
+  "author": "CDV Tools"
 }

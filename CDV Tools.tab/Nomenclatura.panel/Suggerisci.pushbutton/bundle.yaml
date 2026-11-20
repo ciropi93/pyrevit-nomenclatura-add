@@ -1,7 +1,0 @@
-title: Suggerisci
-tooltip: >-
-  Propone il nome codificato partendo dai dati del tipo: categoria Revit -> codice (MUR, SOL, POR...),
-  funzione del muro -> EST/INT, strati -> categorie dei materiali + spessore totale,
-  porte e finestre -> larghezza x altezza, progressivo libero. Per i materiali usa la classe Revit.
-  Lavora sugli elementi selezionati o, se non selezioni niente, su tutti i tipi usati.
-author: Ciro
