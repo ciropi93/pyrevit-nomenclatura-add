@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Geometria comune ai pulsanti Campitura sezionato e Campitura differenza:
+"""Geometria comune ai pulsanti delle campiture di sezione:
 solidi degli elementi (anche da link), piano di taglio della vista, facce tagliate, campiture."""
 
 from System.Collections.Generic import List
@@ -46,19 +46,6 @@ def unisci(lista):
         else:
             uniti.append(s)
     return uniti
-
-
-def sottrai(da, togli):
-    """Solidi di `da` meno quelli di `togli`. Ritorna (solidi, numero di sottrazioni fallite)."""
-    out, errori = [], 0
-    for a in unisci(da):
-        for b in togli:
-            try:
-                a = DB.BooleanOperationsUtils.ExecuteBooleanOperation(a, b, DB.BooleanOperationsType.Difference)
-            except Exception:
-                errori += 1
-        out.append(a)
-    return out, errori
 
 
 def facce_di_taglio(lista, piano):
