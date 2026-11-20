@@ -1,4 +1,4 @@
 title: "Adatta Linea Titolo alla Larghezza del Ritaglio"
-tooltip: Imposta la lunghezza della linea del titolo uguale alla larghezza del ritaglio (CropBox).
+tooltip: "Porta la linea del titolo alla stessa larghezza del ritaglio (CropBox) della sua vista. Agisce sulle viste selezionate nella tavola attiva."
 author: CDV Tools
 context: doc-project

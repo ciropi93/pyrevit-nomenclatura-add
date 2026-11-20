@@ -1,4 +1,4 @@
 title: "Allinea Quote / Livelli Modello (Z)"
-tooltip: Allinea verticalmente sezioni e prospetti alla stessa quota altimetrica del modello.
+tooltip: "Allinea in verticale sezioni e prospetti alla stessa quota altimetrica del modello (per esempio un livello), così lo stesso livello cade alla stessa altezza sul foglio in tutte le viste. Seleziona prima almeno due viste in tavola: una di esse fa da riferimento. Con una sola vista selezionata fa da riferimento e scegli le altre; senza selezione il comando te le chiede. Ctrl+Z annulla."
 author: CDV Tools
 context: doc-project

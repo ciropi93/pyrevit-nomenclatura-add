@@ -1,4 +1,4 @@
 title: "Allinea Ritaglio a Destra"
-tooltip: Allinea il bordo destro del ritaglio di vista (CropBox) al riferimento, ignorando le annotazioni.
+tooltip: "Allinea il ritaglio (CropBox) delle viste in tavola, ignorando le annotazioni. Porta il bordo destro sul riferimento. Seleziona prima almeno due viste in tavola: la più a destra fa da riferimento. Con una sola vista selezionata fa da riferimento e scegli le altre; senza selezione il comando te le chiede. Ctrl+Z annulla."
 author: CDV Tools
 context: doc-project

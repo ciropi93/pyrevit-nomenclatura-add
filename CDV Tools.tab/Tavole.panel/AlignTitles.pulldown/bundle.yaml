@@ -1,5 +1,5 @@
 title: "Allinea\nTitoli"
-tooltip: Allinea posizione e lunghezza linea dei titoli vista nella tavola attiva.
+tooltip: "Allinea posizione e lunghezza della linea dei titoli vista nella tavola attiva: sulla stessa colonna o riga, a filo del ritaglio, con la stessa distanza o larghezza. Scegli la voce dal menu."
 layout:
   - TitoloColonna
   - TitoloRiga

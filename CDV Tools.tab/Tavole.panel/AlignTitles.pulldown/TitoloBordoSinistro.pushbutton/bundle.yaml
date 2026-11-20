@@ -1,4 +1,4 @@
 title: "Allinea Titolo al Bordo Sinistro del Ritaglio"
-tooltip: Porta il titolo di ciascuna vista allineato al bordo sinistro del suo ritaglio (CropBox).
+tooltip: "Porta il titolo di ciascuna vista a filo del bordo sinistro del suo ritaglio (CropBox). Agisce sulle viste selezionate nella tavola attiva."
 author: CDV Tools
 context: doc-project

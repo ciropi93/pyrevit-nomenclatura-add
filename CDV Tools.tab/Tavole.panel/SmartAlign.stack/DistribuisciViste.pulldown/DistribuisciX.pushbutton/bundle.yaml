@@ -1,4 +1,4 @@
 title: "Distribuisci Ritagli in Orizzontale (X)"
-tooltip: Spazia uniformemente in orizzontale i ritagli di almeno 3 viste (ignora le annotazioni).
+tooltip: "Spazia in modo uniforme in orizzontale i ritagli (CropBox) di almeno tre viste, ignorando le annotazioni. Le due viste più esterne restano ferme. Seleziona le viste prima di cliccare, altrimenti il comando te le chiede. Ctrl+Z annulla."
 author: CDV Tools
 context: doc-project

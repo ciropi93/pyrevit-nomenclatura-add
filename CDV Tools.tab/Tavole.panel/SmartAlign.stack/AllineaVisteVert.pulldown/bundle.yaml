@@ -1,4 +1,5 @@
 title: "Allinea Viste Vert."
+tooltip: "Allinea in verticale le viste della tavola attiva: in alto, al centro, in basso o sulla stessa quota del modello (livelli)."
 layout:
   - AllineaAlto
   - AllineaCentroY

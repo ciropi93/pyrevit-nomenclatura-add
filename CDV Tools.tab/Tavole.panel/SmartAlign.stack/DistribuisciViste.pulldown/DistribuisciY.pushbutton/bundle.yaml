@@ -1,4 +1,4 @@
 title: "Distribuisci Ritagli in Verticale (Y)"
-tooltip: Spazia uniformemente in verticale i ritagli di almeno 3 viste (ignora le annotazioni).
+tooltip: "Spazia in modo uniforme in verticale i ritagli (CropBox) di almeno tre viste, ignorando le annotazioni. Le due viste più esterne restano ferme. Seleziona le viste prima di cliccare, altrimenti il comando te le chiede. Ctrl+Z annulla."
 author: CDV Tools
 context: doc-project

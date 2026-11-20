@@ -1,4 +1,5 @@
 title: "Distribuisci Viste"
+tooltip: "Distribuisce uniformemente in orizzontale o in verticale almeno tre viste nella tavola attiva; le due più esterne restano ferme."
 layout:
   - DistribuisciX
   - DistribuisciY

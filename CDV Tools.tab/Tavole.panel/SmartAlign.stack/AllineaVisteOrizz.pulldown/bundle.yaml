@@ -1,4 +1,5 @@
 title: "Allinea Viste Orizz."
+tooltip: "Allinea in orizzontale le viste della tavola attiva: a sinistra, al centro, a destra o sulle coordinate reali del modello (griglie)."
 layout:
   - AllineaSinistra
   - AllineaCentroX
