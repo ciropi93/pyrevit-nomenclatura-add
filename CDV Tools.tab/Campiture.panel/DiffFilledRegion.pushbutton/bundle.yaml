@@ -1,4 +1,4 @@
 title: "Campitura\ndifferenza"
-tooltip: "Selezionate le campiture dello stato di fatto e quelle dello stato di progetto, crea le campiture di cio' che e' stato TOLTO e di cio' che e' stato AGGIUNTO. Le campiture di partenza restano. Shift+clic: tipi campitura."
+tooltip: "Selezionati gli elementi dello stato di fatto e poi quelli dello stato di progetto (anche da link), crea in pianta o sezione le campiture di cio' che e' stato TOLTO e di cio' che e' stato AGGIUNTO nella parte sezionata. Shift+clic: tipi campitura."
 author: CDV Tools
 context: doc-project
