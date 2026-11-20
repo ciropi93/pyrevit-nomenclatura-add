@@ -40,6 +40,11 @@ from Autodesk.Revit.DB import (
 )
 
 from pyrevit import revit, forms, script
+import memoria_finestre as MF
+
+# ultime scelte della finestra (vedi lib/memoria_finestre.py)
+_MEMORIA = u"cambia_livello"
+_CONTROLLI = [u"rbReplaceView", u"rbDuplicateView", u"chkCopy2D", u"chkCopyHidden"]
 
 
 PLAN_VIEW_TYPES = [
@@ -545,6 +550,7 @@ class ChangePlanLevelWindow(forms.WPFWindow):
         self.Close()
 
     def on_apply(self, sender, args):
+        MF.salva(self, _MEMORIA, _CONTROLLI)
         if not self.current_view:
             forms.alert("Seleziona una vista di pianta valida.")
             return
@@ -618,6 +624,7 @@ def main():
     initial_view = resolve_initial_plan_view(doc, uidoc) or plans[0]
     xaml_path = script.get_bundle_file('ui.xaml')
     win = ChangePlanLevelWindow(xaml_path, doc, uidoc, initial_view)
+    MF.ripristina(win, _MEMORIA, _CONTROLLI)
     win.ShowDialog()
 
 

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Crea automaticamente una campitura (es. TERRENO) a partire dal bordo inferiore o superiore di uno o piu elementi 3D sezionati nella vista (pavimenti inclinati, tetti, fondazioni, link RVT), chiudendola con fondo orizzontale (da punto min/max o da Livello) o parallelo alla pendenza."""
 
 import os
@@ -13,7 +14,16 @@ clr.AddReference("WindowsBase")
 from System.Collections.Generic import List
 from System.Windows import MessageBox, MessageBoxButton, MessageBoxImage
 
-from pyrevit import revit, DB, UI, forms, script
+from pyrevit import revit, DB, UI, forms, script, EXEC_PARAMS
+import memoria_finestre as MF
+import avviso_wpf as AVW
+
+# Clic: crea subito la campitura con le ultime impostazioni; Maiusc+clic: finestra.
+_MEMORIA = u"campitura_sezione"
+_CONTROLLI = [u"rbEdgeBottom", u"rbEdgeTop", u"rbDirDown", u"rbDirUp", u"rbModeMinMax",
+              u"rbRefLowest", u"rbRefHighest", u"rbModeLevel", u"cmbLevel", u"rbModeParallel",
+              u"rbParVertical", u"rbParNormal", u"txtHeight", u"cmbFilledRegionType",
+              u"cmbTopLineStyle", u"cmbSideBottomLineStyle", u"chkSelectResult"]
 
 
 def get_id_val(elem_id):
@@ -423,6 +433,7 @@ class SectionFilledRegionWindow(forms.WPFWindow):
         self.uidoc = revit.uidoc
         self.view = revit.active_view
         self.selected_records = list(initial_records)
+        self.esito = False
 
         self._init_controls()
         self._bind_events()
@@ -576,6 +587,7 @@ class SectionFilledRegionWindow(forms.WPFWindow):
             self.ShowDialog()
 
     def _on_apply(self, sender, e):
+        MF.salva(self, _MEMORIA, _CONTROLLI)
         if not self.selected_records:
             MessageBox.Show(
                 "Seleziona almeno un pavimento o elemento 3D tagliato nella sezione.",
@@ -719,22 +731,10 @@ class SectionFilledRegionWindow(forms.WPFWindow):
                     self.uidoc.Selection.SetElementIds(List[DB.ElementId]([r.Id for r in created_regions]))
                 except Exception:
                     pass
+            self.esito = True
             self.Close()
-            forms.alert(
-                "Campitura per sezione creata con successo!\n\n"
-                "- Campiture create: {}\n"
-                "- Tipo Campitura: {}\n"
-                "- Bordo seguito: {}\n"
-                "- Stile Bordo Profilo: {}\n"
-                "- Stile Fianchi/Fondo: {}".format(
-                    len(created_regions),
-                    sel_fr.Name,
-                    "Bordo Superiore (Estradosso)" if pick_top else "Bordo Inferiore (Intradosso)",
-                    top_ls_item.Name if top_ls_item else "Default",
-                    bot_ls_item.Name if bot_ls_item else "Default"
-                ),
-                title="CDV Tools - Campitura per Sezione"
-            )
+            AVW.mostra(u"Campiture create: %d \u00b7 %s, bordo %s (Maiusc+clic: impostazioni)"
+                       % (len(created_regions), sel_fr.Name, u"superiore" if pick_top else u"inferiore"))
         else:
             MessageBox.Show(
                 "Impossibile generare un contorno chiuso valido con i parametri impostati.",
@@ -769,7 +769,26 @@ def main():
             initial_records.append({"elem": el, "transform": None, "name": get_element_name(el)})
 
     xaml_path = script.get_bundle_file("ui.xaml")
+    diretta = MF.ha_impostazioni(_MEMORIA) and not EXEC_PARAMS.config_mode
+    if diretta and not initial_records:
+        # prima si seleziona, poi si crea: se manca la selezione la si chiede qui
+        try:
+            refs = uidoc.Selection.PickObjects(
+                UI.Selection.ObjectType.Element, CutElementSelectionFilter(),
+                u"Seleziona gli elementi sezionati (Fine per confermare)")
+            initial_records = [{"elem": doc.GetElement(r.ElementId), "transform": None,
+                                "name": get_element_name(doc.GetElement(r.ElementId))} for r in refs]
+        except Exception:
+            return
     win = SectionFilledRegionWindow(xaml_path, initial_records)
+    MF.ripristina(win, _MEMORIA, _CONTROLLI)
+    if diretta and initial_records:
+        # esecuzione diretta; se qualcosa non va si apre la finestra per correggere
+        win._on_apply(None, None)
+        if win.esito:
+            return
+        win = SectionFilledRegionWindow(xaml_path, initial_records)
+        MF.ripristina(win, _MEMORIA, _CONTROLLI)
     win.ShowDialog()
 
 

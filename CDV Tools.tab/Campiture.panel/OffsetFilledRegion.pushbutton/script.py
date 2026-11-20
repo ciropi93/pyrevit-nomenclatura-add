@@ -23,7 +23,15 @@ from System.Collections.ObjectModel import ObservableCollection
 from System.Collections.Generic import List
 from System.Windows import Window, MessageBox, MessageBoxButton, MessageBoxImage, MessageBoxResult
 
-from pyrevit import revit, DB, UI, forms, script
+from pyrevit import revit, DB, UI, forms, script, EXEC_PARAMS
+import memoria_finestre as MF
+import avviso_wpf as AVW
+
+# Clic: crea subito la campitura con le ultime impostazioni; Maiusc+clic: finestra.
+_MEMORIA = u"campitura_polilinea"
+_CONTROLLI = [u"txtOffset", u"rbBoth", u"rbLeft", u"rbRight", u"chkClosedDonut",
+              u"cmbFilledRegionType", u"cmbLineStyle", u"rbKeepLines", u"rbDeleteLines",
+              u"chkSelectResult"]
 
 # ==============================================================================
 # SELECTION FILTER & UTILITIES
@@ -542,6 +550,7 @@ class OffsetFilledRegionWindow(forms.WPFWindow):
         self.uidoc = revit.uidoc
         self.view = revit.active_view
         self.selected_elements = list(selected_elements)
+        self.esito = False
 
         self._init_data()
         self._bind_events()
@@ -664,6 +673,7 @@ class OffsetFilledRegionWindow(forms.WPFWindow):
 
     def _on_apply_clicked(self, sender, e):
         """Esegue il calcolo dell'offset e la creazione della FilledRegion."""
+        MF.salva(self, _MEMORIA, _CONTROLLI)
         # 1. Valida selezione
         curve_elements = [el for el in self.selected_elements if get_curve_from_element(el) is not None]
         if not curve_elements:
@@ -768,25 +778,11 @@ class OffsetFilledRegionWindow(forms.WPFWindow):
                 except Exception:
                     pass
 
+            self.esito = True
             self.Close()
-            forms.alert(
-                "Campitura creata con successo!\n\n"
-                "• Campiture generate: {}\n"
-                "• Tipo Campitura: {}\n"
-                "• Offset applicato: {}\n"
-                "• Modalità: {}\n"
-                "• Stile Bordi: {}\n"
-                "• Linee originali: {}".format(
-                    len(created_regions),
-                    sel_fr_item.Name,
-                    display_str,
-                    "Entrambi i Lati (Centrato)" if side_mode == "both" else ("Lato Sinistro" if side_mode == "left" else "Lato Destro"),
-                    sel_ls_item.Name if sel_ls_item else "Default",
-                    "Conservate nel modello" if keep_original else "Eliminate"
-                ),
-                title="Operazione Completata",
-                ok=True
-            )
+            lato = u"centrata" if side_mode == "both" else (u"a sinistra" if side_mode == "left" else u"a destra")
+            AVW.mostra(u"Campiture create: %d · %s, offset %s %s (Maiusc+clic: impostazioni)"
+                       % (len(created_regions), sel_fr_item.Name, display_str, lato))
         else:
             MessageBox.Show(
                 "Non è stato possibile generare la campitura dalle curve fornite.\n"
@@ -837,6 +833,14 @@ def main():
 
     xaml_file = os.path.join(os.path.dirname(__file__), 'ui.xaml')
     window = OffsetFilledRegionWindow(xaml_file, selected_elements)
+    ricordate = MF.ripristina(window, _MEMORIA, _CONTROLLI)
+    if ricordate and selected_elements and not EXEC_PARAMS.config_mode:
+        # esecuzione diretta; se qualcosa non va si apre la finestra per correggere
+        window._on_apply_clicked(None, None)
+        if window.esito:
+            return
+        window = OffsetFilledRegionWindow(xaml_file, selected_elements)
+        MF.ripristina(window, _MEMORIA, _CONTROLLI)
     window.ShowDialog()
 
 

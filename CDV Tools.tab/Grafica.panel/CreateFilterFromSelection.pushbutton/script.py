@@ -20,6 +20,11 @@ from System.Collections.Generic import List
 from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventArgs
 
 from pyrevit import revit, DB, UI, forms, script
+import memoria_finestre as MF
+
+# ultime scelte della finestra (vedi lib/memoria_finestre.py)
+_MEMORIA = u"crea_filtro"
+_CONTROLLI = [u"rbAnd", u"rbOr", u"chkAddToActiveView", u"chkApplyColor", u"cmbColor", u"chkSolidFill", u"chkHalftone", u"chkVisibility"]
 from Autodesk.Revit.Exceptions import OperationCanceledException
 
 # ==============================================================================
@@ -492,6 +497,7 @@ class FilterCreatorWindow(forms.WPFWindow):
             return DB.ParameterFilterRuleFactory.CreateEqualsRule(param_id, value_str)
 
     def on_create_filter(self, sender, args):
+        MF.salva(self, _MEMORIA, _CONTROLLI)
         filter_name = self.txtFilterName.Text.strip()
         if not filter_name:
             forms.alert(u"Inserisci un nome valido per il filtro.", title="Attenzione")
@@ -661,6 +667,7 @@ def main():
 
     # 3. Avvia interfaccia
     window = FilterCreatorWindow(xaml_path, doc, active_view, elements)
+    MF.ripristina(window, _MEMORIA, _CONTROLLI)
     window.ShowDialog()
 
 

@@ -25,6 +25,11 @@ from System.Collections.ObjectModel import ObservableCollection
 from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventArgs
 
 from pyrevit import revit, DB, UI, forms, script
+import memoria_finestre as MF
+
+# ultime scelte della finestra (vedi lib/memoria_finestre.py)
+_MEMORIA = u"copia_grafica_viste"
+_CONTROLLI = [u"chkCopyCategoryOverrides", u"chkCopyVisibility", u"chkCopyElementOverrides"]
 from Autodesk.Revit.Exceptions import OperationCanceledException
 
 import abbina_legende as AL
@@ -496,6 +501,7 @@ class CopyPropsWindow(forms.WPFWindow):
         forms.alert(msg, title="Completato")
 
     def on_apply(self, sender, args):
+        MF.salva(self, _MEMORIA, _CONTROLLI)
         selected_items = [item for item in self.all_view_items if item.IsSelected]
         if not selected_items:
             forms.alert(u"Nessuna vista di destinazione selezionata.\nSeleziona almeno una vista con la casella di controllo.", title="Attenzione")
@@ -689,6 +695,7 @@ def main():
         initial_categories=categories,
         legend_sources=legend_sources
     )
+    MF.ripristina(window, _MEMORIA, _CONTROLLI)
     window.ShowDialog()
 
 

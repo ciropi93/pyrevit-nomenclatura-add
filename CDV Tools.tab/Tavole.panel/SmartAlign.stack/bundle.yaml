@@ -1,6 +1,0 @@
-title: Allinea Viste
-tooltip: "Allinea e distribuisce le viste nella tavola attiva usando il ritaglio (CropBox) invece del riquadro con le annotazioni."
-layout:
-  - DistribuisciViste
-  - AllineaVisteOrizz
-  - AllineaVisteVert

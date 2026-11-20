@@ -1,0 +1,22 @@
+title: "Allinea\nin Tavola"
+tooltip: "Allinea e distribuisce le viste e i titoli nella tavola attiva usando il ritaglio (CropBox), senza le annotazioni. Gli stessi comandi compaiono nella palette quando selezioni delle viste in tavola."
+layout:
+  - AllineaSinistra
+  - AllineaCentroX
+  - AllineaDestra
+  - AllineaModelloX
+  - ---
+  - AllineaAlto
+  - AllineaCentroY
+  - AllineaBasso
+  - AllineaModelloY
+  - ---
+  - DistribuisciX
+  - DistribuisciY
+  - ---
+  - TitoloColonna
+  - TitoloRiga
+  - TitoloBordoSinistro
+  - TitoloDistanzaY
+  - TitoloLarghezzaVista
+  - TitoloLunghezzaRif

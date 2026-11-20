@@ -1,4 +1,4 @@
 title: "Campitura da\nPolilinea"
-tooltip: Crea una campitura (Filled Region) ad offset da linee/polilinee selezionate (Linee di Dettaglio o Modello), con offset su lato sinistro, destro o entrambi i lati (spessore totale) e stile bordi configurabile.
+tooltip: "Crea una campitura ad offset da linee o polilinee (di dettaglio o di modello): su un lato o centrata, con angoli puliti e stile dei bordi a scelta. Seleziona le linee e clicca: usa le ultime impostazioni. Maiusc+clic (o primo uso): apre la finestra delle impostazioni."
 author: CDV Tools
 context: doc-project

@@ -29,6 +29,11 @@ from Autodesk.Revit.DB import *
 from Autodesk.Revit.UI import *
 
 from pyrevit import revit, DB, UI, forms, script
+import memoria_finestre as MF
+
+# ultime scelte della finestra (vedi lib/memoria_finestre.py)
+_MEMORIA = u"copia_ritaglio"
+_CONTROLLI = [u"chkCopyVisibility", u"chkCopyAnnotation", u"chkRemoveScopeBox"]
 
 import avviso as AV
 import avviso_wpf as AVW
@@ -440,6 +445,7 @@ class CopyCropWindow(forms.WPFWindow):
         self.Close()
 
     def on_apply(self, sender, args):
+        MF.salva(self, _MEMORIA, _CONTROLLI)
         selected_items = [it for it in self.filtered_target_items if it.IsSelected]
         if not selected_items:
             forms.alert(u"Seleziona almeno una vista di destinazione.", title=u"CDV Tools")
@@ -516,6 +522,7 @@ def main():
 
     xaml_path = os.path.join(os.path.dirname(__file__), "ui.xaml")
     win = CopyCropWindow(xaml_path, doc, active_view)
+    MF.ripristina(win, _MEMORIA, _CONTROLLI)
     win.ShowDialog()
 
 

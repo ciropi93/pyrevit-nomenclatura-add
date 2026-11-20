@@ -29,6 +29,11 @@ from Autodesk.Revit.DB import *
 from Autodesk.Revit.UI import *
 
 from pyrevit import revit, DB, UI, forms, script
+import memoria_finestre as MF
+
+# ultime scelte della finestra (vedi lib/memoria_finestre.py)
+_MEMORIA = u"aggiorna_modello"
+_CONTROLLI = [u"rbUpdateExisting", u"rbCreateNew", u"chkReassign"]
 
 import avviso_wpf as AVW
 
@@ -293,6 +298,7 @@ class UpdateViewTemplateWindow(forms.WPFWindow):
         self.Close()
 
     def on_apply(self, sender, args):
+        MF.salva(self, _MEMORIA, _CONTROLLI)
         v = self.current_source_view
         is_create_new = bool(self.rbCreateNew.IsChecked)
         reassign = bool(self.chkReassign.IsChecked)
@@ -374,6 +380,7 @@ def main():
 
     xaml_path = os.path.join(os.path.dirname(__file__), "ui.xaml")
     win = UpdateViewTemplateWindow(xaml_path, doc, initial_view)
+    MF.ripristina(win, _MEMORIA, _CONTROLLI)
     win.ShowDialog()
 
 

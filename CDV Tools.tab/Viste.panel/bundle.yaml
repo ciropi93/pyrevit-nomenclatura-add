@@ -1,0 +1,6 @@
+title: Viste
+layout:
+  - ChangePlanLevel
+  - SectionDepth
+  - CopyCropRegion
+  - UpdateViewTemplate

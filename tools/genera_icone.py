@@ -278,8 +278,6 @@ I["FlipWallCenter"] = (
     + testa(25.5, 27.5, 140) + testa(25.5, 5, -140))
 
 # --- Tavole: titoli ----------------------------------------------------------
-I["AlignTitles"] = (
-    vista(5, 3, 22, 15) + titolo(5, 23, 22) + L("M3,19 V28", ARANCIO, 2.2))
 I["TitoloColonna"] = (
     titolo(7, 8, 20) + titolo(7, 16, 13) + titolo(7, 24, 17) + L("M7,3 V29", ARANCIO, 2.2, "4 2"))
 I["TitoloRiga"] = (
@@ -353,58 +351,54 @@ I["AlignTrueNorth"] = (
     + C(16, 16, 1.5, BIANCO)
     + arco(16, 16, 12.5, -48, -84, sw=2.2, s=3.4))
 
-# pulldown: stessa icona di un loro comando tipico
-I["AllineaVisteVert"] = I["AllineaCentroY"]
-I["AllineaVisteOrizz"] = I["AllineaCentroX"]
-I["DistribuisciViste"] = I["DistribuisciX"]
+# menu unico "Allinea in tavola": due viste con titolo, allineate a sinistra
+I["Allinea"] = (
+    vista(7, 2, 20, 9) + L("M7,14.5 H22", SCURO, 1.8)
+    + vista(7, 18, 13, 8) + L("M7,29.5 H17", SCURO, 1.8)
+    + L("M4,1 V31", ARANCIO, 2.4))
 
 # ------------------------------------------------------------------------------
 # DOVE VANNO I FILE
 # ------------------------------------------------------------------------------
-_ALIGN_T = os.path.join("Tavole.panel", "AlignTitles.pulldown")
-_SMART = os.path.join("Tavole.panel", "SmartAlign.stack")
-_VERT = os.path.join(_SMART, "AllineaVisteVert.pulldown")
-_ORIZZ = os.path.join(_SMART, "AllineaVisteOrizz.pulldown")
-_DIST = os.path.join(_SMART, "DistribuisciViste.pulldown")
-_GF = "Grafica e Filtri.panel"
+_ALLINEA = os.path.join("Tavole.panel", "Allinea.pulldown")
+_VISTE = "Viste.panel"
+_GF = "Grafica.panel"
+_PAL = os.path.join("Modellazione.panel", "Palette.stack")
 
 PERCORSI = {
-    "ChangePlanLevel": os.path.join(_GF, "ChangePlanLevel.pushbutton", "icon.png"),
-    "SectionDepth": os.path.join(_GF, "SectionDepth.pushbutton", "icon.png"),
+    "ChangePlanLevel": os.path.join(_VISTE, "ChangePlanLevel.pushbutton", "icon.png"),
+    "SectionDepth": os.path.join(_VISTE, "SectionDepth.pushbutton", "icon.png"),
     "CreateFilterFromSelection": os.path.join(_GF, "CreateFilterFromSelection.pushbutton", "icon.png"),
-    "CopyCropRegion": os.path.join(_GF, "CopyCropRegion.pushbutton", "icon.png"),
+    "CopyCropRegion": os.path.join(_VISTE, "CopyCropRegion.pushbutton", "icon.png"),
     "CopyCatProps": os.path.join(_GF, "CopyCatProps.pushbutton", "icon.png"),
-    "UpdateViewTemplate": os.path.join(_GF, "UpdateViewTemplate.pushbutton", "icon.png"),
+    "UpdateViewTemplate": os.path.join(_VISTE, "UpdateViewTemplate.pushbutton", "icon.png"),
     "CutFilledRegion": os.path.join("Campiture.panel", "CutFilledRegion.pushbutton", "icon.png"),
     "OffsetFilledRegion": os.path.join("Campiture.panel", "OffsetFilledRegion.pushbutton", "icon.png"),
     "DiffFilledRegion": os.path.join("Campiture.panel", "DiffFilledRegion.pushbutton", "icon.png"),
     "SectionFilledRegion": os.path.join("Campiture.panel", "SectionFilledRegion.pushbutton", "icon.png"),
-    "PaletteOnOff": os.path.join("Modellazione.panel", "PaletteOnOff.pushbutton", "icon.png"),
-    "PaletteOnOff_on": os.path.join("Modellazione.panel", "PaletteOnOff.pushbutton", "on.png"),
-    "PaletteOnOff_off": os.path.join("Modellazione.panel", "PaletteOnOff.pushbutton", "off.png"),
-    "Palette": os.path.join("Modellazione.panel", "Palette.pushbutton", "icon.png"),
+    "PaletteOnOff": os.path.join(_PAL, "PaletteOnOff.pushbutton", "icon.png"),
+    "PaletteOnOff_on": os.path.join(_PAL, "PaletteOnOff.pushbutton", "on.png"),
+    "PaletteOnOff_off": os.path.join(_PAL, "PaletteOnOff.pushbutton", "off.png"),
+    "Palette": os.path.join(_PAL, "Palette.pushbutton", "icon.png"),
     "FlipWallCenter": os.path.join("Modellazione.panel", "FlipWallCenter.pushbutton", "icon.png"),
-    "AlignTitles": os.path.join(_ALIGN_T, "icon.png"),
-    "TitoloColonna": os.path.join(_ALIGN_T, "TitoloColonna.pushbutton", "icon.png"),
-    "TitoloRiga": os.path.join(_ALIGN_T, "TitoloRiga.pushbutton", "icon.png"),
-    "TitoloBordoSinistro": os.path.join(_ALIGN_T, "TitoloBordoSinistro.pushbutton", "icon.png"),
-    "TitoloDistanzaY": os.path.join(_ALIGN_T, "TitoloDistanzaY.pushbutton", "icon.png"),
-    "TitoloLarghezzaVista": os.path.join(_ALIGN_T, "TitoloLarghezzaVista.pushbutton", "icon.png"),
-    "TitoloLunghezzaRif": os.path.join(_ALIGN_T, "TitoloLunghezzaRif.pushbutton", "icon.png"),
+    "Allinea": os.path.join(_ALLINEA, "icon.png"),
+    "TitoloColonna": os.path.join(_ALLINEA, "TitoloColonna.pushbutton", "icon.png"),
+    "TitoloRiga": os.path.join(_ALLINEA, "TitoloRiga.pushbutton", "icon.png"),
+    "TitoloBordoSinistro": os.path.join(_ALLINEA, "TitoloBordoSinistro.pushbutton", "icon.png"),
+    "TitoloDistanzaY": os.path.join(_ALLINEA, "TitoloDistanzaY.pushbutton", "icon.png"),
+    "TitoloLarghezzaVista": os.path.join(_ALLINEA, "TitoloLarghezzaVista.pushbutton", "icon.png"),
+    "TitoloLunghezzaRif": os.path.join(_ALLINEA, "TitoloLunghezzaRif.pushbutton", "icon.png"),
     "CropImage": os.path.join("Tavole.panel", "CropImage.pushbutton", "icon.png"),
-    "AllineaVisteVert": os.path.join(_VERT, "icon.png"),
-    "AllineaAlto": os.path.join(_VERT, "AllineaAlto.pushbutton", "icon.png"),
-    "AllineaBasso": os.path.join(_VERT, "AllineaBasso.pushbutton", "icon.png"),
-    "AllineaCentroY": os.path.join(_VERT, "AllineaCentroY.pushbutton", "icon.png"),
-    "AllineaModelloY": os.path.join(_VERT, "AllineaModelloY.pushbutton", "icon.png"),
-    "AllineaVisteOrizz": os.path.join(_ORIZZ, "icon.png"),
-    "AllineaSinistra": os.path.join(_ORIZZ, "AllineaSinistra.pushbutton", "icon.png"),
-    "AllineaDestra": os.path.join(_ORIZZ, "AllineaDestra.pushbutton", "icon.png"),
-    "AllineaCentroX": os.path.join(_ORIZZ, "AllineaCentroX.pushbutton", "icon.png"),
-    "AllineaModelloX": os.path.join(_ORIZZ, "AllineaModelloX.pushbutton", "icon.png"),
-    "DistribuisciViste": os.path.join(_DIST, "icon.png"),
-    "DistribuisciX": os.path.join(_DIST, "DistribuisciX.pushbutton", "icon.png"),
-    "DistribuisciY": os.path.join(_DIST, "DistribuisciY.pushbutton", "icon.png"),
+    "AllineaAlto": os.path.join(_ALLINEA, "AllineaAlto.pushbutton", "icon.png"),
+    "AllineaBasso": os.path.join(_ALLINEA, "AllineaBasso.pushbutton", "icon.png"),
+    "AllineaCentroY": os.path.join(_ALLINEA, "AllineaCentroY.pushbutton", "icon.png"),
+    "AllineaModelloY": os.path.join(_ALLINEA, "AllineaModelloY.pushbutton", "icon.png"),
+    "AllineaSinistra": os.path.join(_ALLINEA, "AllineaSinistra.pushbutton", "icon.png"),
+    "AllineaDestra": os.path.join(_ALLINEA, "AllineaDestra.pushbutton", "icon.png"),
+    "AllineaCentroX": os.path.join(_ALLINEA, "AllineaCentroX.pushbutton", "icon.png"),
+    "AllineaModelloX": os.path.join(_ALLINEA, "AllineaModelloX.pushbutton", "icon.png"),
+    "DistribuisciX": os.path.join(_ALLINEA, "DistribuisciX.pushbutton", "icon.png"),
+    "DistribuisciY": os.path.join(_ALLINEA, "DistribuisciY.pushbutton", "icon.png"),
     "CreateLegendComponents": os.path.join("Tavole.panel", "CreateLegendComponents.pushbutton", "icon.png"),
     "AlignTrueNorth": os.path.join("Tavole.panel", "AlignTrueNorth.pushbutton", "icon.png"),
     "AlignViewports": os.path.join("Tavole.panel", "AlignViewports.pushbutton", "icon.png"),

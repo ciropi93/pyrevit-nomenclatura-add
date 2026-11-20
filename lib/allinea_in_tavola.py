@@ -319,7 +319,7 @@ def allinea_viewports_in_tavola(doc, sheet, ref_vp, target_vps, opz):
 
 
 # ==============================================================================
-# ENTRYPOINT INTERATTIVO DA RIBBON (SmartAlign.stack)
+# ENTRYPOINT INTERATTIVO DA RIBBON (menu Allinea in tavola)
 # ==============================================================================
 
 _COMANDO_TO_OPZ = {

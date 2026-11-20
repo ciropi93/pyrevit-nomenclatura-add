@@ -31,6 +31,11 @@ from Autodesk.Revit.UI.Selection import ObjectType
 from Autodesk.Revit.Exceptions import OperationCanceledException
 
 from pyrevit import revit, DB, UI, forms, script
+import memoria_finestre as MF
+
+# ultime scelte della finestra (vedi lib/memoria_finestre.py)
+_MEMORIA = u"componenti_legenda"
+_CONTROLLI = [u"rbVertical", u"rbHorizontal", u"txtSpacing", u"cmbViewDirection", u"chkAddTextNote", u"cmbTextType", u"cmbTextFormat"]
 
 import avviso as AV
 import avviso_wpf as AVW
@@ -288,6 +293,7 @@ class LegendComponentsWindow(forms.WPFWindow):
         self.Close()
 
     def on_apply(self, sender, args):
+        MF.salva(self, _MEMORIA, _CONTROLLI)
         selected_types = [it for it in self.observable_types if it.IsSelected]
         if not selected_types:
             forms.alert(u"Seleziona almeno un tipo di elemento da inserire.", title=u"CDV Tools")
@@ -539,6 +545,7 @@ def main():
 
     xaml_path = os.path.join(os.path.dirname(__file__), "ui.xaml")
     win = LegendComponentsWindow(xaml_path, doc, uidoc, type_items)
+    MF.ripristina(win, _MEMORIA, _CONTROLLI)
     win.ShowDialog()
 
 

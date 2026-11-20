@@ -78,7 +78,7 @@ CHIAVE_APPDOMAIN = "CDVTools.SezioneOverlay.Spegni"
 TITOLO = u"CDV Tools"
 SCRIPT_PROFONDITA = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    u"CDV Tools.tab", u"Grafica e Filtri.panel", u"SectionDepth.pushbutton", u"script.py",
+    u"CDV Tools.tab", u"Viste.panel", u"SectionDepth.pushbutton", u"script.py",
 )
 SCRIPT_INVERTI_MURO = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

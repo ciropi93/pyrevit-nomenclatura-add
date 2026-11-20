@@ -4,10 +4,17 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 
 | Pannello | Pulsanti |
 |---|---|
-| **Grafica e Filtri** | Copia proprietà grafiche categoria/elemento (anche tra legende: lanciato da una legenda copia la grafica dei componenti sui componenti uguali delle altre legende), Aggiorna modello di vista, Copia ritaglio di vista, Cambia livello della pianta, Crea filtro da selezione, Profondità sezione (sfondo vettoriale) |
-| **Campiture** | Campitura da polilinea/offset, Campitura da sezione |
-| **Modellazione** | Inverti muro sull'asse centrale, Palette On/Off, Personalizza Palette |
-| **Tavole e Legende** | Allinea viste su tavole, Allinea Viste (stack: Distribuisci Viste, Allinea Viste Orizz., Allinea Viste Vert. sul puro CropBox), Allinea Titoli, Componenti in legenda, Allinea al Nord reale, Ritaglia immagine (come in Word; riaprendolo si allarga il ritaglio o si ripristina l'immagine intera) |
+| **Viste** | Cambia livello della pianta, Profondità sezione (sfondo vettoriale), Copia ritaglio di vista, Aggiorna modello di vista |
+| **Grafica** | Copia proprietà grafiche categoria/elemento tra viste (anche tra legende), Crea filtro da selezione |
+| **Campiture** | Campitura da polilinea/offset, Campitura per sezione, Campitura sezionato, Campitura differenza |
+| **Tavole** | Allinea viste su tavole, **Allinea in tavola** (un solo menu con allinea/distribuisci ritagli e titoli), Componenti in legenda, Ritaglia immagine, Allinea al Nord reale |
+| **Modellazione** | Inverti muro sull'asse centrale; Palette On/Off e Personalizza Palette (piccoli) |
+
+**Come si usano.** Prima selezioni, poi clicchi. I comandi che creano qualcosa con delle
+impostazioni (campiture) le **ricordano**: un clic esegue subito con le ultime scelte,
+**Maiusc+clic** apre la finestra per cambiarle (la finestra si apre da sola al primo uso o se
+qualcosa non va). Anche le altre finestre si riaprono con le ultime opzioni scelte; le scelte
+stanno in `%APPDATA%\pyRevit\CDVTools\finestre.json`.
 
 **Avvisi.** L'esito dei comandi CDV (palette e pulsanti) compare come una riga di testo
 piccola in basso a destra nella vista attiva: ✓ blu = fatto, ! arancio = fatto con qualche
@@ -89,7 +96,8 @@ dentro `%APPDATA%\pyRevit\Extensions`.
 extension.json       manifest dell'estensione
 startup.py           eseguito da pyRevit all'avvio
 CDV Tools.tab/
-  Grafica e Filtri.panel/ Campiture.panel/ Modellazione.panel/ Tavole.panel/
+  Viste.panel/ Grafica.panel/ Campiture.panel/ Tavole.panel/ Modellazione.panel/
+tools/genera_icone.py  disegna le icone della ribbon (stile della palette)
 lib/                 logica condivisa degli script
 tests/               test della logica (pytest, senza Revit)
 ```
