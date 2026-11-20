@@ -120,35 +120,45 @@ def C(cx, cy, r, fill="none", stroke=None, sw=1.4):
     return "<circle %s/>" % a
 
 
-def testa(x, y, ang, col=ARANCIO, s=4.2, sw=1.8):
-    """Punta di freccia a V aperta con la punta in (x, y), rivolta verso 'ang' gradi."""
-    return ('<path d="M%s,%s L0,0 L%s,%s" fill="none" stroke="%s" stroke-width="%s" '
-            'stroke-linecap="round" stroke-linejoin="round" transform="translate(%s %s) rotate(%s)"/>'
-            % (_n(-s), _n(-s * 0.85), _n(-s), _n(s * 0.85), col, _n(sw), _n(x), _n(y), _n(ang)))
+def testa(x, y, ang, col=ARANCIO, s=4.6, sw=None):
+    """Punta piena con la punta in (x, y), rivolta verso 'ang' gradi (lunga s, larga 1.3 s)."""
+    return ('<path d="M0,0 L%s,%s L%s,0 L%s,%s Z" fill="%s" stroke="%s" stroke-width="0.4" '
+            'stroke-linejoin="round" transform="translate(%s %s) rotate(%s)"/>'
+            % (_n(-s), _n(-s * 0.65), _n(-s * 0.82), _n(-s), _n(s * 0.65), col, col,
+               _n(x), _n(y), _n(ang)))
 
 
-def freccia(x1, y1, x2, y2, col=ARANCIO, sw=1.8, doppia=False, s=4.2):
-    """Freccia da (x1,y1) a (x2,y2); 'doppia' mette la punta anche all'inizio."""
+def freccia(x1, y1, x2, y2, col=ARANCIO, sw=2, doppia=False, s=4.6):
+    """Freccia da (x1,y1) a (x2,y2): l'asta si ferma dentro la punta, mai sopra."""
     ang = math.degrees(math.atan2(y2 - y1, x2 - x1))
-    out = L("M%s,%s L%s,%s" % (_n(x1), _n(y1), _n(x2), _n(y2)), col, sw, cap="round")
-    out += testa(x2, y2, ang, col, s, sw)
+    lung = math.hypot(x2 - x1, y2 - y1)
+    ux, uy = (x2 - x1) / lung, (y2 - y1) / lung
+    rit = s * 0.75
+    a0 = rit if doppia else 0
+    out = L("M%s,%s L%s,%s" % (_n(x1 + ux * a0), _n(y1 + uy * a0),
+                               _n(x2 - ux * rit), _n(y2 - uy * rit)), col, sw)
+    out += testa(x2, y2, ang, col, s)
     if doppia:
-        out += testa(x1, y1, ang + 180, col, s, sw)
+        out += testa(x1, y1, ang + 180, col, s)
     return out
 
 
-def arco(cx, cy, r, a0, a1, col=ARANCIO, sw=2, testa_fine=True, s=4.2):
+def arco(cx, cy, r, a0, a1, col=ARANCIO, sw=2.2, testa_fine=True, s=4.8):
     """Arco da a0 a a1 gradi (y verso il basso: angoli crescenti = senso orario)."""
     def pt(a):
         return cx + r * math.cos(math.radians(a)), cy + r * math.sin(math.radians(a))
     x0, y0 = pt(a0)
     x1, y1 = pt(a1)
+    corr = math.degrees(s * 0.7 / r) * (1 if a1 > a0 else -1) if testa_fine else 0
+    xe, ye = pt(a1 - corr)
     sweep = 1 if a1 > a0 else 0
     grande = 1 if abs(a1 - a0) > 180 else 0
     out = L("M%s,%s A%s,%s 0 %d %d %s,%s" % (_n(x0), _n(y0), _n(r), _n(r), grande, sweep,
-                                           _n(x1), _n(y1)), col, sw, cap="round")
+                                           _n(xe), _n(ye)), col, sw)
     if testa_fine:
-        out += testa(x1, y1, a1 + (90 if a1 > a0 else -90), col, s, sw)
+        # la punta segue la corda dell'ultimo tratto: cosi' resta appoggiata sull'arco
+        xm, ym = pt(a1 - corr * 1.6)
+        out += testa(x1, y1, math.degrees(math.atan2(y1 - ym, x1 - xm)), col, s)
     return out
 
 
@@ -166,39 +176,37 @@ def titolo(x, y, w, col=SCURO):
 # ==============================================================================
 I = {}
 
-# --- Grafica e Filtri --------------------------------------------------------
+# due livelli (linea + testa a destra): la pianta passa dal livello basso a quello alto
 I["ChangePlanLevel"] = (
-    R(2, 9, 16, 16, AZZURRO, BLU)
-    + L("M10,9 V25 M2,17 H18", BLU, 0.9)
-    + L("M21,6 H30", GRIGIO, 1.8, "2.4 1.8")
-    + L("M21,26 H30", BLU, 2.4)
-    + freccia(25.5, 23.5, 25.5, 8.5))
+    L("M2,25 H24", GRIGIO, 2) + P("M24,25 L27.5,21.5 L31,25 L27.5,28.5 Z", GRIGIO)
+    + L("M2,7 H24", BLU, 2.4) + P("M24,7 L27.5,3.5 L31,7 L27.5,10.5 Z", BLU)
+    + R(3, 12, 10, 9, AZZURRO, BLU, 1.4) + L("M8,12 V21 M3,16.5 H13", BLU, 0.8)
+    + freccia(19, 22.5, 19, 9.5, sw=2.4, s=5.4))
 
+# linea di sezione; sotto la profondita' della vista e, oltre, lo sfondo a mezzitoni
 I["SectionDepth"] = (
-    R(3, 6, 5, 20, BLU, BLU, 1)
-    + R(9, 8, 6, 16, BLU, None, op=0.55)
-    + R(16, 10, 5, 12, BLU, None, op=0.35)
-    + R(22, 12, 5, 8, BLU, None, op=0.2)
-    + L("M2,3 H30", SCURO, 1, "2 1.5")
-    + freccia(5.5, 29, 27, 29, doppia=True, s=3.4))
+    R(3, 7.5, 26, 7.5, AZZURRO, None)
+    + R(3, 15, 26, 13, BIANCO, None) + R(3, 15, 26, 13, "url(#hg)")
+    + rett_tratti(3, 15, 26, 13, GRIGIO, 1.2) + L("M3,15 H29", BLU, 1.8)
+    + L("M6,4.5 H26", SCURO, 2.2) + C(4, 4.5, 2.8, BIANCO, SCURO, 1.8) + C(28, 4.5, 2.8, BIANCO, SCURO, 1.8)
+    + freccia(16, 16.5, 16, 27.5, sw=2.4, s=5))
 
 I["CreateFilterFromSelection"] = (
     P("M3,4.5 H29 L19.2,16.5 V27 L12.8,23.6 V16.5 Z", AZZURRO, BLU, 1.8)
     + C(9.5, 8.6, 1.7, BLU) + C(16, 8, 1.7, BLU) + C(22.5, 8.6, 1.7, BLU)
     + L("M21,23 L24.2,26.2 L30,19.5", ARANCIO, 2.4, cap="round"))
 
+# stessa forma di ritaglio: piena nella vista sorgente, a tratti in quella di destinazione
 I["CopyCropRegion"] = (
-    R(2, 3, 16, 14, AZZURRO, BLU)
-    + R(14, 15, 16, 14, BIANCO, BLU, 1.6, "2.6 1.6")
-    + R(12.5, 13.5, 3, 3, ARANCIO) + R(28.5, 13.5, 3, 3, ARANCIO)
-    + R(12.5, 27.5, 3, 3, ARANCIO) + R(28.5, 27.5, 3, 3, ARANCIO)
-    + freccia(9, 10, 20, 21, sw=1.6, s=3.6))
+    P("M1,6 H10 V15 H13 V26 H1 Z", AZZURRO, BLU, 1.8)
+    + P("M19,6 H28 V15 H31 V26 H19 Z", BIANCO)
+    + poligono_tratti([(19, 6), (28, 6), (28, 15), (31, 15), (31, 26), (19, 26)], BLU, 1.8)
+    + freccia(6, 10.5, 24, 10.5, sw=2.4, s=5))
 
-# pennello della palette (copia_grafica) ingrandito x2, con origine e destinazione
+# pennello della palette (copia_grafica): dalla categoria tratteggiata a quella vuota
 I["CopyCatProps"] = (
-    R(2, 2, 11, 11, AZZURRO, BLU)
-    + R(2, 2, 11, 11, "url(#h)")
-    + R(19, 19, 11, 11, BIANCO, BLU, 1.6, "2.6 1.6")
+    R(2, 2, 11, 11, AZZURRO, BLU) + R(2, 2, 11, 11, "url(#h)")
+    + R(19, 19, 11, 11, BIANCO, BLU, 1.6)
     + '<g transform="scale(1.7) translate(2.6 2.6)">'
     + L("M14.6,1.4 L9,7", MARRONE, 2.2)
     + P("M7.4,6.6 L9.4,8.6 L8.4,9.6 L6.4,7.6 Z", SCURO)
