@@ -659,3 +659,32 @@ def crea_o_aggiorna_sfondo(doc, vista_madre, cfg, impagina_in_tavola=True):
     sincronizza_vista_sfondo(doc, vista_madre, vista_sfondo, cfg)
     tavole = sincronizza_in_tavola(doc, vista_madre, vista_sfondo, crea_se_manca=impagina_in_tavola)
     return vista_sfondo, creata, tavole
+
+
+# ------------------------------------------------------------------------------
+# TESTI DELLA FINESTRA (senza API Revit)
+# ------------------------------------------------------------------------------
+
+def totale_da_config(d1_m, cfg, predefinito_extra_m=10.0):
+    """Profondita' totale (m) da mostrare: dal config salvato sullo sfondo o d1 + 10 m."""
+    if cfg:
+        try:
+            val = float(cfg.get("valore_m"))
+            if cfg.get("modalita") == u"aggiuntiva":
+                return d1_m + val
+            return val
+        except (TypeError, ValueError):
+            pass
+    return d1_m + predefinito_extra_m
+
+
+def testo_anteprima(d1_m, testo_totale):
+    """Riga sotto il campo: cosa si vedra' in primo piano e cosa nello sfondo grigio."""
+    try:
+        totale = float((testo_totale or u"").strip().replace(u",", u"."))
+    except ValueError:
+        return u"Scrivi la profondità in metri (es. 20 o 20,5)", False
+    if totale <= d1_m + 0.01:
+        return u"Deve essere oltre %.2f m, dove finisce la sezione" % d1_m, False
+    return (u"Sezione fino a %.2f m · sfondo grigio da %.2f a %.2f m"
+            % (d1_m, d1_m, totale)), True

@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Profondita' Sezione (Sfondo Vettoriale) - CDV Tools
+"""Profondita' sezione: sfondo grigio oltre la profondita' della sezione.
 
-Crea e mantiene sincronizzata una vista di sfondo vettoriale (grigio/mezzitoni)
-che parte esattamente alla profondita' d1 della sezione madre e si estende fino a d2,
-allineandosi al millimetro anche sulle tavole.
+Crea e tiene sincronizzata una vista di sfondo (grigio/mezzitoni) che parte dove finisce
+la sezione (d1) e arriva alla profondita' scelta, allineata anche in tavola.
+- clic su una sezione che ha gia' lo sfondo: lo sincronizza subito;
+- altrimenti (o Maiusc+clic, o tasto della palette): una sola domanda, fino a che profondita'.
 """
 
 import os
@@ -16,10 +17,12 @@ clr.AddReference('WindowsBase')
 clr.AddReference('RevitAPI')
 clr.AddReference('RevitAPIUI')
 
+from System.Windows import Visibility
 from System.Windows.Media import BrushConverter
 from Autodesk.Revit import DB
-from pyrevit import revit, forms
+from pyrevit import revit, forms, EXEC_PARAMS
 import stile_finestre as SF
+import memoria_finestre as MF
 
 import avviso as AV
 import avviso_wpf as AVW
@@ -27,10 +30,12 @@ import avviso_wpf as AVW
 import profondita_sezione as PS
 
 
-VIEW_TYPE_NAMES = {
-    DB.ViewType.Section: u"Sezione",
-    DB.ViewType.Elevation: u"Prospetto",
-}
+# grafica dello sfondo nuova: si ricordano le ultime scelte (per gli sfondi esistenti
+# vale quella salvata sullo sfondo stesso)
+_MEMORIA = u"profondita_sezione"
+_CONTROLLI = [u"chkHalftone", u"chkGreyColor", u"txtGreyRgb", u"chkHideCutPatterns", u"chkSyncSheet"]
+CFG_PREDEFINITA = {"modalita": u"totale", "valore_m": 20.0, "halftone": True, "grigio": True,
+                   "grigio_rgb": 140, "nascondi_retini": True}
 
 
 class WarningSwallower(DB.IFailuresPreprocessor):
@@ -52,7 +57,7 @@ def _parse_float(text, default=None):
 
 
 def _rileva_madre_iniziale(doc, uidoc, source_views, sfondo_to_madre):
-    """Determina la sezione madre iniziale da selezione o vista attiva."""
+    """La sezione da selezione (linea in pianta, vista in tavola) o vista attiva; None se non c'e'."""
     by_id = dict((PS._id_val(v.Id), v) for v in source_views)
     by_name = dict((v.Name, v) for v in source_views)
 
@@ -86,303 +91,175 @@ def _rileva_madre_iniziale(doc, uidoc, source_views, sfondo_to_madre):
         if avid in by_id:
             return by_id[avid]
 
-    return source_views[0] if source_views else None
+    return None
 
 
 class SectionDepthWindow(forms.WPFWindow):
-    def __init__(self, xaml_file, doc, source_views, initial_view, coppie, madre_to_sfondo):
+    def __init__(self, xaml_file, madre, d1_m, sfondo, n_sfondi, apri_opzioni):
         forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
-        self.doc = doc
-        self.source_views = source_views
-        self.current_view = initial_view
-        self.coppie = coppie
-        self.madre_to_sfondo = madre_to_sfondo
-        self.vp_map = PS._mappa_viewport_per_vista(doc)
-        self._brushes = BrushConverter()
-        self._updating_ui = False
+        self.d1 = d1_m
+        self.azione = None          # u"una" | u"tutte"
+        self.cfg = None
+        self._pennelli = BrushConverter()
 
-        self.setup_combobox()
-        self.btnSyncAll.Content = u"Sincronizza Tutte (%d)" % len(self.coppie)
-        self.btnSyncAll.IsEnabled = len(self.coppie) > 0
+        self.lblVista.Text = madre.Name
+        cfg = PS.leggi_config_sfondo(sfondo) if sfondo is not None else None
+        if cfg:
+            self.chkHalftone.IsChecked = bool(cfg.get("halftone", True))
+            self.chkGreyColor.IsChecked = bool(cfg.get("grigio", True))
+            self.txtGreyRgb.Text = u"%d" % int(cfg.get("grigio_rgb", 140))
+            self.chkHideCutPatterns.IsChecked = bool(cfg.get("nascondi_retini", True))
+        else:
+            MF.ripristina(self, _MEMORIA, _CONTROLLI)
+        if sfondo is not None:
+            self.chkSyncSheet.IsChecked = bool(MF.valore(_MEMORIA, u"chkSyncSheet", True))
+        self.txtDepthValue.Text = u"%.2f" % PS.totale_da_config(d1_m, cfg)
+        self.btnApply.Content = u"Aggiorna sfondo" if sfondo is not None else u"Crea sfondo"
+        self.expOpzioni.IsExpanded = bool(apri_opzioni)
+        if n_sfondi:
+            self.btnSyncAll.Content = u"Sincronizza tutte (%d)" % n_sfondi
+        else:
+            self.btnSyncAll.Visibility = Visibility.Collapsed
 
-        self.cmbSourceView.SelectionChanged += self.on_source_changed
-        self.rbModeTotal.Checked += self.on_mode_changed
-        self.rbModeAdd.Checked += self.on_mode_changed
-        self.txtDepthValue.TextChanged += self.on_depth_text_changed
+        self.txtDepthValue.TextChanged += lambda s, e: self.aggiorna()
+        self.btnPiu5.Click += lambda s, e: self._oltre(5.0)
+        self.btnPiu10.Click += lambda s, e: self._oltre(10.0)
+        self.btnPiu20.Click += lambda s, e: self._oltre(20.0)
         self.btnSyncAll.Click += self.on_sync_all
-        self.btnCancel.Click += self.on_cancel
+        self.btnCancel.Click += lambda s, e: self.Close()
         self.btnApply.Click += self.on_apply
+        self.aggiorna()
+        self.txtDepthValue.Focus()
+        self.txtDepthValue.SelectAll()
 
-        self.refresh_for_current_view()
+    def _oltre(self, metri):
+        self.txtDepthValue.Text = u"%.2f" % (self.d1 + metri)
 
-    def setup_combobox(self):
-        self.cmbSourceView.Items.Clear()
-        sel_idx = 0
-        for i, v in enumerate(self.source_views):
-            tname = VIEW_TYPE_NAMES.get(v.ViewType, u"Vista")
-            has_bg = PS._id_val(v.Id) in self.madre_to_sfondo
-            tag = u" [Sfondo attivo]" if has_bg else u""
-            self.cmbSourceView.Items.Add(u"[%s] %s%s" % (tname, v.Name, tag))
-            if self.current_view and PS._id_val(v.Id) == PS._id_val(self.current_view.Id):
-                sel_idx = i
-        if self.cmbSourceView.Items.Count > 0:
-            self.cmbSourceView.SelectedIndex = sel_idx
+    def aggiorna(self):
+        testo, ok = PS.testo_anteprima(self.d1, self.txtDepthValue.Text)
+        self.lblAnteprima.Text = testo
+        self.lblAnteprima.Foreground = self._pennelli.ConvertFromString("#5B6B78" if ok else "#DC2626")
+        self.btnApply.IsEnabled = ok
 
-    def _d1_corrente_m(self):
-        if not self.current_view:
-            return None, u"Nessuna vista selezionata"
-        try:
-            d1_ft = PS.profondita_madre_piedi(self.current_view)
-            return PS.piedi_a_metri(d1_ft), None
-        except ValueError as ex:
-            return None, u"%s" % ex
-
-    def refresh_for_current_view(self):
-        v = self.current_view
-        if not v:
-            return
-        self._updating_ui = True
-        try:
-            d1_m, err = self._d1_corrente_m()
-            if err:
-                self.lblDepth1.Text = u"Profondita' madre (d1): Non attiva"
-                self.lblDepth1.Foreground = self._brushes.ConvertFromString("#DC2626")
-                self.bdrDepth1.Background = self._brushes.ConvertFromString("#FEE2E2")
-            else:
-                self.lblDepth1.Text = u"Profondita' madre (d1): %.2f m" % d1_m
-                self.lblDepth1.Foreground = self._brushes.ConvertFromString("#185A91")
-                self.bdrDepth1.Background = self._brushes.ConvertFromString("#E8F1FA")
-
-            self.lblScale.Text = u"Scala: 1:%d" % v.Scale if v.Scale > 0 else u"Scala: -"
-
-            sfondo = self.madre_to_sfondo.get(PS._id_val(v.Id))
-            if sfondo is not None:
-                self.lblBgStatus.Text = u"Sfondo: %s" % sfondo.Name
-                self.lblBgStatus.Foreground = self._brushes.ConvertFromString("#065F46")
-                self.bdrBgStatus.Background = self._brushes.ConvertFromString("#D1FAE5")
-                cfg = PS.leggi_config_sfondo(sfondo)
-                if cfg:
-                    if cfg.get("modalita") == u"aggiuntiva":
-                        self.rbModeAdd.IsChecked = True
-                    else:
-                        self.rbModeTotal.IsChecked = True
-                    self.txtDepthValue.Text = u"%.2f" % float(cfg.get("valore_m", 15.0))
-                    self.chkHalftone.IsChecked = bool(cfg.get("halftone", True))
-                    self.chkGreyColor.IsChecked = bool(cfg.get("grigio", True))
-                    self.txtGreyRgb.Text = u"%d" % int(cfg.get("grigio_rgb", 140))
-                    self.chkHideCutPatterns.IsChecked = bool(cfg.get("nascondi_retini", True))
-            else:
-                self.lblBgStatus.Text = u"Sfondo: Non creato"
-                self.lblBgStatus.Foreground = self._brushes.ConvertFromString("#5B6B78")
-                self.bdrBgStatus.Background = self._brushes.ConvertFromString("#EEF2F5")
-                default_val = (d1_m + 10.0) if (d1_m is not None and self.rbModeTotal.IsChecked) else 10.0
-                self.txtDepthValue.Text = u"%.2f" % default_val
-
-            vps = self.vp_map.get(PS._id_val(v.Id), [])
-            if vps:
-                sheets_str = u", ".join(s.SheetNumber for (s, _) in vps)
-                self.lblSheetStatus.Text = u"Tavola: %s" % sheets_str
-            else:
-                self.lblSheetStatus.Text = u"Tavola: Non impaginata"
-        finally:
-            self._updating_ui = False
-
-        self.update_depth_preview()
-
-    def update_depth_preview(self):
-        d1_m, err = self._d1_corrente_m()
-        if err:
-            self.lblDepthPreview.Text = u"Attenzione: la sezione madre deve avere il ritaglio lontano attivo (> 0 m)."
-            self.lblDepthPreview.Foreground = self._brushes.ConvertFromString("#DC2626")
-            self.bdrDepthPreview.Background = self._brushes.ConvertFromString("#FEE2E2")
-            return
-
-        val = _parse_float(self.txtDepthValue.Text)
-        if val is None:
-            self.lblDepthPreview.Text = u"Inserisci un valore numerico valido in metri."
-            self.lblDepthPreview.Foreground = self._brushes.ConvertFromString("#B45309")
-            self.bdrDepthPreview.Background = self._brushes.ConvertFromString("#FEF3C7")
-            return
-
-        modalita = u"aggiuntiva" if self.rbModeAdd.IsChecked else u"totale"
-        try:
-            spessore_m, totale_m = PS.calcola_profondita_sfondo(d1_m, val, modalita)
-            self.lblDepthPreview.Text = (
-                u"Primo piano: 0.00 -> %.2f m  |  Sfondo grigio: %.2f -> %.2f m (spessore %.2f m)"
-                % (d1_m, d1_m, totale_m, spessore_m)
-            )
-            self.lblDepthPreview.Foreground = self._brushes.ConvertFromString("#2B3640")
-            self.bdrDepthPreview.Background = self._brushes.ConvertFromString("#EEF2F5")
-        except ValueError as ex:
-            self.lblDepthPreview.Text = u"%s" % ex
-            self.lblDepthPreview.Foreground = self._brushes.ConvertFromString("#DC2626")
-            self.bdrDepthPreview.Background = self._brushes.ConvertFromString("#FEE2E2")
-
-    def on_source_changed(self, sender, args):
-        idx = self.cmbSourceView.SelectedIndex
-        if 0 <= idx < len(self.source_views):
-            self.current_view = self.source_views[idx]
-            self.refresh_for_current_view()
-
-    def on_mode_changed(self, sender, args):
-        if self._updating_ui:
-            return
-        d1_m, _ = self._d1_corrente_m()
-        val = _parse_float(self.txtDepthValue.Text)
-        if d1_m is not None and val is not None:
-            self._updating_ui = True
-            try:
-                if self.rbModeAdd.IsChecked:
-                    # Da totale a aggiuntiva
-                    self.txtDepthValue.Text = u"%.2f" % max(1.0, val - d1_m)
-                else:
-                    # Da aggiuntiva a totale
-                    self.txtDepthValue.Text = u"%.2f" % (d1_m + val)
-            finally:
-                self._updating_ui = False
-        self.update_depth_preview()
-
-    def on_depth_text_changed(self, sender, args):
-        if not self._updating_ui:
-            self.update_depth_preview()
-
-    def _leggi_config_da_ui(self):
-        val = _parse_float(self.txtDepthValue.Text)
-        if val is None:
-            raise ValueError(u"Inserisci una profondita' valida in metri.")
-        rgb_val = _parse_float(self.txtGreyRgb.Text, 140)
-        rgb_int = max(0, min(255, int(round(rgb_val))))
-        modalita = u"aggiuntiva" if self.rbModeAdd.IsChecked else u"totale"
+    def opzioni(self):
+        rgb = _parse_float(self.txtGreyRgb.Text, 140)
         return {
-            "modalita": modalita,
-            "valore_m": val,
             "halftone": bool(self.chkHalftone.IsChecked),
             "grigio": bool(self.chkGreyColor.IsChecked),
-            "grigio_rgb": rgb_int,
+            "grigio_rgb": max(0, min(255, int(round(rgb)))),
             "nascondi_retini": bool(self.chkHideCutPatterns.IsChecked),
         }
 
-    def on_cancel(self, sender, args):
-        self.Close()
-
     def on_apply(self, sender, args):
-        if not self.current_view:
+        val = _parse_float(self.txtDepthValue.Text)
+        if val is None or not PS.testo_anteprima(self.d1, self.txtDepthValue.Text)[1]:
             return
-        try:
-            cfg = self._leggi_config_da_ui()
-            d1_ft = PS.profondita_madre_piedi(self.current_view)
-            PS.calcola_profondita_sfondo(PS.piedi_a_metri(d1_ft), cfg["valore_m"], cfg["modalita"])
-        except ValueError as ex:
-            forms.alert(u"%s" % ex, title=u"CDV Tools")
-            return
-
-        sync_sheet = bool(self.chkSyncSheet.IsChecked)
-        t = DB.Transaction(self.doc, u"Profondita' Sezione")
-        opts = t.GetFailureHandlingOptions()
-        opts.SetFailuresPreprocessor(WarningSwallower())
-        t.SetFailureHandlingOptions(opts)
-
-        t.Start()
-        try:
-            vista_sfondo, creata, tavole = PS.crea_o_aggiorna_sfondo(
-                self.doc, self.current_view, cfg, impagina_in_tavola=sync_sheet
-            )
-            t.Commit()
-        except Exception as ex:
-            if t.HasStarted() and not t.HasEnded():
-                t.RollBack()
-            forms.alert(u"Errore durante la sincronizzazione della sezione:\n%s" % ex, title=u"CDV Tools")
-            return
-
+        MF.salva(self, _MEMORIA, _CONTROLLI)
+        self.cfg = dict(self.opzioni(), modalita=u"totale", valore_m=val)
+        self.in_tavola = bool(self.chkSyncSheet.IsChecked)
+        self.azione = u"una"
         self.Close()
-        azione = u"creata" if creata else u"sincronizzata"
-        msg = u"Vista di sfondo '%s' %s con successo!" % (vista_sfondo.Name, azione)
-        if tavole > 0:
-            msg += u"\nTavole allineate: %d." % tavole
-        AVW.mostra(msg)
 
     def on_sync_all(self, sender, args):
-        if not self.coppie:
-            return
-        sync_sheet = bool(self.chkSyncSheet.IsChecked)
-
-        t = DB.Transaction(self.doc, u"Sincronizza Tutte le Sezioni con Sfondo")
-        opts = t.GetFailureHandlingOptions()
-        opts.SetFailuresPreprocessor(WarningSwallower())
-        t.SetFailureHandlingOptions(opts)
-
-        ok = 0
-        tavole_tot = 0
-        errori = []
-
-        t.Start()
-        try:
-            for item in self.coppie:
-                madre = item["madre"]
-                sfondo = item["sfondo"]
-                cfg = item["cfg"] or {
-                    "modalita": u"totale",
-                    "valore_m": 20.0,
-                    "halftone": True,
-                    "grigio": True,
-                    "grigio_rgb": 140,
-                    "nascondi_retini": True,
-                }
-                try:
-                    PS.sincronizza_vista_sfondo(self.doc, madre, sfondo, cfg)
-                    if sync_sheet:
-                        tavole_tot += PS.sincronizza_in_tavola(self.doc, madre, sfondo, crea_se_manca=True)
-                    ok += 1
-                except Exception as ex:
-                    errori.append(u"%s: %s" % (madre.Name, ex))
-            t.Commit()
-        except Exception as ex:
-            if t.HasStarted() and not t.HasEnded():
-                t.RollBack()
-            forms.alert(u"Errore durante la sincronizzazione globale:\n%s" % ex, title=u"CDV Tools")
-            return
-
+        self.in_tavola = bool(self.chkSyncSheet.IsChecked)
+        self.azione = u"tutte"
         self.Close()
-        if errori:
-            AVW.attenzione(AV.con_errori(
-                u"Sincronizzate %d sezioni (%d tavole)" % (ok, tavole_tot), errori))
-        else:
-            msg = u"Sincronizzate %d sezioni con sfondo!" % ok
-            if tavole_tot > 0:
-                msg += u"\nTavole allineate: %d." % tavole_tot
-            AVW.mostra(msg)
+
+
+def _transazione(doc, nome):
+    t = DB.Transaction(doc, nome)
+    opts = t.GetFailureHandlingOptions()
+    opts.SetFailuresPreprocessor(WarningSwallower())
+    t.SetFailureHandlingOptions(opts)
+    return t
+
+
+def crea_o_sincronizza(doc, madre, cfg, in_tavola):
+    t = _transazione(doc, u"Profondita' sezione")
+    t.Start()
+    try:
+        vista_sfondo, creata, tavole = PS.crea_o_aggiorna_sfondo(doc, madre, cfg, impagina_in_tavola=in_tavola)
+        t.Commit()
+    except Exception as ex:
+        if t.HasStarted() and not t.HasEnded():
+            t.RollBack()
+        AVW.errore(u"Sfondo non creato: %s" % ex)
+        return
+    msg = (u"Sfondo creato" if creata else u"Sfondo sincronizzato") + u" per %s" % madre.Name
+    if tavole > 0:
+        msg += u" \u00b7 %d tavole" % tavole
+    AVW.mostra(msg)
+
+
+def sincronizza_tutte(doc, coppie, in_tavola):
+    t = _transazione(doc, u"Sincronizza tutti gli sfondi")
+    ok, tavole_tot, errori = 0, 0, []
+    t.Start()
+    try:
+        for item in coppie:
+            try:
+                PS.sincronizza_vista_sfondo(doc, item["madre"], item["sfondo"], item["cfg"] or CFG_PREDEFINITA)
+                if in_tavola:
+                    tavole_tot += PS.sincronizza_in_tavola(doc, item["madre"], item["sfondo"], crea_se_manca=True)
+                ok += 1
+            except Exception as ex:
+                errori.append(u"%s: %s" % (item["madre"].Name, ex))
+        t.Commit()
+    except Exception as ex:
+        if t.HasStarted() and not t.HasEnded():
+            t.RollBack()
+        AVW.errore(u"Sincronizzazione non riuscita: %s" % ex)
+        return
+    msg = u"Sfondi sincronizzati: %d" % ok
+    if tavole_tot:
+        msg += u" \u00b7 %d tavole" % tavole_tot
+    if errori:
+        AVW.attenzione(AV.con_errori(msg, errori))
+    else:
+        AVW.mostra(msg)
 
 
 def main(madre_uid=None):
-    """madre_uid: UniqueId della sezione da proporre (usato dal tasto in sovraimpressione)."""
+    """madre_uid: sezione scelta dal tasto della palette (apre sempre la finestra)."""
     doc = revit.doc
     uidoc = revit.uidoc
     if not doc or not uidoc:
-        AVW.errore(u"Nessun documento attivo in Revit.")
         return
 
     coppie, madre_to_sfondo, sfondo_to_madre = PS.trova_coppie_sezioni(doc)
     sfondo_ids = set(PS._id_val(item["sfondo"].Id) for item in coppie)
-
-    all_views = [
+    viste = [
         v for v in DB.FilteredElementCollector(doc).OfClass(DB.View).ToElements()
         if PS.e_vista_supportata(v) and PS._id_val(v.Id) not in sfondo_ids
     ]
-    all_views.sort(key=lambda x: (str(x.ViewType), x.Name))
-
-    if not all_views:
-        AVW.errore(u"Nessuna sezione o prospetto trovato nel progetto.")
+    madre = None
+    if madre_uid:
+        madre = next((v for v in viste if v.UniqueId == madre_uid), None)
+    if madre is None:
+        madre = _rileva_madre_iniziale(doc, uidoc, viste, sfondo_to_madre)
+    if madre is None:
+        AVW.errore(u"Apri o seleziona una sezione (o un prospetto)")
         return
 
-    initial_view = _rileva_madre_iniziale(doc, uidoc, all_views, sfondo_to_madre)
-    if madre_uid:
-        for v in all_views:
-            if v.UniqueId == madre_uid:
-                initial_view = v
-                break
-    xaml_path = os.path.join(os.path.dirname(__file__), "ui.xaml")
-    win = SectionDepthWindow(xaml_path, doc, all_views, initial_view, coppie, madre_to_sfondo)
+    try:
+        d1_m = PS.piedi_a_metri(PS.profondita_madre_piedi(madre))
+    except ValueError:
+        AVW.errore(u"Attiva il ritaglio lontano della sezione: lo sfondo parte da lì")
+        return
+
+    sfondo = madre_to_sfondo.get(PS._id_val(madre.Id))
+    if sfondo is not None and not madre_uid and not EXEC_PARAMS.config_mode:
+        cfg = PS.leggi_config_sfondo(sfondo) or CFG_PREDEFINITA
+        crea_o_sincronizza(doc, madre, cfg, bool(MF.valore(_MEMORIA, u"chkSyncSheet", True)))
+        return
+
+    xaml = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui.xaml")
+    win = SectionDepthWindow(xaml, madre, d1_m, sfondo, len(coppie), EXEC_PARAMS.config_mode)
     win.ShowDialog()
+    if win.azione == u"una":
+        crea_o_sincronizza(doc, madre, win.cfg, win.in_tavola)
+    elif win.azione == u"tutte":
+        sincronizza_tutte(doc, coppie, win.in_tavola)
 
 
 if __name__ == "__main__":

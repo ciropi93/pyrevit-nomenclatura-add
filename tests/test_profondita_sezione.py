@@ -73,3 +73,15 @@ def test_madre_da_selezione():
     assert PS.madre_da_selezione([(u"altro", None)], coppie) is None
     assert PS.madre_da_selezione([(u"viewport", 10), (u"viewport", 20)], coppie) is None
     assert PS.madre_da_selezione([], coppie) is None
+
+
+def test_totale_da_config_e_anteprima():
+    assert PS.totale_da_config(6.0, None) == 16.0
+    assert PS.totale_da_config(6.0, {"modalita": u"aggiuntiva", "valore_m": 4.0}) == 10.0
+    assert PS.totale_da_config(6.0, {"modalita": u"totale", "valore_m": 25.0}) == 25.0
+    assert PS.totale_da_config(6.0, {"valore_m": "x"}) == 16.0
+    t, ok = PS.testo_anteprima(6.0, u"16")
+    assert ok and u"6.00" in t and u"16.00" in t
+    assert PS.testo_anteprima(6.0, u"16,5")[1]
+    assert not PS.testo_anteprima(6.0, u"5")[1]
+    assert not PS.testo_anteprima(6.0, u"abc")[1]

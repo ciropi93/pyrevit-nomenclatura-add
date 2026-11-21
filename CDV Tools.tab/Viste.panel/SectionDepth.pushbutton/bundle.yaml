@@ -1,4 +1,4 @@
 title: "Profondità\nSezione"
-tooltip: Crea e sincronizza una sezione di sfondo vettoriale (grigio/mezzitoni) oltre la profondità della sezione madre, mantenendo l'allineamento anche in tavola.
+tooltip: "Sfondo grigio oltre la profondità della sezione attiva o selezionata. Se lo sfondo c'è già, il clic lo sincronizza. Altrimenti (o Maiusc+clic) chiede solo fino a che profondità; la grafica dello sfondo è nelle opzioni avanzate."
 author: CDV Tools
 context: doc-project
