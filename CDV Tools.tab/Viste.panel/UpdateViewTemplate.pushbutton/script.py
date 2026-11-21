@@ -191,7 +191,7 @@ def esegui(doc, win):
                 v.ApplyViewTemplateParameters(win.modello)   # la grafica resta quella del modello
             except Exception:
                 pass
-            msg = u"Modello sganciato: modifica la grafica e rilancia il comando per aggiornare %s" % win.modello.Name
+            msg = u"Modello sganciato: modifica la vista e rilancia il comando"
         elif win.azione == u"crea":
             nomi = set(x.Name for x in FilteredElementCollector(doc).OfClass(View) if x.IsTemplate)
             if not win.nome or win.nome in nomi:
