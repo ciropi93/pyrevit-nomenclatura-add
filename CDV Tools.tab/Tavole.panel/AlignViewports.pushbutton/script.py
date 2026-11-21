@@ -30,6 +30,7 @@ from Autodesk.Revit.DB import *
 from Autodesk.Revit.UI import *
 
 from pyrevit import revit, DB, UI, forms, script
+import stile_finestre as SF
 import memoria_finestre as MF
 
 # ultime scelte della finestra (vedi lib/memoria_finestre.py)
@@ -128,7 +129,7 @@ class TargetViewportItem(ObservableObject):
 
 class AlignViewportsWindow(forms.WPFWindow):
     def __init__(self, xaml_file, doc, initial_source_vp=None):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.doc = doc
         self.all_viewport_entries = []
         self.current_source_entry = None

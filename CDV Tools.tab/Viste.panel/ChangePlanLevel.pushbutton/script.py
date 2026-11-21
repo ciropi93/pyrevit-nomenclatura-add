@@ -40,6 +40,7 @@ from Autodesk.Revit.DB import (
 )
 
 from pyrevit import revit, forms, script
+import stile_finestre as SF
 import memoria_finestre as MF
 
 # ultime scelte della finestra (vedi lib/memoria_finestre.py)
@@ -417,7 +418,7 @@ def change_plan_level(doc, uidoc, old_view, target_level, desired_name, replace_
 
 class ChangePlanLevelWindow(forms.WPFWindow):
     def __init__(self, xaml_file, doc, uidoc, initial_view):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.doc = doc
         self.uidoc = uidoc
         self.current_view = initial_view
@@ -496,8 +497,8 @@ class ChangePlanLevelWindow(forms.WPFWindow):
             self.bdrSheetStatus.Background = BrushConverter().ConvertFromString("#DCFCE7")
         else:
             self.lblSheetStatus.Text = u"Non impaginata su tavola"
-            self.lblSheetStatus.Foreground = BrushConverter().ConvertFromString("#64748B")
-            self.bdrSheetStatus.Background = BrushConverter().ConvertFromString("#F1F5F9")
+            self.lblSheetStatus.Foreground = BrushConverter().ConvertFromString("#5B6B78")
+            self.bdrSheetStatus.Background = BrushConverter().ConvertFromString("#EEF2F5")
 
         self.update_name_preview()
 

@@ -29,6 +29,7 @@ from Autodesk.Revit.DB import *
 from Autodesk.Revit.UI import *
 
 from pyrevit import revit, DB, UI, forms, script
+import stile_finestre as SF
 import memoria_finestre as MF
 
 # ultime scelte della finestra (vedi lib/memoria_finestre.py)
@@ -161,16 +162,16 @@ class TargetViewItem(ObservableObject):
         mgr = view.GetCropRegionShapeManager()
         if not view.CropBoxActive:
             self.StatusText = u"Disattivato"
-            self.StatusBgColor = "#F1F5F9"  # slate 100
-            self.StatusFgColor = "#64748B"  # slate 500
+            self.StatusBgColor = "#EEF2F5"
+            self.StatusFgColor = "#5B6B78"
         elif mgr.CanHaveShape and mgr.ShapeSet:
             self.StatusText = u"Attivo [Sagomato]"
             self.StatusBgColor = "#FEF3C7"  # amber 100
             self.StatusFgColor = "#B45309"  # amber 700
         else:
             self.StatusText = u"Attivo [Rettangolare]"
-            self.StatusBgColor = "#E0F2FE"  # sky 100
-            self.StatusFgColor = "#0369A1"  # sky 700
+            self.StatusBgColor = "#E8F1FA"
+            self.StatusFgColor = "#185A91"
 
         if self.HasScopeBox:
             self.StatusText += u" ⚠ Scope Box: " + self.ScopeBoxName
@@ -275,7 +276,7 @@ def copy_crop_to_view(doc, src_view, tgt_view, copy_visibility=True, copy_annota
 
 class CopyCropWindow(forms.WPFWindow):
     def __init__(self, xaml_file, doc, initial_source_view):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.doc = doc
         self.current_source_view = initial_source_view
         self.all_views = []
@@ -347,8 +348,8 @@ class CopyCropWindow(forms.WPFWindow):
             self.bdrSourceCropStatus.Background = System.Windows.Media.BrushConverter().ConvertFromString("#FEF3C7")
         else:
             self.lblSourceCropStatus.Text = u"Ritaglio Attivo [Rettangolare]"
-            self.lblSourceCropStatus.Foreground = System.Windows.Media.BrushConverter().ConvertFromString("#0369A1")
-            self.bdrSourceCropStatus.Background = System.Windows.Media.BrushConverter().ConvertFromString("#E0F2FE")
+            self.lblSourceCropStatus.Foreground = System.Windows.Media.BrushConverter().ConvertFromString("#185A91")
+            self.bdrSourceCropStatus.Background = System.Windows.Media.BrushConverter().ConvertFromString("#E8F1FA")
 
         # Ritaglio annotazioni
         anno_p = v.get_Parameter(BuiltInParameter.VIEWER_ANNOTATION_CROP_ACTIVE)

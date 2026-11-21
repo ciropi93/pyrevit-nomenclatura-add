@@ -15,6 +15,7 @@ from System.Collections.Generic import List
 from System.Windows import MessageBox, MessageBoxButton, MessageBoxImage
 
 from pyrevit import revit, DB, UI, forms, script, EXEC_PARAMS
+import stile_finestre as SF
 import memoria_finestre as MF
 import avviso_wpf as AVW
 
@@ -428,7 +429,7 @@ class NamedItem(object):
 
 class SectionFilledRegionWindow(forms.WPFWindow):
     def __init__(self, xaml_file, initial_records):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.doc = revit.doc
         self.uidoc = revit.uidoc
         self.view = revit.active_view
@@ -531,7 +532,7 @@ class SectionFilledRegionWindow(forms.WPFWindow):
         count = len(self.selected_records)
         if count == 0:
             self.lblSelectionInfo.Text = "Nessun elemento 3D selezionato"
-            self.lblSelectionDetail.Text = "Clicca 'Seleziona nel Modello...' o '+ Da Link RVT...' per scegliere i pavimenti/elementi"
+            self.lblSelectionDetail.Text = "Usa 'Seleziona...' o '+ Da Link RVT...' per scegliere gli elementi"
             self.lblStatus.Text = "Seleziona almeno un elemento tagliato dalla sezione."
         else:
             names = [r["name"] for r in self.selected_records]

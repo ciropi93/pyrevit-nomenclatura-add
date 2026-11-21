@@ -3,47 +3,7 @@
         Title="Crea Filtro di Vista da Selezione"
         Height="820" Width="760"
         MinHeight="650" MinWidth="640"
-        WindowStartupLocation="CenterScreen"
-        FontFamily="Segoe UI"
-        Background="#F8FAFC">
-    <Window.Resources>
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Margin" Value="2"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#CBD5E1"/>
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="Foreground" Value="#1E293B"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style TargetType="CheckBox">
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,4"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#1E293B"/>
-        </Style>
-        <Style TargetType="RadioButton">
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,16,0"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#334155"/>
-        </Style>
-    </Window.Resources>
+        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" Background="#F5F7FA">
 
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -55,23 +15,23 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" Background="#0F172A" CornerRadius="8" Padding="16,14" Margin="0,0,0,12">
+        <Border Grid.Row="0" Style="{StaticResource Intestazione}">
             <StackPanel>
-                <TextBlock Text="Crea Filtro di Vista da Selezione" FontWeight="Bold" FontSize="16" Foreground="#FFFFFF"/>
-                <TextBlock Text="Analisi automatica dei parametri comuni degli elementi selezionati e generazione rapida del filtro" FontSize="12" Foreground="#94A3B8" Margin="0,3,0,0"/>
+                <TextBlock Text="Crea Filtro di Vista da Selezione" FontWeight="Bold" FontSize="15" Foreground="#FFFFFF"/>
+                <TextBlock Text="Analisi automatica dei parametri comuni degli elementi selezionati e generazione rapida del filtro" FontSize="12" Foreground="#DCE9F5" Margin="0,3,0,0"/>
             </StackPanel>
         </Border>
 
         <!-- Card 1: Elementi e Categorie -->
-        <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
+        <Border Grid.Row="1" Padding="14" Margin="0,0,0,12" Style="{StaticResource Scheda}">
             <StackPanel>
                 <Grid Margin="0,0,0,6">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="CATEGORIE DEGLI ELEMENTI SELEZIONATI" FontWeight="Bold" FontSize="11" Foreground="#64748B"/>
-                    <TextBlock Grid.Column="1" x:Name="lblSelectionSummary" Text="0 elementi selezionati" FontSize="11" Foreground="#0284C7" FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="0" Text="CATEGORIE DEGLI ELEMENTI SELEZIONATI" Style="{StaticResource Etichetta}" Margin="0"/>
+                    <TextBlock Grid.Column="1" x:Name="lblSelectionSummary" Text="0 elementi selezionati" FontSize="11" Foreground="#1F6FB2" FontWeight="SemiBold"/>
                 </Grid>
                 <ItemsControl x:Name="icCategories">
                     <ItemsControl.ItemsPanel>
@@ -81,7 +41,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="#F1F5F9" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="4" Padding="8,3" Margin="0,0,8,4">
+                            <Border Background="#EEF2F5" BorderBrush="#C9D3DB" BorderThickness="1" CornerRadius="4" Padding="8,3" Margin="0,0,8,4">
                                 <CheckBox IsChecked="{Binding IsIncluded}" Content="{Binding DisplayName}" FontWeight="Medium" Margin="0"/>
                             </Border>
                         </DataTemplate>
@@ -91,7 +51,7 @@
         </Border>
 
         <!-- Card 2: Parametri e Regole Suggerite -->
-        <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
+        <Border Grid.Row="2" Padding="14" Margin="0,0,0,12" Style="{StaticResource Scheda}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -104,7 +64,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="PARAMETRI E REGOLE CONSIGLIATE" FontWeight="Bold" FontSize="11" Foreground="#64748B"/>
+                    <TextBlock Grid.Column="0" Text="PARAMETRI E REGOLE CONSIGLIATE" Style="{StaticResource Etichetta}" Margin="0"/>
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <RadioButton x:Name="rbAnd" Content="Tutte le regole (AND)" IsChecked="True"/>
                         <RadioButton x:Name="rbOr" Content="Almeno una regola (OR)"/>
@@ -114,10 +74,10 @@
                 <TextBox x:Name="txtSearchParam" Grid.Row="1" Height="30" VerticalContentAlignment="Center" Padding="8,0" Margin="0,0,0,8" FontSize="12"/>
 
                 <!-- ListView Parametri -->
-                <ListView x:Name="lvParameters" Grid.Row="2" BorderThickness="1" BorderBrush="#E2E8F0" ScrollViewer.VerticalScrollBarVisibility="Auto" Background="#FFFFFF">
+                <ListView x:Name="lvParameters" Grid.Row="2" BorderThickness="1" BorderBrush="#DDE3E8" ScrollViewer.VerticalScrollBarVisibility="Auto" Background="#FFFFFF">
                     <ListView.ItemTemplate>
                         <DataTemplate>
-                            <Border BorderThickness="0,0,0,1" BorderBrush="#F1F5F9" Padding="4,6">
+                            <Border BorderThickness="0,0,0,1" BorderBrush="#EEF2F5" Padding="4,6">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="32"/>
@@ -132,8 +92,8 @@
                                     
                                     <!-- Nome Parametro e Tipo/Istanza -->
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,6,0">
-                                        <TextBlock Text="{Binding ParamName}" FontWeight="SemiBold" Foreground="#0F172A" FontSize="12" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Text="{Binding ScopeText}" Foreground="#94A3B8" FontSize="10"/>
+                                        <TextBlock Text="{Binding ParamName}" FontWeight="SemiBold" Foreground="#2B3640" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding ScopeText}" Foreground="#8C9AA6" FontSize="10"/>
                                     </StackPanel>
                                     
                                     <!-- Badge Match (Identico o Multiplo) -->
@@ -155,9 +115,9 @@
         </Border>
 
         <!-- Card 3: Configurazione Filtro e Vista -->
-        <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
+        <Border Grid.Row="3" Padding="14" Margin="0,0,0,12" Style="{StaticResource Scheda}">
             <StackPanel>
-                <TextBlock Text="CONFIGURAZIONE FILTRO E VISTA" FontWeight="Bold" FontSize="11" Foreground="#64748B" Margin="0,0,0,8"/>
+                <TextBlock Text="CONFIGURAZIONE FILTRO E VISTA" Margin="0,0,0,8" Style="{StaticResource Etichetta}"/>
                 
                 <!-- Nome Filtro -->
                 <Grid Margin="0,0,0,8">
@@ -166,7 +126,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Nome Filtro:" VerticalAlignment="Center" FontWeight="Medium" FontSize="12" Foreground="#334155"/>
+                    <TextBlock Grid.Column="0" Text="Nome Filtro:" VerticalAlignment="Center" FontWeight="Medium" FontSize="12" Foreground="#3C4650"/>
                     <TextBox x:Name="txtFilterName" Grid.Column="1" Height="28" VerticalContentAlignment="Center" Padding="6,0" FontSize="12"/>
                     <Button x:Name="btnRegenName" Grid.Column="2" Content="Suggerisci Nome" Margin="6,0,0,0" Padding="8,4" FontSize="11"/>
                 </Grid>
@@ -174,7 +134,7 @@
                 <!-- Opzioni Vista -->
                 <CheckBox x:Name="chkAddToActiveView" Content="Aggiungi il filtro alla vista attiva" IsChecked="True" FontWeight="SemiBold" Margin="0,0,0,6"/>
                 
-                <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="10,6">
+                <Border Background="#F5F7FA" BorderBrush="#DDE3E8" BorderThickness="1" CornerRadius="6" Padding="10,6">
                     <WrapPanel Orientation="Horizontal">
                         <CheckBox x:Name="chkApplyColor" Content="Sovrascrivi Colore:" IsChecked="True" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <ComboBox x:Name="cmbColor" Width="110" Height="26" VerticalContentAlignment="Center" Margin="0,0,16,0" FontSize="11"/>
@@ -192,10 +152,10 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock x:Name="lblRulesCount" Grid.Column="0" Text="0 regole selezionate" VerticalAlignment="Center" Foreground="#64748B" FontSize="12" FontWeight="Medium"/>
+            <TextBlock x:Name="lblRulesCount" Grid.Column="0" Text="0 regole selezionate" VerticalAlignment="Center" Foreground="#5B6B78" FontSize="12" FontWeight="Medium"/>
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <Button x:Name="btnCancel" Content="Annulla" Width="90" Height="34" Margin="0,0,8,0" IsCancel="True"/>
-                <Button x:Name="btnCreateFilter" Content="Crea e Applica Filtro" Background="#0284C7" Foreground="#FFFFFF" FontWeight="SemiBold" BorderThickness="0" Height="34" Padding="16,0" IsDefault="True"/>
+                <Button x:Name="btnCreateFilter" Content="Crea e Applica Filtro" Height="34" Padding="16,0" Style="{StaticResource Primario}"/>
             </StackPanel>
         </Grid>
     </Grid>

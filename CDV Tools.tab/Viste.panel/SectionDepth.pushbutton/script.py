@@ -19,6 +19,7 @@ clr.AddReference('RevitAPIUI')
 from System.Windows.Media import BrushConverter
 from Autodesk.Revit import DB
 from pyrevit import revit, forms
+import stile_finestre as SF
 
 import avviso as AV
 import avviso_wpf as AVW
@@ -90,7 +91,7 @@ def _rileva_madre_iniziale(doc, uidoc, source_views, sfondo_to_madre):
 
 class SectionDepthWindow(forms.WPFWindow):
     def __init__(self, xaml_file, doc, source_views, initial_view, coppie, madre_to_sfondo):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.doc = doc
         self.source_views = source_views
         self.current_view = initial_view
@@ -149,8 +150,8 @@ class SectionDepthWindow(forms.WPFWindow):
                 self.bdrDepth1.Background = self._brushes.ConvertFromString("#FEE2E2")
             else:
                 self.lblDepth1.Text = u"Profondita' madre (d1): %.2f m" % d1_m
-                self.lblDepth1.Foreground = self._brushes.ConvertFromString("#0369A1")
-                self.bdrDepth1.Background = self._brushes.ConvertFromString("#E0F2FE")
+                self.lblDepth1.Foreground = self._brushes.ConvertFromString("#185A91")
+                self.bdrDepth1.Background = self._brushes.ConvertFromString("#E8F1FA")
 
             self.lblScale.Text = u"Scala: 1:%d" % v.Scale if v.Scale > 0 else u"Scala: -"
 
@@ -172,8 +173,8 @@ class SectionDepthWindow(forms.WPFWindow):
                     self.chkHideCutPatterns.IsChecked = bool(cfg.get("nascondi_retini", True))
             else:
                 self.lblBgStatus.Text = u"Sfondo: Non creato"
-                self.lblBgStatus.Foreground = self._brushes.ConvertFromString("#64748B")
-                self.bdrBgStatus.Background = self._brushes.ConvertFromString("#F1F5F9")
+                self.lblBgStatus.Foreground = self._brushes.ConvertFromString("#5B6B78")
+                self.bdrBgStatus.Background = self._brushes.ConvertFromString("#EEF2F5")
                 default_val = (d1_m + 10.0) if (d1_m is not None and self.rbModeTotal.IsChecked) else 10.0
                 self.txtDepthValue.Text = u"%.2f" % default_val
 
@@ -210,8 +211,8 @@ class SectionDepthWindow(forms.WPFWindow):
                 u"Primo piano: 0.00 -> %.2f m  |  Sfondo grigio: %.2f -> %.2f m (spessore %.2f m)"
                 % (d1_m, d1_m, totale_m, spessore_m)
             )
-            self.lblDepthPreview.Foreground = self._brushes.ConvertFromString("#0F172A")
-            self.bdrDepthPreview.Background = self._brushes.ConvertFromString("#F1F5F9")
+            self.lblDepthPreview.Foreground = self._brushes.ConvertFromString("#2B3640")
+            self.bdrDepthPreview.Background = self._brushes.ConvertFromString("#EEF2F5")
         except ValueError as ex:
             self.lblDepthPreview.Text = u"%s" % ex
             self.lblDepthPreview.Foreground = self._brushes.ConvertFromString("#DC2626")

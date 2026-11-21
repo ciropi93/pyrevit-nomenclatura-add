@@ -18,6 +18,7 @@ from System.Windows import FontWeights, Thickness, VerticalAlignment
 from System.Windows.Controls import CheckBox, Orientation, StackPanel, TextBlock
 
 from pyrevit import forms
+import stile_finestre as SF
 
 import avviso_wpf as AVW
 
@@ -50,7 +51,7 @@ def _aggiorna_icona_onoff(attiva):
 
 class FinestraPalette(forms.WPFWindow):
     def __init__(self, xaml_file):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.originale = PAL.carica_config()
         self.cfg = PAL.copia_config(self.originale)
         self.voci = [FISSA] + list(PAL.CHIAVI)
@@ -124,7 +125,7 @@ class FinestraPalette(forms.WPFWindow):
         t = TextBlock()
         t.Text = testo
         t.FontWeight = FontWeights.SemiBold
-        t.Foreground = _colore("#475569")
+        t.Foreground = _colore("#4A5866")
         t.Margin = Thickness(0, 8 if self.pnlComandi.Children.Count else 0, 0, 2)
         return t
 

@@ -31,6 +31,7 @@ from Autodesk.Revit.UI.Selection import ObjectType
 from Autodesk.Revit.Exceptions import OperationCanceledException
 
 from pyrevit import revit, DB, UI, forms, script
+import stile_finestre as SF
 import memoria_finestre as MF
 
 # ultime scelte della finestra (vedi lib/memoria_finestre.py)
@@ -121,7 +122,7 @@ class ComponentTypeItem(ObservableObject):
 
 class LegendComponentsWindow(forms.WPFWindow):
     def __init__(self, xaml_file, doc, uidoc, type_items):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.doc = doc
         self.uidoc = uidoc
         self.all_type_items = type_items
@@ -232,8 +233,8 @@ class LegendComponentsWindow(forms.WPFWindow):
                 self.bdrTemplateStatus.Background = System.Windows.Media.BrushConverter().ConvertFromString("#D1FAE5")
             else:
                 self.lblTemplateStatus.Text = u"✓ Campione trovato in '{}' (verrà importato)".format(sample_view.Name)
-                self.lblTemplateStatus.Foreground = System.Windows.Media.BrushConverter().ConvertFromString("#0284C7")
-                self.bdrTemplateStatus.Background = System.Windows.Media.BrushConverter().ConvertFromString("#E0F2FE")
+                self.lblTemplateStatus.Foreground = System.Windows.Media.BrushConverter().ConvertFromString("#1F6FB2")
+                self.bdrTemplateStatus.Background = System.Windows.Media.BrushConverter().ConvertFromString("#E8F1FA")
         else:
             self.lblTemplateStatus.Text = u"⚠ Nessun componente legenda campione trovato nel file"
             self.lblTemplateStatus.Foreground = System.Windows.Media.BrushConverter().ConvertFromString("#B45309")

@@ -29,6 +29,7 @@ from Autodesk.Revit.DB import *
 from Autodesk.Revit.UI import *
 
 from pyrevit import revit, DB, UI, forms, script
+import stile_finestre as SF
 import memoria_finestre as MF
 
 # ultime scelte della finestra (vedi lib/memoria_finestre.py)
@@ -99,7 +100,7 @@ def count_category_overrides(doc, view):
 
 class UpdateViewTemplateWindow(forms.WPFWindow):
     def __init__(self, xaml_file, doc, initial_view):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.doc = doc
         self.current_source_view = initial_view
         self.all_views = []

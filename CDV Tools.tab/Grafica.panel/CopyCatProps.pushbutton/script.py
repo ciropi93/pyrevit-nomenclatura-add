@@ -25,6 +25,7 @@ from System.Collections.ObjectModel import ObservableCollection
 from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventArgs
 
 from pyrevit import revit, DB, UI, forms, script
+import stile_finestre as SF
 import memoria_finestre as MF
 
 # ultime scelte della finestra (vedi lib/memoria_finestre.py)
@@ -272,7 +273,7 @@ class ViewItem(ObservableObject):
 class CopyPropsWindow(forms.WPFWindow):
     def __init__(self, xaml_file, doc, source_view, initial_element=None, initial_categories=None,
                  legend_sources=None):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.doc = doc
         self.source_view = source_view
         self.selected_element = initial_element

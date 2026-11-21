@@ -20,6 +20,7 @@ from System.Collections.Generic import List
 from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventArgs
 
 from pyrevit import revit, DB, UI, forms, script
+import stile_finestre as SF
 import memoria_finestre as MF
 
 # ultime scelte della finestra (vedi lib/memoria_finestre.py)
@@ -182,7 +183,7 @@ class ParameterRuleItem(ObservableObject):
             self.MatchFgColor = "#065F46"
             self.RuleValue = display_values[0] if display_values else u""
         else:
-            self.MatchText = u"⚡ Multiplo ({} val.)".format(len(display_values))
+            self.MatchText = u"≠ Multiplo ({} val.)".format(len(display_values))
             self.MatchBgColor = "#FEF3C7"  # amber
             self.MatchFgColor = "#92400E"
             self.RuleValue = u", ".join(display_values[:5])
@@ -230,7 +231,7 @@ class ParameterRuleItem(ObservableObject):
 
 class FilterCreatorWindow(forms.WPFWindow):
     def __init__(self, xaml_file, doc, active_view, selected_elements):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.doc = doc
         self.active_view = active_view
         self.elements = selected_elements

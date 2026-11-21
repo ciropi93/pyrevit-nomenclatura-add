@@ -24,6 +24,7 @@ from System.Windows.Controls import Canvas
 from System.Windows.Media.Imaging import BitmapImage, BitmapCacheOption
 from Autodesk.Revit.Exceptions import OperationCanceledException
 from pyrevit import revit, DB, UI, forms
+import stile_finestre as SF
 
 import avviso_wpf as AVW
 import ritaglio_immagine as RI
@@ -107,7 +108,7 @@ def _bitmap_wpf(bmp):
 
 class RitaglioWindow(forms.WPFWindow):
     def __init__(self, xaml_file, bmp, iniziale):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.bmp = bmp
         self.risultato = None
         self.iniziale = iniziale

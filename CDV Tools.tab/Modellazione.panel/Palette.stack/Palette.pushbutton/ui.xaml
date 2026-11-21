@@ -1,39 +1,8 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Personalizza Palette - CDV Tools"
+        Title="Personalizza Palette"
         Height="600" Width="720" MinHeight="460" MinWidth="620"
-        WindowStartupLocation="CenterScreen"
-        FontFamily="Segoe UI" Background="#F8FAFC">
-    <Window.Resources>
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Margin" Value="4,0,0,0"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#CBD5E1"/>
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="Foreground" Value="#1E293B"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style TargetType="CheckBox">
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,3"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#1E293B"/>
-        </Style>
-    </Window.Resources>
+        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" Background="#F5F7FA">
 
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -43,10 +12,10 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="#0F172A" CornerRadius="8" Padding="16,12" Margin="0,0,0,12">
+        <Border Grid.Row="0" Style="{StaticResource Intestazione}">
             <StackPanel>
-                <TextBlock Text="Personalizza Palette" Foreground="White" FontSize="16" FontWeight="SemiBold"/>
-                <TextBlock Foreground="#CBD5E1" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
+                <TextBlock Text="Personalizza Palette" Foreground="White" FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock Foreground="#C9D3DB" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
                            Text="Per ogni categoria spunta gli strumenti che compaiono in ogni famiglia (Trasforma, Forma, Seleziona, Vista, Isola). La fila fissa in alto è uguale per tutte le categorie."/>
             </StackPanel>
         </Border>
@@ -59,10 +28,10 @@
                 <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Border Grid.Column="0" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6">
+            <Border Grid.Column="0" Background="White" BorderBrush="#DDE3E8" BorderThickness="1" CornerRadius="6">
                 <ListBox x:Name="lstCategorie" BorderThickness="0" Margin="4" FontSize="12"/>
             </Border>
-            <Border Grid.Column="2" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6">
+            <Border Grid.Column="2" Background="White" BorderBrush="#DDE3E8" BorderThickness="1" CornerRadius="6">
                 <Grid Margin="12,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -71,8 +40,8 @@
                     </Grid.RowDefinitions>
                     <DockPanel Grid.Row="0" Margin="0,0,0,6">
                         <TextBlock DockPanel.Dock="Right" x:Name="txtConteggio" FontSize="11"
-                                   Foreground="#64748B" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="txtCategoria" FontSize="14" FontWeight="SemiBold" Foreground="#0F172A"/>
+                                   Foreground="#5B6B78" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="txtCategoria" FontSize="14" FontWeight="SemiBold" Foreground="#2B3640"/>
                     </DockPanel>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <StackPanel x:Name="pnlComandi"/>
@@ -86,12 +55,12 @@
         </Grid>
 
         <Grid Grid.Row="3" Margin="0,12,0,0">
-            <TextBlock VerticalAlignment="Center" Foreground="#64748B" FontSize="11" TextWrapping="Wrap" Margin="0,0,260,0"
+            <TextBlock VerticalAlignment="Center" Foreground="#5B6B78" FontSize="11" TextWrapping="Wrap" Margin="0,0,260,0"
                        Text="Gli strumenti CDV (muri, sezioni, viste in tavola) compaiono sempre quando servono."/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button x:Name="btnRipristinaTutto" Content="Ripristina tutto"/>
-                <Button x:Name="btnAnnulla" Content="Annulla"/>
-                <Button x:Name="btnSalva" Content="Salva" Background="#0369A1" Foreground="White" BorderBrush="#0369A1"/>
+                <Button x:Name="btnAnnulla" Content="Annulla" IsCancel="True"/>
+                <Button x:Name="btnSalva" Content="Salva" Style="{StaticResource Primario}" IsDefault="True"/>
             </StackPanel>
         </Grid>
     </Grid>

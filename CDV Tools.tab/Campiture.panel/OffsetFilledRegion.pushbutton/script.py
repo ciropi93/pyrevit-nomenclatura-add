@@ -24,6 +24,7 @@ from System.Collections.Generic import List
 from System.Windows import Window, MessageBox, MessageBoxButton, MessageBoxImage, MessageBoxResult
 
 from pyrevit import revit, DB, UI, forms, script, EXEC_PARAMS
+import stile_finestre as SF
 import memoria_finestre as MF
 import avviso_wpf as AVW
 
@@ -545,7 +546,7 @@ class LineStyleItem(object):
 
 class OffsetFilledRegionWindow(forms.WPFWindow):
     def __init__(self, xaml_file, selected_elements):
-        forms.WPFWindow.__init__(self, xaml_file)
+        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
         self.doc = revit.doc
         self.uidoc = revit.uidoc
         self.view = revit.active_view
@@ -621,7 +622,7 @@ class OffsetFilledRegionWindow(forms.WPFWindow):
         self.btnCancel.Click += self._on_cancel_clicked
 
         # Preset buttons
-        self.btnPreset500mm.Click += lambda s, e: self._set_offset_text("500 mm")
+        self.btnPreset500mm.Click += lambda s, e: self._set_offset_text("50 cm")
         self.btnPreset100cm.Click += lambda s, e: self._set_offset_text("100 cm")
         self.btnPreset150cm.Click += lambda s, e: self._set_offset_text("150 cm")
         self.btnPreset200cm.Click += lambda s, e: self._set_offset_text("200 cm")
@@ -643,8 +644,8 @@ class OffsetFilledRegionWindow(forms.WPFWindow):
         count = len(curve_elements)
         if count == 0:
             self.lblSelectionInfo.Text = "Nessuna linea valida selezionata"
-            self.lblSelectionDetail.Text = "Clicca 'Seleziona nel Modello...' per selezionare le linee"
-            self.lblStatus.Text = "⚠️ Seleziona almeno una linea o polilinea per procedere."
+            self.lblSelectionDetail.Text = "Usa 'Seleziona...' per scegliere le linee"
+            self.lblStatus.Text = "Seleziona almeno una linea o polilinea."
         else:
             self.lblSelectionInfo.Text = "{} elementi selezionati (Lungh. tot: {:.2f} m)".format(count, total_len_m)
             types_str = ", ".join(set(e.GetType().Name for e in curve_elements))
@@ -678,7 +679,7 @@ class OffsetFilledRegionWindow(forms.WPFWindow):
         curve_elements = [el for el in self.selected_elements if get_curve_from_element(el) is not None]
         if not curve_elements:
             MessageBox.Show(
-                "Nessuna linea o curva valida selezionata.\nUsa il pulsante 'Seleziona nel Modello' per indicare le linee.",
+                "Nessuna linea o curva valida selezionata.\nUsa il pulsante 'Seleziona...' per indicare le linee.",
                 "Selezione mancante",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning
