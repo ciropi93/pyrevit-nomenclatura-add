@@ -1,4 +1,4 @@
-title: "Copia Grafica\nOggetto/Categoria"
-tooltip: Copia le proprietà di visibilità e grafica (sovrascritture di linea, retino, colore, trasparenza, mezzitoni e visibilità) di un elemento o categoria da una vista/modello sorgente ad una o più viste di destinazione, gestendo in sicurezza i modelli di vista assegnati. Lanciato da una legenda, copia la grafica dei componenti sui componenti uguali (stesso tipo e stessa vista) delle legende scelte.
+title: "Copia Grafica\ntra Viste"
+tooltip: "Copia la grafica della categoria dell'elemento selezionato (linee, retini, colori, trasparenza, visibilità) dalla vista attiva alle viste che spunti. In una legenda copia la grafica dei componenti sulle altre legende. Maiusc+clic: opzioni."
 author: CDV Tools
 context: doc-project
