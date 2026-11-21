@@ -38,7 +38,7 @@ def test_converti_colori():
 
 
 def test_ci_sono_finestre():
-    assert len(FINESTRE) >= 10
+    assert len(FINESTRE) >= 5  # le finestre "scegli da un elenco" sono una sola, in lib
 
 
 def test_finestre_usano_lo_stile_condiviso():
