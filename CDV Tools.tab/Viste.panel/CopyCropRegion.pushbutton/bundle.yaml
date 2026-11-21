@@ -1,4 +1,4 @@
 title: "Copia Ritaglio\ndi Vista"
-tooltip: Copia l'estensione del ritaglio (Crop Box), forma sagomata (poligonale) e ritaglio annotazioni dalla vista sorgente a una o più viste di destinazione selezionate.
+tooltip: "Copia il ritaglio della vista attiva (forma, anche sagomata, ed estensione) sulle viste dello stesso tipo che spunti. Maiusc+clic: opzioni (ritaglio annotazioni, contorno visibile, riquadro di definizione)."
 author: CDV Tools
 context: doc-project

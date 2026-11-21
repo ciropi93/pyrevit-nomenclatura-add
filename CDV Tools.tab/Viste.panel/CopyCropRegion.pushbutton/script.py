@@ -1,43 +1,35 @@
 # -*- coding: utf-8 -*-
-"""Copia Ritaglio di Vista tra Viste (Crop Region / Crop Box)
+"""Copia il ritaglio della vista attiva su altre viste dello stesso tipo.
 
-Sincronizza le impostazioni di ritaglio da una vista sorgente ad altre viste selezionate:
-- Estensione e limiti del riquadro di taglio (Crop Box BoundingBox)
-- Sagomatura personalizzata / poligonale (Custom Crop Shape CurveLoop)
-- Visibilità del contorno di ritaglio (Crop Region Visible)
-- Ritaglio delle annotazioni (Annotation Crop) e relativi offset
-- Gestione automatica e scollegamento opzionale del Riquadro di Definizione (Scope Box)
+La sorgente e' la vista attiva (in tavola: la vista selezionata). Si spuntano le viste
+compatibili e si copia: forma (anche sagomata), estensione, ritaglio delle annotazioni.
+Opzioni in "Opzioni avanzate" (Maiusc+clic le apre subito).
 """
-
-import os
-import sys
 import clr
 
-clr.AddReference('System')
-clr.AddReference('PresentationFramework')
-clr.AddReference('PresentationCore')
-clr.AddReference('WindowsBase')
 clr.AddReference('RevitAPI')
-clr.AddReference('RevitAPIUI')
 
-import System
-from System.Windows.Media import BrushConverter
-from System.Collections.ObjectModel import ObservableCollection
-from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventArgs
+from Autodesk.Revit.DB import (
+    BoundingBoxXYZ,
+    BuiltInParameter,
+    CurveLoop,
+    ElementId,
+    FailureProcessingResult,
+    FailureSeverity,
+    FilteredElementCollector,
+    IFailuresPreprocessor,
+    Transaction,
+    Transform,
+    View,
+    Viewport,
+    ViewType,
+    XYZ,
+)
 
-from Autodesk.Revit.DB import *
-from Autodesk.Revit.UI import *
-
-from pyrevit import revit, DB, UI, forms, script
-import stile_finestre as SF
-import memoria_finestre as MF
-
-# ultime scelte della finestra (vedi lib/memoria_finestre.py)
-_MEMORIA = u"copia_ritaglio"
-_CONTROLLI = [u"chkCopyVisibility", u"chkCopyAnnotation", u"chkRemoveScopeBox"]
-
+from pyrevit import revit, EXEC_PARAMS
 import avviso as AV
 import avviso_wpf as AVW
+import scelta_wpf as SCW
 
 # ==============================================================================
 # UTILITY E TIPI DI VISTA
@@ -110,83 +102,6 @@ class WarningSwallower(IFailuresPreprocessor):
             if f.GetSeverity() == FailureSeverity.Warning:
                 failuresAccessor.DeleteWarning(f)
         return FailureProcessingResult.Continue
-
-
-# ==============================================================================
-# WPF VIEW ITEM MODEL
-# ==============================================================================
-
-class ObservableObject(INotifyPropertyChanged):
-    def __init__(self):
-        self._property_changed_handlers = []
-
-    def add_PropertyChanged(self, handler):
-        self._property_changed_handlers.append(handler)
-
-    def remove_PropertyChanged(self, handler):
-        if handler in self._property_changed_handlers:
-            self._property_changed_handlers.remove(handler)
-
-    def OnPropertyChanged(self, prop_name):
-        args = PropertyChangedEventArgs(prop_name)
-        for handler in self._property_changed_handlers:
-            handler(self, args)
-
-
-class TargetViewItem(ObservableObject):
-    def __init__(self, view, doc, is_compatible=True):
-        super(TargetViewItem, self).__init__()
-        self.view = view
-        self.doc = doc
-        self.ViewName = view.Name
-        self.ViewType = view.ViewType
-        self.ViewTypeName = VIEW_TYPE_NAMES.get(view.ViewType, str(view.ViewType))
-        self.IsCompatible = is_compatible
-
-        # Livello
-        if hasattr(view, 'GenLevel') and view.GenLevel:
-            self.LevelName = view.GenLevel.Name
-        else:
-            self.LevelName = u"-"
-
-        # Scope Box
-        scope_p = view.get_Parameter(BuiltInParameter.VIEWER_VOLUME_OF_INTEREST_CROP)
-        self.HasScopeBox = (scope_p and scope_p.AsElementId() != ElementId.InvalidElementId)
-        if self.HasScopeBox:
-            scope_el = doc.GetElement(scope_p.AsElementId())
-            self.ScopeBoxName = scope_el.Name if scope_el else u"Riquadro Assegnato"
-        else:
-            self.ScopeBoxName = u""
-
-        # Stato ritaglio
-        mgr = view.GetCropRegionShapeManager()
-        if not view.CropBoxActive:
-            self.StatusText = u"Disattivato"
-            self.StatusBgColor = "#EEF2F5"
-            self.StatusFgColor = "#5B6B78"
-        elif mgr.CanHaveShape and mgr.ShapeSet:
-            self.StatusText = u"Attivo [Sagomato]"
-            self.StatusBgColor = "#FEF3C7"  # amber 100
-            self.StatusFgColor = "#B45309"  # amber 700
-        else:
-            self.StatusText = u"Attivo [Rettangolare]"
-            self.StatusBgColor = "#E8F1FA"
-            self.StatusFgColor = "#185A91"
-
-        if self.HasScopeBox:
-            self.StatusText += u" ⚠ Scope Box: " + self.ScopeBoxName
-
-        self._is_selected = False
-
-    @property
-    def IsSelected(self):
-        return self._is_selected
-
-    @IsSelected.setter
-    def IsSelected(self, val):
-        if self._is_selected != val:
-            self._is_selected = val
-            self.OnPropertyChanged("IsSelected")
 
 
 # ==============================================================================
@@ -271,260 +186,93 @@ def copy_crop_to_view(doc, src_view, tgt_view, copy_visibility=True, copy_annota
 
 
 # ==============================================================================
-# FINESTRA PRINCIPALE WPF
-# ==============================================================================
-
-class CopyCropWindow(forms.WPFWindow):
-    def __init__(self, xaml_file, doc, initial_source_view):
-        forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
-        self.doc = doc
-        self.current_source_view = initial_source_view
-        self.all_views = []
-        self.filtered_target_items = ObservableCollection[TargetViewItem]()
-        self.lstTargetViews.ItemsSource = self.filtered_target_items
-
-        self.load_all_views()
-        self.setup_source_combobox()
-        self.setup_filters_combobox()
-        self.refresh_ui_for_source_view()
-
-        # Collega eventi UI
-        self.cmbSourceView.SelectionChanged += self.on_source_view_changed
-        self.txtSearch.TextChanged += self.on_filter_changed
-        self.cmbViewTypeFilter.SelectionChanged += self.on_filter_changed
-
-        self.btnSelectAll.Click += self.on_select_all
-        self.btnDeselectAll.Click += self.on_deselect_all
-        self.btnSelectSameType.Click += self.on_select_same_type
-        self.btnSelectSameLevel.Click += self.on_select_same_level
-
-        self.btnCancel.Click += self.on_cancel
-        self.btnApply.Click += self.on_apply
-
-    def load_all_views(self):
-        collector = FilteredElementCollector(self.doc).OfClass(View).ToElements()
-        self.all_views = [
-            v for v in collector
-            if not v.IsTemplate and v.ViewType in VALID_VIEW_TYPES
-        ]
-        self.all_views.sort(key=lambda x: (str(x.ViewType), x.Name))
-
-    def setup_source_combobox(self):
-        self.cmbSourceView.Items.Clear()
-        selected_idx = 0
-        for i, v in enumerate(self.all_views):
-            type_label = VIEW_TYPE_NAMES.get(v.ViewType, str(v.ViewType))
-            item_text = u"[{}] {}".format(type_label, v.Name)
-            self.cmbSourceView.Items.Add(item_text)
-            if v.Id == self.current_source_view.Id:
-                selected_idx = i
-
-        if self.cmbSourceView.Items.Count > 0:
-            self.cmbSourceView.SelectedIndex = selected_idx
-
-    def setup_filters_combobox(self):
-        self.cmbViewTypeFilter.Items.Clear()
-        self.cmbViewTypeFilter.Items.Add(u"Tutti i tipi compatibili")
-        self.cmbViewTypeFilter.Items.Add(u"Tutte le viste del modello")
-        for vt in VALID_VIEW_TYPES:
-            name = VIEW_TYPE_NAMES.get(vt, str(vt))
-            self.cmbViewTypeFilter.Items.Add(name)
-        self.cmbViewTypeFilter.SelectedIndex = 0
-
-    def refresh_ui_for_source_view(self):
-        v = self.current_source_view
-        if not v:
-            return
-
-        # Aggiorna badge sorgente
-        mgr = v.GetCropRegionShapeManager()
-        if not v.CropBoxActive:
-            self.lblSourceCropStatus.Text = u"Ritaglio Disattivato"
-            self.lblSourceCropStatus.Foreground = System.Windows.Media.BrushConverter().ConvertFromString("#DC2626")
-            self.bdrSourceCropStatus.Background = System.Windows.Media.BrushConverter().ConvertFromString("#FEE2E2")
-        elif mgr.CanHaveShape and mgr.ShapeSet:
-            self.lblSourceCropStatus.Text = u"Ritaglio Attivo [Sagomato/Poligonale]"
-            self.lblSourceCropStatus.Foreground = System.Windows.Media.BrushConverter().ConvertFromString("#B45309")
-            self.bdrSourceCropStatus.Background = System.Windows.Media.BrushConverter().ConvertFromString("#FEF3C7")
-        else:
-            self.lblSourceCropStatus.Text = u"Ritaglio Attivo [Rettangolare]"
-            self.lblSourceCropStatus.Foreground = System.Windows.Media.BrushConverter().ConvertFromString("#185A91")
-            self.bdrSourceCropStatus.Background = System.Windows.Media.BrushConverter().ConvertFromString("#E8F1FA")
-
-        # Ritaglio annotazioni
-        anno_p = v.get_Parameter(BuiltInParameter.VIEWER_ANNOTATION_CROP_ACTIVE)
-        if anno_p and anno_p.AsInteger() == 1:
-            self.lblSourceAnnoStatus.Text = u"Ritaglio Annotazioni: Attivo"
-        else:
-            self.lblSourceAnnoStatus.Text = u"Ritaglio Annotazioni: Disattivato"
-
-        # Livello
-        if hasattr(v, 'GenLevel') and v.GenLevel:
-            self.lblSourceLevelStatus.Text = u"Livello: " + v.GenLevel.Name
-        else:
-            self.lblSourceLevelStatus.Text = u"Livello: -"
-
-        # Ricostruisce elenco viste destinazione
-        self.apply_target_filter()
-
-    def apply_target_filter(self):
-        query = self.txtSearch.Text.lower().strip() if self.txtSearch.Text else ""
-        type_filter_idx = self.cmbViewTypeFilter.SelectedIndex
-
-        self.filtered_target_items.Clear()
-
-        for v in self.all_views:
-            if v.Id == self.current_source_view.Id:
-                continue
-
-            is_compat = are_views_compatible(self.current_source_view, v)
-
-            # Filtro compatibilità / tipo
-            if type_filter_idx == 0:  # Tutti i compatibili
-                if not is_compat:
-                    continue
-            elif type_filter_idx == 1:  # Tutte le viste del modello
-                pass
-            else:  # Uno specifico tipo selezionato
-                filter_name = str(self.cmbViewTypeFilter.SelectedItem)
-                v_name_type = VIEW_TYPE_NAMES.get(v.ViewType, str(v.ViewType))
-                if filter_name != v_name_type:
-                    continue
-
-            # Filtro testo ricerca
-            if query:
-                level_str = v.GenLevel.Name.lower() if hasattr(v, 'GenLevel') and v.GenLevel else ""
-                if query not in v.Name.lower() and query not in level_str:
-                    continue
-
-            item = TargetViewItem(v, self.doc, is_compatible=is_compat)
-            item.add_PropertyChanged(self.on_item_property_changed)
-            self.filtered_target_items.Add(item)
-
-        self.update_selection_summary()
-
-    def update_selection_summary(self):
-        total = len(self.filtered_target_items)
-        selected = sum(1 for it in self.filtered_target_items if it.IsSelected)
-        self.lblSelectionSummary.Text = u"{} viste selezionate su {} disponibili".format(selected, total)
-
-    def on_source_view_changed(self, sender, args):
-        idx = self.cmbSourceView.SelectedIndex
-        if 0 <= idx < len(self.all_views):
-            self.current_source_view = self.all_views[idx]
-            self.refresh_ui_for_source_view()
-
-    def on_filter_changed(self, sender, args):
-        self.apply_target_filter()
-
-    def on_item_property_changed(self, sender, args):
-        if args.PropertyName == "IsSelected":
-            self.update_selection_summary()
-
-    def on_select_all(self, sender, args):
-        for item in self.filtered_target_items:
-            item.IsSelected = True
-
-    def on_deselect_all(self, sender, args):
-        for item in self.filtered_target_items:
-            item.IsSelected = False
-
-    def on_select_same_type(self, sender, args):
-        for item in self.filtered_target_items:
-            item.IsSelected = (item.view.ViewType == self.current_source_view.ViewType)
-
-    def on_select_same_level(self, sender, args):
-        src_level = self.current_source_view.GenLevel if hasattr(self.current_source_view, 'GenLevel') else None
-        if not src_level:
-            forms.alert(u"La vista sorgente non ha un livello di riferimento.", title=u"CDV Tools")
-            return
-        for item in self.filtered_target_items:
-            item_level = item.view.GenLevel if hasattr(item.view, 'GenLevel') else None
-            item.IsSelected = (item_level and item_level.Id == src_level.Id)
-
-    def on_cancel(self, sender, args):
-        self.Close()
-
-    def on_apply(self, sender, args):
-        MF.salva(self, _MEMORIA, _CONTROLLI)
-        selected_items = [it for it in self.filtered_target_items if it.IsSelected]
-        if not selected_items:
-            forms.alert(u"Seleziona almeno una vista di destinazione.", title=u"CDV Tools")
-            return
-
-        copy_vis = bool(self.chkCopyVisibility.IsChecked)
-        copy_anno = bool(self.chkCopyAnnotation.IsChecked)
-        remove_scope = bool(self.chkRemoveScopeBox.IsChecked)
-
-        tx_title = u"Copia Ritaglio di Vista"
-        t = Transaction(self.doc, tx_title)
-        opts = t.GetFailureHandlingOptions()
-        opts.SetFailuresPreprocessor(WarningSwallower())
-        t.SetFailureHandlingOptions(opts)
-
-        success_count = 0
-        errors = []
-
-        t.Start()
-        try:
-            for it in selected_items:
-                try:
-                    copy_crop_to_view(
-                        self.doc,
-                        self.current_source_view,
-                        it.view,
-                        copy_visibility=copy_vis,
-                        copy_annotation=copy_anno,
-                        remove_scope_box=remove_scope
-                    )
-                    success_count += 1
-                except Exception as ex:
-                    errors.append(u"{}: {}".format(it.ViewName, ex))
-
-            t.Commit()
-        except Exception as ex:
-            t.RollBack()
-            forms.alert(u"Errore durante l'applicazione del ritaglio:\n{}".format(ex), title=u"CDV Tools")
-            return
-
-        self.Close()
-
-        if success_count > 0:
-            msg = u"Ritaglio copiato con successo su {} viste!".format(success_count) if success_count > 1 else u"Ritaglio copiato con successo su 1 vista!"
-            if errors:
-                AVW.attenzione(AV.con_errori(msg, errors))
-            else:
-                AVW.mostra(msg)
-        elif errors:
-            AVW.errore(AV.con_errori(u"Impossibile applicare il ritaglio", errors))
-
-
-# ==============================================================================
 # MAIN
 # ==============================================================================
 
+OPZIONI = [
+    (u"chkCopyAnnotation", u"Copia anche il ritaglio delle annotazioni", True),
+    (u"chkCopyVisibility", u"Copia anche se il contorno del ritaglio è visibile", True),
+    (u"chkRemoveScopeBox", u"Scollega il riquadro di definizione, se c'è (altrimenti il ritaglio non si può cambiare)", True),
+]
+
+
+def vista_sorgente(doc, uidoc):
+    v = doc.ActiveView
+    if v is not None and not v.IsTemplate and v.ViewType in VALID_VIEW_TYPES:
+        return v
+    for eid in uidoc.Selection.GetElementIds():
+        el = doc.GetElement(eid)
+        if isinstance(el, Viewport):
+            sv = doc.GetElement(el.ViewId)
+            if sv is not None and sv.ViewType in VALID_VIEW_TYPES:
+                return sv
+    return None
+
+
+def dettaglio(v):
+    lvl = getattr(v, "GenLevel", None)
+    if lvl is not None:
+        return lvl.Name
+    return VIEW_TYPE_NAMES.get(v.ViewType, u"")
+
+
 def main():
     doc = revit.doc
-    if not doc:
-        AVW.errore(u"Nessun documento attivo in Revit.")
+    uidoc = revit.uidoc
+    src = vista_sorgente(doc, uidoc)
+    if src is None:
+        AVW.errore(u"Apri la vista da cui copiare il ritaglio (pianta, sezione, prospetto o 3D)")
         return
 
-    active_view = doc.ActiveView
-    if not active_view or active_view.IsTemplate:
-        AVW.errore(u"La vista attiva corrente non è valida o è un modello di vista.")
+    candidate = [
+        v for v in FilteredElementCollector(doc).OfClass(View)
+        if not v.IsTemplate and v.Id != src.Id and v.ViewType in VALID_VIEW_TYPES
+        and are_views_compatible(src, v)
+    ]
+    if not candidate:
+        AVW.errore(u"Nessun'altra vista dello stesso tipo a cui copiare il ritaglio")
+        return
+    candidate.sort(key=lambda v: (dettaglio(v), v.Name))
+
+    ris = SCW.scegli(
+        titolo=u"Copia ritaglio",
+        sottotitolo=u"da " + src.Name,
+        voci=[(v, v.Name, dettaglio(v)) for v in candidate],
+        pulsante=(u"Copia su 1 vista", u"Copia su %d viste", u"Scegli le viste"),
+        opzioni=OPZIONI, memoria=u"copia_ritaglio", apri_opzioni=EXEC_PARAMS.config_mode)
+    if not ris:
+        return
+    viste, opz = ris
+
+    t = Transaction(doc, u"Copia ritaglio")
+    o = t.GetFailureHandlingOptions()
+    o.SetFailuresPreprocessor(WarningSwallower())
+    t.SetFailureHandlingOptions(o)
+    fatte, errori = 0, []
+    t.Start()
+    try:
+        for v in viste:
+            try:
+                copy_crop_to_view(doc, src, v,
+                                  copy_visibility=opz[u"chkCopyVisibility"],
+                                  copy_annotation=opz[u"chkCopyAnnotation"],
+                                  remove_scope_box=opz[u"chkRemoveScopeBox"])
+                fatte += 1
+            except Exception as ex:
+                errori.append(u"%s: %s" % (v.Name, ex))
+        t.Commit()
+    except Exception as ex:
+        t.RollBack()
+        AVW.errore(u"Copia del ritaglio non riuscita: %s" % ex)
         return
 
-    if active_view.ViewType not in VALID_VIEW_TYPES:
-        forms.alert(
-            u"La vista attiva corrente ({}) non supporta le regioni di taglio.".format(active_view.Name),
-            title=u"CDV Tools"
-        )
-        return
-
-    xaml_path = os.path.join(os.path.dirname(__file__), "ui.xaml")
-    win = CopyCropWindow(xaml_path, doc, active_view)
-    MF.ripristina(win, _MEMORIA, _CONTROLLI)
-    win.ShowDialog()
+    msg = u"Ritaglio copiato su 1 vista" if fatte == 1 else u"Ritaglio copiato su %d viste" % fatte
+    if fatte and errori:
+        AVW.attenzione(AV.con_errori(msg, errori))
+    elif fatte:
+        AVW.mostra(msg)
+    else:
+        AVW.errore(AV.con_errori(u"Ritaglio non copiato", errori))
 
 
 if __name__ == "__main__":
