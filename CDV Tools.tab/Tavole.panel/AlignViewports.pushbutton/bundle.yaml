@@ -1,4 +1,4 @@
 title: "Allinea Viste\nsu Tavole"
-tooltip: Allinea la posizione di una vista posizionata in una tavola su altre tavole del progetto. Consente di mantenere il fabbricato, le griglie e i titoli nella medesima posizione millimetrica su tutti i fogli.
+tooltip: "Seleziona una vista in tavola e spunta le altre tavole: le loro viste dello stesso tipo vengono spostate perché il modello (fabbricato, griglie) cada nello stesso punto del foglio. Maiusc+clic: opzioni (titolo, tipo, centro del riquadro)."
 author: CDV Tools
 context: doc-project
