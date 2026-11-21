@@ -21,6 +21,7 @@ from System.IO import MemoryStream
 from System.Drawing import Rectangle as DRect
 from System.Drawing.Imaging import ImageFormat
 from System.Windows.Controls import Canvas
+from System.Windows.Media import BrushConverter
 from System.Windows.Media.Imaging import BitmapImage, BitmapCacheOption
 from Autodesk.Revit.Exceptions import OperationCanceledException
 from pyrevit import revit, DB, UI, forms
@@ -208,7 +209,8 @@ class RitaglioWindow(forms.WPFWindow):
         try:
             self.risultato = RI.rettangolo_pixel(l, t, r, b, 1.0 / self.k, self.bmp.Width, self.bmp.Height)
         except ValueError as ex:
-            forms.alert(u"%s" % ex, title=u"CDV Tools")
+            self.lblInfo.Text = u"%s" % ex
+            self.lblInfo.Foreground = BrushConverter().ConvertFromString("#DC2626")
             return
         if self.risultato == self.iniziale:
             self.risultato = None  # niente da cambiare
@@ -300,7 +302,7 @@ def main():
     try:
         nome = _applica(doc, inst, orig, bmp, larghezza, altezza, centro, win.risultato)
     except Exception as ex:
-        forms.alert(u"Errore durante il ritaglio:\n%s" % ex, title=u"CDV Tools")
+        AVW.errore(u"Ritaglio non riuscito: %s" % ex)
         return
     AVW.mostra(u"Immagine ritagliata: %s" % nome)
 

@@ -4,6 +4,7 @@ Shift+clic: impostazioni (campiture singole o unica, tipo campitura)."""
 
 from System.Collections.Generic import List
 from pyrevit import revit, DB, forms, script, EXEC_PARAMS
+import avviso_wpf as AVW
 import campiture_taglio as CT
 
 SINGOLE = u"Campiture singole (una per elemento)"
@@ -41,7 +42,7 @@ def main():
             return
     tipo = CT.tipi_campitura(doc).get(cfg.tipo)
     if tipo is None:
-        forms.alert(u"Tipo campitura '{}' non trovato: scegline un altro.".format(cfg.tipo))
+        AVW.attenzione(u"Il tipo di campitura %s non c'è più: scegline un altro" % cfg.tipo)
         if not impostazioni(doc, cfg):
             return
         tipo = CT.tipi_campitura(doc)[cfg.tipo]
@@ -53,9 +54,10 @@ def main():
     with revit.Transaction(u"Campitura sezionato"):
         create = campiture(doc, view, tipo.Id, gruppi, cfg.unica)
     if not create:
-        forms.alert(u"Nessuna parte sezionata trovata: gli elementi sono tagliati dal piano della vista?")
+        AVW.errore(u"Nessuna parte tagliata: gli elementi sono tagliati dal piano della vista?")
         return
     uidoc.Selection.SetElementIds(List[DB.ElementId]([r.Id for r in create]))
+    AVW.mostra(u"Campiture create: %d (Maiusc+clic: impostazioni)" % len(create))
 
 
 if __name__ == "__main__":

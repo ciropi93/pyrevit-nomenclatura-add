@@ -5,6 +5,7 @@ progetto (anche da link), taglia entrambi col piano della vista e crea le campit
 
 from System.Collections.Generic import List
 from pyrevit import revit, DB, forms, script, EXEC_PARAMS
+import avviso_wpf as AVW
 import campiture_taglio as CT
 import poligoni_2d
 
@@ -62,7 +63,7 @@ def main():
     o, x, y = piano.Origin, view.RightDirection, view.UpDirection
     f_fatto, f_progetto = in_uv(sezioni(fatto, piano), o, x, y), in_uv(sezioni(progetto, piano), o, x, y)
     if not f_fatto and not f_progetto:
-        forms.alert(u"Nessuna parte sezionata trovata: gli elementi sono tagliati dal piano della vista?")
+        AVW.errore(u"Nessuna parte tagliata: gli elementi sono tagliati dal piano della vista?")
         return
     tolto = in_loops(poligoni_2d.differenza(f_fatto, f_progetto), o, x, y)
     aggiunto = in_loops(poligoni_2d.differenza(f_progetto, f_fatto), o, x, y)
@@ -71,9 +72,10 @@ def main():
         create = (CT.crea(doc, view, tipi[cfg.tolto].Id, tolto)
                   + CT.crea(doc, view, tipi[cfg.aggiunto].Id, aggiunto))
     if not create:
-        forms.alert(u"Nessuna differenza: fatto e progetto coincidono.")
+        AVW.attenzione(u"Nessuna differenza: fatto e progetto coincidono")
         return
     uidoc.Selection.SetElementIds(List[DB.ElementId]([r.Id for r in create]))
+    AVW.mostra(u"Campiture della differenza create: %d" % len(create))
 
 
 if __name__ == "__main__":

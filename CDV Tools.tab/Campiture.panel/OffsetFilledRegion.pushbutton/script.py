@@ -9,9 +9,7 @@ e scelta se conservare o eliminare le linee guida originali.
 """
 
 import os
-import sys
 import re
-import math
 import clr
 
 clr.AddReference('System')
@@ -19,9 +17,8 @@ clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
 
-from System.Collections.ObjectModel import ObservableCollection
 from System.Collections.Generic import List
-from System.Windows import Window, MessageBox, MessageBoxButton, MessageBoxImage, MessageBoxResult
+from System.Windows.Media import BrushConverter
 
 from pyrevit import revit, DB, UI, forms, script, EXEC_PARAMS
 import stile_finestre as SF
@@ -672,30 +669,30 @@ class OffsetFilledRegionWindow(forms.WPFWindow):
     def _on_cancel_clicked(self, sender, e):
         self.Close()
 
+    def _problema(self, testo):
+        """Qualcosa manca o non va: nella riga di stato (rosso) o, senza finestra, nell'avviso."""
+        try:
+            self.lblStatus.Text = testo
+            self.lblStatus.Foreground = BrushConverter().ConvertFromString("#DC2626")
+        except Exception:
+            pass
+        if not self.IsVisible:
+            AVW.attenzione(testo)
+
     def _on_apply_clicked(self, sender, e):
         """Esegue il calcolo dell'offset e la creazione della FilledRegion."""
         MF.salva(self, _MEMORIA, _CONTROLLI)
         # 1. Valida selezione
         curve_elements = [el for el in self.selected_elements if get_curve_from_element(el) is not None]
         if not curve_elements:
-            MessageBox.Show(
-                "Nessuna linea o curva valida selezionata.\nUsa il pulsante 'Seleziona...' per indicare le linee.",
-                "Selezione mancante",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
+            self._problema(u"Seleziona le linee della campitura")
             return
 
         # 2. Valida offset
         try:
             offset_feet, display_str = parse_offset_to_feet(self.txtOffset.Text.strip())
         except ValueError as ex:
-            MessageBox.Show(
-                str(ex),
-                "Valore Offset non valido",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
+            self._problema(str(ex))
             self.txtOffset.Focus()
             return
 
@@ -714,7 +711,7 @@ class OffsetFilledRegionWindow(forms.WPFWindow):
         # 4. Tipo campitura e stile linea
         sel_fr_item = self.cmbFilledRegionType.SelectedItem
         if not sel_fr_item:
-            MessageBox.Show("Seleziona un Tipo di Campitura (Filled Region Type).", "Attenzione", MessageBoxButton.OK, MessageBoxImage.Warning)
+            self._problema(u"Scegli il tipo di campitura")
             return
         fr_type_id = sel_fr_item.Id
 
@@ -729,7 +726,7 @@ class OffsetFilledRegionWindow(forms.WPFWindow):
         chains = sort_and_chain_curves(raw_curves)
 
         if not chains:
-            MessageBox.Show("Impossibile concatenare le curve selezionate in un percorso valido.", "Errore Geometria", MessageBoxButton.OK, MessageBoxImage.Error)
+            self._problema(u"Le linee non formano un percorso continuo")
             return
 
         created_regions = []
@@ -785,13 +782,7 @@ class OffsetFilledRegionWindow(forms.WPFWindow):
             AVW.mostra(u"Campiture create: %d · %s, offset %s %s (Maiusc+clic: impostazioni)"
                        % (len(created_regions), sel_fr_item.Name, display_str, lato))
         else:
-            MessageBox.Show(
-                "Non è stato possibile generare la campitura dalle curve fornite.\n"
-                "Verifica che le linee formino un tracciato continuo nel piano della vista.",
-                "Errore di Creazione",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error
-            )
+            self._problema(u"Campitura non creata: le linee devono formare un percorso continuo nel piano della vista")
 
 
 # ==============================================================================
@@ -804,12 +795,7 @@ def main():
     active_view = revit.active_view
 
     if active_view.ViewType in (DB.ViewType.ThreeD, DB.ViewType.Schedule, DB.ViewType.DrawingSheet, DB.ViewType.Internal):
-        forms.alert(
-            "Il comando richiede una vista grafica 2D attiva (Pianta, Prospetto, Sezione, Vista di Dettaglio o Disegno).\n\n"
-            "Vista corrente: {} ({})".format(active_view.Name, active_view.ViewType),
-            title="Vista non supportata",
-            warn_icon=True
-        )
+        AVW.errore(u"Apri una vista 2D (pianta, sezione, prospetto, dettaglio o disegno)")
         return
 
     selected_ids = uidoc.Selection.GetElementIds()

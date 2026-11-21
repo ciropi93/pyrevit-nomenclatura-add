@@ -22,7 +22,7 @@ from Autodesk.Revit.UI import *
 from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 from Autodesk.Revit.Exceptions import OperationCanceledException
 
-from pyrevit import revit, DB, UI, forms
+from pyrevit import revit
 
 import avviso as AV
 import avviso_wpf as AVW
@@ -85,7 +85,7 @@ def main():
         except OperationCanceledException:
             return
         except Exception as ex:
-            forms.alert("Errore durante la selezione: {}".format(ex), title="CDV Tools")
+            AVW.errore(u"Selezione non riuscita: %s" % ex)
             return
 
     if not walls:
@@ -146,7 +146,7 @@ def main():
         t.Commit()
     except Exception as ex:
         t.RollBack()
-        forms.alert("Si è verificato un errore durante l'inversione dei muri:\n{}".format(ex), title="CDV Tools")
+        AVW.errore(u"Muri non invertiti: %s" % ex)
         return
 
     # 4. Feedback finale all'utente

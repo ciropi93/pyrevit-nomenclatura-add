@@ -165,9 +165,10 @@ class FinestraPalette(forms.WPFWindow):
         attivo = bool(sender.IsChecked)
         if self.chiave == FISSA:
             if not PAL.imposta_fissa(self.cfg, sender.Tag, attivo):
-                forms.alert(u"Nella fila fissa ci stanno al massimo %d strumenti." % PAL.MAX_FISSA,
-                            title=TITOLO)
+                # la fila fissa e' piena: lo dice il contatore, senza finestre
                 sender.IsChecked = False
+                self.txtConteggio.Text = u"%d / %d \u00b7 piena: togline uno" % (
+                    len(self.cfg[u"fissa"]), PAL.MAX_FISSA)
                 return
             # entrare/uscire dalla fila fissa cambia anche le categorie
             self.riempi_categorie()
@@ -190,19 +191,11 @@ class FinestraPalette(forms.WPFWindow):
         self.riempi_comandi()
 
     def su_copia_tutte(self, sender, args):
-        nome = PAL.NOMI_CATEGORIE[self.chiave]
-        if not forms.alert(u"Applicare a tutte le categorie la scelta fatta per '%s'?\n"
-                           u"(dove un comando non ha senso, ad esempio Offset sulle porte, "
-                           u"viene saltato)" % nome, title=TITOLO, yes=True, no=True):
-            return
         PAL.copia_su_tutte(self.cfg, self.chiave)
         self.riempi_categorie()
         self.riempi_comandi()
 
     def su_ripristina_tutto(self, sender, args):
-        if not forms.alert(u"Tornare alla palette predefinita per tutte le categorie e la fila fissa?",
-                           title=TITOLO, yes=True, no=True):
-            return
         attiva = self.cfg[u"attiva"]
         self.cfg = PAL.copia_config(PAL.config_predefinita())
         self.cfg[u"attiva"] = attiva
@@ -213,7 +206,7 @@ class FinestraPalette(forms.WPFWindow):
         try:
             PAL.salva_config(self.cfg)
         except Exception as ex:
-            forms.alert(u"Impossibile salvare le impostazioni:\n%s" % ex, title=TITOLO)
+            AVW.errore(u"Impostazioni non salvate: %s" % ex)
             return
         if self.cfg[u"attiva"] != self.originale[u"attiva"]:
             _aggiorna_icona_onoff(self.cfg[u"attiva"])

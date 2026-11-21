@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Crea automaticamente una campitura (es. TERRENO) a partire dal bordo inferiore o superiore di uno o piu elementi 3D sezionati nella vista (pavimenti inclinati, tetti, fondazioni, link RVT), chiudendola con fondo orizzontale (da punto min/max o da Livello) o parallelo alla pendenza."""
 
-import os
 import re
 import math
 import clr
@@ -12,7 +11,7 @@ clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 
 from System.Collections.Generic import List
-from System.Windows import MessageBox, MessageBoxButton, MessageBoxImage
+from System.Windows.Media import BrushConverter
 
 from pyrevit import revit, DB, UI, forms, script, EXEC_PARAMS
 import stile_finestre as SF
@@ -587,21 +586,26 @@ class SectionFilledRegionWindow(forms.WPFWindow):
             self._update_selection_ui()
             self.ShowDialog()
 
+    def _problema(self, testo):
+        """Qualcosa manca o non va: nella riga di stato (rosso) o, senza finestra, nell'avviso."""
+        try:
+            self.lblStatus.Text = testo
+            self.lblStatus.Foreground = BrushConverter().ConvertFromString("#DC2626")
+        except Exception:
+            pass
+        if not self.IsVisible:
+            AVW.attenzione(testo)
+
     def _on_apply(self, sender, e):
         MF.salva(self, _MEMORIA, _CONTROLLI)
         if not self.selected_records:
-            MessageBox.Show(
-                "Seleziona almeno un pavimento o elemento 3D tagliato nella sezione.",
-                "Selezione Mancante",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
+            self._problema(u"Seleziona gli elementi tagliati dalla sezione")
             return
 
         try:
             height_ft, disp_h = parse_signed_length_to_feet(self.txtHeight.Text)
         except ValueError as ex:
-            MessageBox.Show(str(ex), "Valore non valido", MessageBoxButton.OK, MessageBoxImage.Warning)
+            self._problema(str(ex))
             return
 
         pick_top = bool(self.rbEdgeTop.IsChecked)
@@ -617,19 +621,14 @@ class SectionFilledRegionWindow(forms.WPFWindow):
             mode = "parallel"
 
         if mode in ("minmax", "parallel") and abs(height_ft) < 0.005:
-            MessageBox.Show(
-                "Per questa modalita l'altezza H deve essere maggiore di zero (es. 100 cm).",
-                "Altezza non valida",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
+            self._problema(u"Con questa chiusura l'altezza H deve essere maggiore di zero (es. 100 cm)")
             return
 
         level_v_ft = 0.0
         if mode == "level":
             sel_lvl = self.cmbLevel.SelectedItem
             if not sel_lvl:
-                MessageBox.Show("Seleziona un Livello di riferimento.", "Attenzione", MessageBoxButton.OK, MessageBoxImage.Warning)
+                self._problema(u"Scegli il livello di riferimento")
                 return
             lvl_z = sel_lvl.Object.Elevation
             pt_lvl = DB.XYZ(self.view.Origin.X, self.view.Origin.Y, lvl_z)
@@ -640,22 +639,12 @@ class SectionFilledRegionWindow(forms.WPFWindow):
             all_solids.extend(extract_element_solids(rec["elem"], rec["transform"]))
 
         if not all_solids:
-            MessageBox.Show(
-                "Impossibile estrarre geometria solida 3D dagli elementi selezionati.",
-                "Geometria non trovata",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
+            self._problema(u"Gli elementi selezionati non hanno una geometria 3D da tagliare")
             return
 
         segments = extract_section_cut_segments(all_solids, self.view, pick_top_edge=pick_top)
         if not segments:
-            MessageBox.Show(
-                "Gli elementi selezionati non risultano intersecati dal piano di taglio di questa sezione.",
-                "Nessuna intersezione col piano di sezione",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
+            self._problema(u"Gli elementi non sono tagliati da questa sezione")
             return
 
         if self.chkCropToView.IsChecked:
@@ -664,12 +653,7 @@ class SectionFilledRegionWindow(forms.WPFWindow):
                 segments = clip_segments_to_u_range(segments, crop_limits[0], crop_limits[1])
 
         if not segments:
-            MessageBox.Show(
-                "Nessun segmento sezionato ricade dentro i limiti orizzontali del Riquadro di Taglio della vista.",
-                "Fuori dal Riquadro di Taglio",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning
-            )
+            self._problema(u"La parte tagliata è fuori dal ritaglio della vista")
             return
 
         islands = build_profile_islands(segments)
@@ -737,12 +721,7 @@ class SectionFilledRegionWindow(forms.WPFWindow):
             AVW.mostra(u"Campiture create: %d \u00b7 %s, bordo %s (Maiusc+clic: impostazioni)"
                        % (len(created_regions), sel_fr.Name, u"superiore" if pick_top else u"inferiore"))
         else:
-            MessageBox.Show(
-                "Impossibile generare un contorno chiuso valido con i parametri impostati.",
-                "Errore Geometria",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error
-            )
+            self._problema(u"Campitura non creata: con queste impostazioni il contorno non si chiude")
 
 
 def main():
@@ -751,16 +730,11 @@ def main():
     active_view = revit.active_view
 
     if not doc or not uidoc or doc.IsFamilyDocument:
-        forms.alert("Apri una vista di sezione o prospetto nel progetto per usare questo strumento.", title="CDV Tools")
+        AVW.errore(u"Apri una sezione o un prospetto")
         return
 
     if active_view.ViewType not in (DB.ViewType.Section, DB.ViewType.Elevation, DB.ViewType.Detail):
-        forms.alert(
-            "Questo strumento funziona nelle viste di Sezione, Prospetto o Dettaglio.\n\nVista attiva: {} ({})".format(
-                active_view.Name, active_view.ViewType
-            ),
-            title="CDV Tools - Vista non supportata"
-        )
+        AVW.errore(u"Apri una sezione, un prospetto o un dettaglio")
         return
 
     initial_records = []

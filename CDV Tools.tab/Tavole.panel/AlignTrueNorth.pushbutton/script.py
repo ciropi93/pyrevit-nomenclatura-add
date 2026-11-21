@@ -17,6 +17,7 @@ from Autodesk.Revit.DB import (
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from Autodesk.Revit.Exceptions import OperationCanceledException
 from pyrevit import revit, forms
+import avviso_wpf as AVW
 
 
 class FamilyInstanceSelectionFilter(ISelectionFilter):
@@ -73,7 +74,7 @@ def main():
     uidoc = revit.uidoc
 
     if not doc or not uidoc or doc.IsFamilyDocument:
-        forms.alert("Apri un documento di progetto per utilizzare questo comando.", title="CDV Tools - Allinea Nord Reale")
+        AVW.errore(u"Apri un progetto")
         return
 
     selected_fi = None
@@ -85,10 +86,6 @@ def main():
             break
 
     if selected_fi is None:
-        forms.alert(
-            "Clicca OK e seleziona nella vista la famiglia (Freccia Nord) da allineare al Nord Reale.",
-            title="CDV Tools - Allinea Nord Reale"
-        )
         try:
             ref = uidoc.Selection.PickObject(
                 ObjectType.Element,
@@ -99,7 +96,7 @@ def main():
         except OperationCanceledException:
             return
         except Exception as ex:
-            forms.alert("Errore durante la selezione: {}".format(ex), title="CDV Tools")
+            AVW.errore(u"Selezione non riuscita: %s" % ex)
             return
 
     if not selected_fi or not selected_fi.Symbol:
@@ -138,13 +135,10 @@ def main():
         t.Commit()
     except Exception as ex:
         t.RollBack()
-        forms.alert("Errore durante la rotazione:\n{}".format(ex), title="CDV Tools")
+        AVW.errore(u"Rotazione non riuscita: %s" % ex)
         return
 
-    forms.alert(
-        u"Allineate {} istanze di '{}' al Nord Reale ({:.2f}\u00b0).".format(aligned_count, fam_name, angle_deg),
-        title="CDV Tools - Allinea Nord Reale"
-    )
+    AVW.mostra(u"%d simboli %s allineati al Nord reale (%.2f\u00b0)" % (aligned_count, fam_name, angle_deg))
 
 
 if __name__ == "__main__":
