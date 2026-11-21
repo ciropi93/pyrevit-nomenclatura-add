@@ -1,4 +1,4 @@
 title: "Crea Filtro\nda Selezione"
-tooltip: Analizza gli elementi selezionati nel progetto, suggerisce automaticamente i parametri comuni più rilevanti (con valori identici o multipli) e permette di configurare e creare direttamente il Filtro di Vista in Revit, applicandolo facoltativamente alla vista attiva.
+tooltip: "Seleziona gli elementi: propone le regole già pronte (es. Tipo = Muro esterno 30), la più adatta in cima, e il nome del filtro. Il filtro va nella vista attiva o nel suo modello di vista. Maiusc+clic: colore e visibilità."
 author: CDV Tools
 context: doc-project
