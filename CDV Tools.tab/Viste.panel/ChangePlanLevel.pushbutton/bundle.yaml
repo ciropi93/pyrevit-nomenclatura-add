@@ -1,4 +1,4 @@
 title: "Cambia Livello\nPianta"
-tooltip: Cambia il livello associato di una vista di pianta trasferendo automaticamente grafica, modello di vista, intervallo di visualizzazione, ritaglio, riquadro di definizione, annotazioni 2D e posizionamento su tavola.
+tooltip: "Porta la pianta attiva (o selezionata) su un altro livello: scegli il livello e basta. Grafica, modello di vista, intervallo, ritaglio, annotazioni 2D e posto in tavola passano con lei. Maiusc+clic: opzioni (duplica invece di spostare, nome)."
 author: CDV Tools
 context: doc-project

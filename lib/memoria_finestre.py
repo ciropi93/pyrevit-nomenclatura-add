@@ -152,3 +152,25 @@ def ripristina(win, comando, nomi, percorso=None):
         except Exception:
             pass
     return bool(stato)
+
+
+# ------------------------------------------------------------------------------
+# VALORI SINGOLI (es. "da quale modello e' stata sganciata questa vista")
+# ------------------------------------------------------------------------------
+
+def valore(comando, chiave, predefinito=None, percorso=None):
+    return impostazioni(comando, percorso).get(chiave, predefinito)
+
+
+def imposta_valore(comando, chiave, val, percorso=None):
+    """Salva un valore (None lo toglie); non solleva mai eccezioni."""
+    try:
+        dati = leggi_tutto(percorso)
+        voci = dati.setdefault(comando, {})
+        if val is None:
+            voci.pop(chiave, None)
+        else:
+            voci[chiave] = val
+        scrivi_tutto(dati, percorso)
+    except Exception:
+        pass

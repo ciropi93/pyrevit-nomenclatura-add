@@ -1,4 +1,4 @@
 title: "Aggiorna Modello\nda Vista"
-tooltip: Aggiorna un Modello di Vista esistente (o ne crea uno nuovo) con le impostazioni grafiche, i filtri e le sovrascritture della vista corrente. Consente di sperimentare modifiche grafiche a modello sganciato e salvarle nel modello di vista scelto.
+tooltip: "Salva nel modello di vista la grafica della vista attiva. Se la vista usa un modello: Sgancia per modificare. Cambia la grafica, poi rilancia: il modello è già proposto, Aggiorna e la vista si riaggancia. Puoi anche creare un modello nuovo dalla vista."
 author: CDV Tools
 context: doc-project

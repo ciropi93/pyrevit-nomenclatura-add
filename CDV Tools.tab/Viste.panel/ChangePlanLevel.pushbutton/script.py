@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Cambia il livello associato di una vista di pianta trasferendo grafica, modello di vista, intervallo di visualizzazione, ritaglio, riquadro di definizione, annotazioni 2D e posizionamento su tavola."""
+"""Cambia il livello di una pianta (quella attiva o selezionata).
 
-import os
+Una sola domanda: a quale livello. La pianta passa al nuovo livello con grafica, modello
+di vista, intervallo di visualizzazione, ritaglio, riquadro di definizione, annotazioni
+2D e posto in tavola. Maiusc+clic apre subito le opzioni (duplica, nome, cosa portare).
+"""
+
 import clr
 
 clr.AddReference('System')
@@ -11,9 +15,7 @@ clr.AddReference('WindowsBase')
 clr.AddReference('RevitAPI')
 clr.AddReference('RevitAPIUI')
 
-import System
 from System.Collections.Generic import List
-from System.Windows.Media import BrushConverter
 
 from Autodesk.Revit.DB import (
     BuiltInParameter,
@@ -39,11 +41,14 @@ from Autodesk.Revit.DB import (
     XYZ,
 )
 
-from pyrevit import revit, forms, script
+from pyrevit import revit, forms, script, EXEC_PARAMS
 import stile_finestre as SF
 import memoria_finestre as MF
+import avviso_wpf as AVW
+import elenco_wpf as EW
+import cambia_livello as CL
 
-# ultime scelte della finestra (vedi lib/memoria_finestre.py)
+# ultime scelte della finestra (vedi lib/memoria_finestre.py); il nome non si ricorda
 _MEMORIA = u"cambia_livello"
 _CONTROLLI = [u"rbReplaceView", u"rbDuplicateView", u"chkCopy2D", u"chkCopyHidden"]
 
@@ -55,13 +60,6 @@ PLAN_VIEW_TYPES = [
     ViewType.AreaPlan,
 ]
 
-VIEW_TYPE_LABELS = {
-    ViewType.FloorPlan: u"Pianta di Pavimento",
-    ViewType.CeilingPlan: u"Pianta dei Controsoffitti",
-    ViewType.EngineeringPlan: u"Pianta Strutturale",
-    ViewType.AreaPlan: u"Pianta delle Aree",
-}
-
 INTERNAL_SKIP_CATEGORIES = (-2000055, -2009609, -2000279)
 INTERNAL_SKIP_CLASSES = ("SketchPlane", "SunAndShadowSettings")
 
@@ -70,12 +68,6 @@ def eid_val(eid):
     if eid is None:
         return -1
     return eid.Value if hasattr(eid, "Value") else eid.IntegerValue
-
-
-def feet_to_m_str(feet_val):
-    meters = feet_val * 0.3048
-    sign = "+" if meters > 0.0001 else ""
-    return u"{}{:.2f} m".format(sign, meters)
 
 
 class SmartFailureResolver(IFailuresPreprocessor):
@@ -417,178 +409,77 @@ def change_plan_level(doc, uidoc, old_view, target_level, desired_name, replace_
 
 
 class ChangePlanLevelWindow(forms.WPFWindow):
-    def __init__(self, xaml_file, doc, uidoc, initial_view):
+    """Elenco dei livelli (quello attuale non si sceglie) e opzioni chiuse in "Opzioni"."""
+
+    def __init__(self, xaml_file, doc, vista, opzioni_aperte=False):
         forms.WPFWindow.__init__(self, SF.xaml(xaml_file), literal_string=True)
-        self.doc = doc
-        self.uidoc = uidoc
-        self.current_view = initial_view
-        self.plan_views = []
-        self.levels = []
+        self.vista = vista
+        self.esegui = False
+        self.livello = None
+        self._nome_auto = u""
+        self._nome_toccato = False
 
-        self.load_data()
-        self.setup_views_combo()
-        self.setup_levels_list()
-        self.refresh_source_info()
+        self.livelli = sorted(FilteredElementCollector(doc).OfClass(Level).ToElements(),
+                              key=lambda l: l.Elevation)
+        id_attuale = vista.GenLevel.Id if vista.GenLevel else None
+        indice_attuale = None
+        voci = []
+        for i, lvl in enumerate(self.livelli):
+            attuale = id_attuale is not None and lvl.Id == id_attuale
+            if attuale:
+                indice_attuale = i
+            voci.append(EW.Voce(lvl, lvl.Name, u"attuale" if attuale else CL.quota_testo(lvl.Elevation),
+                                abilitato=not attuale))
+        self.lstLevels.ItemsSource = voci
+        self.lblVista.Text = vista.Name
 
-        self.cmbSourceView.SelectionChanged += self.on_source_view_changed
-        self.lstLevels.SelectionChanged += self.on_level_changed
-        self.rbReplaceView.Checked += self.on_mode_changed
-        self.rbDuplicateView.Checked += self.on_mode_changed
-        self.btnSuggestName.Click += self.on_suggest_name
-        self.btnCancel.Click += self.on_cancel
+        MF.ripristina(self, _MEMORIA, _CONTROLLI)
+        self.expOpzioni.IsExpanded = bool(opzioni_aperte)
+        proposto = CL.livello_proposto([l.Elevation for l in self.livelli], indice_attuale)
+        if proposto is not None:
+            self.lstLevels.SelectedIndex = proposto
+
+        self.lstLevels.SelectionChanged += lambda s, e: self.aggiorna()
+        self.lstLevels.MouseDoubleClick += lambda s, e: self.on_apply(s, e)
+        self.rbReplaceView.Checked += lambda s, e: self.aggiorna()
+        self.rbDuplicateView.Checked += lambda s, e: self.aggiorna()
+        self.txtNewViewName.TextChanged += self.on_nome_cambiato
+        self.btnCancel.Click += lambda s, e: self.Close()
         self.btnApply.Click += self.on_apply
+        self.aggiorna()
 
-    def load_data(self):
-        all_views = FilteredElementCollector(self.doc).OfClass(ViewPlan).ToElements()
-        self.plan_views = [
-            v for v in all_views
-            if not v.IsTemplate and v.ViewType in PLAN_VIEW_TYPES and v.GenLevel is not None
-        ]
-        self.plan_views.sort(key=lambda v: (v.GenLevel.Elevation, v.Name))
+    def livello_scelto(self):
+        voce = self.lstLevels.SelectedItem
+        if voce is None or not voce.Abilitato:
+            return None
+        return voce.oggetto
 
-        all_levels = FilteredElementCollector(self.doc).OfClass(Level).ToElements()
-        self.levels = sorted(all_levels, key=lambda l: l.Elevation)
+    def aggiorna(self):
+        lvl = self.livello_scelto()
+        duplica = bool(self.rbDuplicateView.IsChecked)
+        self.btnApply.Content = CL.testo_pulsante(lvl.Name if lvl else None, duplica)
+        self.btnApply.IsEnabled = lvl is not None
+        if lvl is not None and not self._nome_toccato:
+            vecchio = self.vista.GenLevel.Name if self.vista.GenLevel else u""
+            self._nome_auto = CL.nome_nuova_vista(self.vista.Name, vecchio, lvl.Name, duplica)
+            self.txtNewViewName.Text = self._nome_auto
 
-    def setup_views_combo(self):
-        self.cmbSourceView.Items.Clear()
-        sel_idx = 0
-        for idx, v in enumerate(self.plan_views):
-            lvl_name = v.GenLevel.Name if v.GenLevel else "-"
-            vt_label = VIEW_TYPE_LABELS.get(v.ViewType, str(v.ViewType))
-            self.cmbSourceView.Items.Add(u"{}  [Livello: {} | {}]".format(v.Name, lvl_name, vt_label))
-            if self.current_view and v.Id == self.current_view.Id:
-                sel_idx = idx
-        if self.cmbSourceView.Items.Count > 0:
-            self.cmbSourceView.SelectedIndex = sel_idx
-            self.current_view = self.plan_views[sel_idx]
-
-    def setup_levels_list(self):
-        self.lstLevels.Items.Clear()
-        cur_lvl_id = self.current_view.GenLevel.Id if (self.current_view and self.current_view.GenLevel) else None
-        first_other_idx = 0
-        for idx, lvl in enumerate(self.levels):
-            elev_str = feet_to_m_str(lvl.Elevation)
-            is_cur = (cur_lvl_id and lvl.Id == cur_lvl_id)
-            tag = u"  (LIVELLO ATTUALE)" if is_cur else u""
-            self.lstLevels.Items.Add(u"{}   [Quota: {}]{}".format(lvl.Name, elev_str, tag))
-            if not is_cur and first_other_idx == 0:
-                first_other_idx = idx
-        if self.lstLevels.Items.Count > 0:
-            self.lstLevels.SelectedIndex = first_other_idx
-
-    def refresh_source_info(self):
-        v = self.current_view
-        if not v:
-            return
-        lvl = v.GenLevel
-        if lvl:
-            self.lblCurrentLevel.Text = u"Livello attuale: {} ({})".format(lvl.Name, feet_to_m_str(lvl.Elevation))
-        else:
-            self.lblCurrentLevel.Text = u"Livello attuale: -"
-
-        self.lblViewType.Text = u"Tipo: {}".format(VIEW_TYPE_LABELS.get(v.ViewType, str(v.ViewType)))
-
-        vps = [vp for vp in FilteredElementCollector(self.doc).OfClass(Viewport) if vp.ViewId == v.Id]
-        if vps:
-            sheet = self.doc.GetElement(vps[0].SheetId)
-            s_num = sheet.SheetNumber if sheet else "?"
-            self.lblSheetStatus.Text = u"Impaginata su tavola: {}".format(s_num)
-            self.lblSheetStatus.Foreground = BrushConverter().ConvertFromString("#15803D")
-            self.bdrSheetStatus.Background = BrushConverter().ConvertFromString("#DCFCE7")
-        else:
-            self.lblSheetStatus.Text = u"Non impaginata su tavola"
-            self.lblSheetStatus.Foreground = BrushConverter().ConvertFromString("#5B6B78")
-            self.bdrSheetStatus.Background = BrushConverter().ConvertFromString("#EEF2F5")
-
-        self.update_name_preview()
-
-    def get_selected_level(self):
-        idx = self.lstLevels.SelectedIndex
-        if 0 <= idx < len(self.levels):
-            return self.levels[idx]
-        return None
-
-    def compute_suggested_name(self, force_level_in_name=False):
-        v = self.current_view
-        tgt_lvl = self.get_selected_level()
-        if not v:
-            return ""
-        base_name = v.Name
-        cur_lvl_name = v.GenLevel.Name if v.GenLevel else ""
-        tgt_lvl_name = tgt_lvl.Name if tgt_lvl else ""
-
-        is_replace = bool(self.rbReplaceView.IsChecked)
-        if is_replace and not force_level_in_name:
-            return base_name
-
-        if cur_lvl_name and tgt_lvl_name and cur_lvl_name in base_name:
-            return base_name.replace(cur_lvl_name, tgt_lvl_name)
-        if tgt_lvl_name:
-            return u"{} - {}".format(base_name, tgt_lvl_name)
-        return base_name
-
-    def update_name_preview(self):
-        self.txtNewViewName.Text = self.compute_suggested_name(force_level_in_name=False)
-
-    def on_source_view_changed(self, sender, args):
-        idx = self.cmbSourceView.SelectedIndex
-        if 0 <= idx < len(self.plan_views):
-            self.current_view = self.plan_views[idx]
-            self.setup_levels_list()
-            self.refresh_source_info()
-
-    def on_level_changed(self, sender, args):
-        if bool(self.rbDuplicateView.IsChecked):
-            self.update_name_preview()
-
-    def on_mode_changed(self, sender, args):
-        self.update_name_preview()
-
-    def on_suggest_name(self, sender, args):
-        self.txtNewViewName.Text = self.compute_suggested_name(force_level_in_name=True)
-
-    def on_cancel(self, sender, args):
-        self.Close()
+    def on_nome_cambiato(self, sender, args):
+        if self.txtNewViewName.Text != self._nome_auto:
+            self._nome_toccato = True
 
     def on_apply(self, sender, args):
+        lvl = self.livello_scelto()
+        if lvl is None:
+            return
         MF.salva(self, _MEMORIA, _CONTROLLI)
-        if not self.current_view:
-            forms.alert("Seleziona una vista di pianta valida.")
-            return
-        tgt_lvl = self.get_selected_level()
-        if not tgt_lvl:
-            forms.alert("Seleziona un livello di destinazione.")
-            return
-        if self.current_view.GenLevel and tgt_lvl.Id == self.current_view.GenLevel.Id and bool(self.rbReplaceView.IsChecked):
-            forms.alert("La vista è già associata al livello '{}'. Scegli un livello diverso.".format(tgt_lvl.Name))
-            return
-
-        desired_name = self.txtNewViewName.Text.strip() or self.current_view.Name
-        replace_old = bool(self.rbReplaceView.IsChecked)
-        copy_2d = bool(self.chkCopy2D.IsChecked)
-        copy_hidden = bool(self.chkCopyHidden.IsChecked)
-
+        self.livello = lvl
+        self.nome = self.txtNewViewName.Text.strip() or self.vista.Name
+        self.duplica = bool(self.rbDuplicateView.IsChecked)
+        self.copia_2d = bool(self.chkCopy2D.IsChecked)
+        self.copia_nascosti = bool(self.chkCopyHidden.IsChecked)
+        self.esegui = True
         self.Close()
-
-        try:
-            new_view, copied_2d, swapped_sheets = change_plan_level(
-                self.doc,
-                self.uidoc,
-                self.current_view,
-                tgt_lvl,
-                desired_name,
-                replace_old=replace_old,
-                copy_2d=copy_2d,
-                copy_hidden=copy_hidden,
-            )
-            msg = u"Vista '{}' associata con successo al livello '{}'.".format(new_view.Name, tgt_lvl.Name)
-            if copy_2d:
-                msg += u"\n• Elementi 2D/annotazioni trasferiti: {}".format(copied_2d)
-            if swapped_sheets:
-                msg += u"\n• Aggiornata su tavola: {}".format(", ".join(swapped_sheets))
-            forms.alert(msg, title="Cambia Livello Pianta")
-        except Exception as ex:
-            forms.alert("Errore durante il cambio di livello:\n{}".format(str(ex)), title="Errore")
 
 
 def resolve_initial_plan_view(doc, uidoc):
@@ -610,23 +501,27 @@ def resolve_initial_plan_view(doc, uidoc):
 def main():
     doc = revit.doc
     uidoc = revit.uidoc
+    vista = resolve_initial_plan_view(doc, uidoc)
+    if vista is None or vista.GenLevel is None:
+        AVW.errore(u"Apri una pianta (o selezionala nel browser o in tavola) per cambiarne il livello")
+        return
 
-    plans = [
-        v for v in FilteredElementCollector(doc).OfClass(ViewPlan).ToElements()
-        if not v.IsTemplate and v.ViewType in PLAN_VIEW_TYPES and v.GenLevel is not None
-    ]
-    if not plans:
-        forms.alert("Nessuna vista di pianta trovata nel progetto.", exitscript=True)
-
-    levels = FilteredElementCollector(doc).OfClass(Level).ToElements()
-    if len(levels) < 1:
-        forms.alert("Nessun livello trovato nel progetto.", exitscript=True)
-
-    initial_view = resolve_initial_plan_view(doc, uidoc) or plans[0]
-    xaml_path = script.get_bundle_file('ui.xaml')
-    win = ChangePlanLevelWindow(xaml_path, doc, uidoc, initial_view)
-    MF.ripristina(win, _MEMORIA, _CONTROLLI)
+    win = ChangePlanLevelWindow(script.get_bundle_file('ui.xaml'), doc, vista, EXEC_PARAMS.config_mode)
     win.ShowDialog()
+    if not win.esegui:
+        return
+
+    try:
+        nuova, _n2d, tavole = change_plan_level(
+            doc, uidoc, vista, win.livello, win.nome,
+            replace_old=not win.duplica, copy_2d=win.copia_2d, copy_hidden=win.copia_nascosti)
+    except Exception as ex:
+        AVW.errore(u"Cambio di livello non riuscito: %s" % ex)
+        return
+    msg = (u"Pianta duplicata su %s" if win.duplica else u"Pianta spostata su %s") % win.livello.Name
+    if tavole:
+        msg += u" \u00b7 tavola %s" % u", ".join(tavole)
+    AVW.mostra(msg)
 
 
 if __name__ == '__main__':

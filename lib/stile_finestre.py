@@ -14,8 +14,11 @@ Stili con nome da usare nei file ui.xaml:
     Scheda        (Border)     riquadro bianco con bordo
     Etichetta     (TextBlock)  titoletto di una scheda (maiuscolo piccolo, grigio)
     Primario      (Button)     pulsante dell'azione principale
-Tutti gli altri controlli (Button, CheckBox, RadioButton, TextBox, ComboBox, Expander)
-prendono lo stile da soli.
+    Nota          (TextBlock)  testo piccolo grigio di spiegazione
+Tutti gli altri controlli (Button, CheckBox, RadioButton, TextBox, ComboBox, Expander,
+ListBox)
+prendono lo stile da soli. Gli elenchi (ListBox) hanno righe con la
+selezione azzurra e una barra blu a sinistra.
 """
 import io
 import re
@@ -152,6 +155,50 @@ RISORSE = (u"""<Window.Resources>
         <Setter Property="Padding" Value="12"/>
         <Setter Property="Margin" Value="0,0,0,10"/>
     </Style>
+    <Style TargetType="ListBox">
+        <Setter Property="Background" Value="#FFFFFF"/>
+        <Setter Property="BorderBrush" Value="%(bordo_chiaro)s"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Foreground" Value="%(testo)s"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+    </Style>
+    <Style TargetType="ListBoxItem">
+        <Setter Property="Padding" Value="10,7"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="bd" Background="Transparent" BorderBrush="%(sfondo_tenue)s"
+                            BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Border x:Name="barra" Width="3" HorizontalAlignment="Left" Background="Transparent"/>
+                            <ContentPresenter Margin="{TemplateBinding Padding}"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="%(sfondo)s"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="%(azzurro_chiaro)s"/>
+                            <Setter TargetName="barra" Property="Background" Value="%(blu)s"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="Nota" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Foreground" Value="%(testo_sec)s"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="Margin" Value="0,0,0,10"/>
+    </Style>
     <Style x:Key="Etichetta" TargetType="TextBlock">
         <Setter Property="FontSize" Value="11"/>
         <Setter Property="FontWeight" Value="Bold"/>
@@ -165,7 +212,8 @@ RISORSE = (u"""<Window.Resources>
         (u"FontSize", u"12"), (u"Cursor", u"Hand")]),
     u"hover": AZZURRO_CHIARO, u"blu": BLU, u"blu_scuro": BLU_SCURO, u"azzurro": AZZURRO,
     u"testo": TESTO, u"testo_sec": TESTO_SECONDARIO, u"bordo": BORDO,
-    u"bordo_chiaro": BORDO_CHIARO,
+    u"bordo_chiaro": BORDO_CHIARO, u"azzurro_chiaro": AZZURRO_CHIARO, u"sfondo": SFONDO,
+    u"sfondo_tenue": SFONDO_TENUE,
 })
 
 _RISORSE_VECCHIE = re.compile(r"\s*<Window\.Resources>.*?</Window\.Resources>", re.S)
