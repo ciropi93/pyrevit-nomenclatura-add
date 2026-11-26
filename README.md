@@ -7,6 +7,7 @@ Estensione pyRevit con un solo tab, **CDV Tools**:
 | **Grafica e Filtri** | Copia proprietà grafiche categoria/elemento (anche tra legende: lanciato da una legenda copia la grafica dei componenti sui componenti uguali delle altre legende), Aggiorna modello di vista, Copia ritaglio di vista, Cambia livello della pianta, Crea filtro da selezione, Profondità sezione (sfondo vettoriale) |
 | **Campiture** | Campitura da polilinea/offset, Campitura da sezione |
 | **Modellazione** | Inverti muro sull'asse centrale, Palette On/Off, Personalizza Palette |
+| **Infissi** | Configuratore Infissi (famiglie parametriche di finestre e portefinestre), Modifica Infisso (vedi sotto) |
 | **Tavole e Legende** | Allinea viste su tavole, Allinea Viste (stack: Distribuisci Viste, Allinea Viste Orizz., Allinea Viste Vert. sul puro CropBox), Allinea Titoli, Componenti in legenda, Allinea al Nord reale, Ritaglia immagine (come in Word; riaprendolo si allarga il ritaglio o si ripristina l'immagine intera) |
 | **Nomenclatura** | Controllo e correzione dei nomi secondo il BIMMS ADD2024 (vedi sotto) |
 
@@ -68,6 +69,32 @@ La palette resta aperta, quindi puoi fare più allineamenti di fila; ogni tasto 
 Ctrl+Z. Lo sfondo di una sezione si sposta sempre insieme alla sua madre. Si accende da solo
 all'avvio (`startup.py`); su Revit 2023+ usa l'evento di selezione, prima controlla la
 selezione a riposo.
+
+## Infissi
+
+**Configuratore Infissi** crea famiglie Revit **parametriche** di finestre e portefinestre:
+
+- a sinistra gli **schemi** pronti (1, 2, 3 ante, sopraluce, vasistas, portefinestre, scorrevoli,
+  porta + laterale fisso) e quelli salvati da te (★, in `%APPDATA%\pyRevit\CDVTools\infissi\schemi`);
+- al centro l'**anteprima in prospetto vista da fuori**: clicchi una zona e scegli l'anta (fisso,
+  battente sx/dx, vasistas, anta-ribalta sx/dx, scorrevole sx/dx, porta sx/dx), la dividi in
+  colonne o righe, togli la divisione, metti o togli il montante (senza montante le due ante si
+  chiudono una sull'altra). Il simbolo di apertura ha la punta sul lato delle cerniere (UNI/DIN);
+- a destra **categoria** (Finestre o Porte, scelta ogni volta), nome, larghezza e altezza esterne
+  del telaio, **misure delle zone** (ognuna dal bordo o dall'asse precedente all'asse seguente:
+  l'ultima zona prende il resto) e **profili** (telaio, soglia, montante, anta, profondità, vetro,
+  zoccolo delle porte, frecce degli scorrevoli).
+
+**Crea famiglia e carica** parte dal modello famiglia di Revit (*Finestra metrica* / *Porta
+metrica*; se non lo trova lo chiede una volta), salva la `.rfa` nella cartella scelta e la carica
+nel progetto, pronta da posizionare. Nella famiglia tutto è parametro di tipo: larghezza, altezza,
+`L zona …`/`H zona …`, profili, materiali (telaio e vetro), `Apertura` (descrizione per gli abachi)
+e `Schema CDV` (lo schema, per rimodificarla). Telaio, montanti, ante, vetri e zoccoli sono
+estrusioni bloccate a piani di riferimento quotati; le linee di apertura hanno gli estremi quotati.
+Alla fine il tool allarga la famiglia di 30 cm per prova: se qualcosa non segue le misure lo dice.
+
+**Modifica Infisso**: selezioni un infisso creato dal configuratore, si riapre il suo schema con le
+misure del tipo; la famiglia viene rigenerata e ricaricata con tutti i suoi tipi.
 
 ## Nomenclatura ADD
 

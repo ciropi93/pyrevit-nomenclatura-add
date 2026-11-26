@@ -1,0 +1,4 @@
+title: "Configuratore\nInfissi"
+tooltip: Crea famiglie parametriche di finestre e portefinestre (fissi, battenti, vasistas, anta-ribalta, scorrevoli, porte, sopraluce). Scegli uno schema o disegnalo dividendo le zone, imposta misure e profili; la famiglia viene salvata come .rfa e caricata nel progetto. Larghezza, altezza, zone e profili restano parametri di tipo.
+author: CDV Tools
+context: doc-project

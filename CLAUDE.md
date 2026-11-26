@@ -1,7 +1,8 @@
 # CDV Tools (estensione pyRevit)
 
 Un solo tab `CDV Tools.tab` (la radice del repo è l'estensione) con i pannelli Grafica e Filtri, Campiture,
-Modellazione, Tavole e Nomenclatura. Le note qui sotto riguardano il pannello **Nomenclatura ADD**.
+Modellazione, Infissi, Tavole e Nomenclatura. Le note qui sotto riguardano il pannello **Nomenclatura ADD**;
+il pannello **Infissi** ha la logica in `lib/infissi/` (API Revit solo in `revit_famiglia.py` e `ui.py`, test in `tests/test_infissi.py`).
 
 Controlla e corregge i nomi di un modello Revit secondo il BIMMS ADD2024 dell'Agenzia del Demanio
 (progetto Sulmona, codice bene AQD0031). Utente: Ciro, scrive in italiano; risposte brevi e semplici.
@@ -16,4 +17,4 @@ Controlla e corregge i nomi di un modello Revit secondo il BIMMS ADD2024 dell'Ag
 
 ## Comandi
 - Test: `python -m pytest -q tests`
-- Lint: `python -m pyflakes lib "CDV Tools.tab/Nomenclatura.panel" tests`
+- Lint: `python -m pyflakes lib "CDV Tools.tab/Nomenclatura.panel" "CDV Tools.tab/Infissi.panel" tests`

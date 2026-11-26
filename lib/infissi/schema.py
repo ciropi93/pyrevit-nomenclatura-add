@@ -1,0 +1,315 @@
+# -*- coding: utf-8 -*-
+"""Schema di un infisso, senza API Revit.
+
+Lo schema e' un dizionario (si salva cosi' com'e' in JSON):
+
+    {"versione": 1, "nome": u"2 ante", "categoria": "finestre" | "porte",
+     "larghezza": 1200, "altezza": 1500,            # mm, esterno telaio
+     "profili": {"telaio": 70, ...},                # mm, vedi PROFILI
+     "radice": nodo}
+
+Un nodo e' una cella o una divisione:
+
+    {"tipo": "cella", "anta": "battente_sx"}
+    {"tipo": "divisione", "verso": "v" | "o", "montante": True,
+     "misure": [600], "figli": [nodo, nodo]}
+
+- verso "v": figli affiancati (colonne, da sinistra); "o": sovrapposti (righe, dal basso).
+- misure: n-1 misure in mm, ognuna dal bordo esterno o dall'asse precedente all'asse
+  seguente; l'ultimo figlio prende il resto.
+- montante False = battuta: due ante che si chiudono una sull'altra, senza montante fisso.
+
+I versi sx/dx delle ante si leggono in prospetto dall'esterno: "battente_sx" ha le cerniere a
+sinistra; il simbolo e' un triangolo con la punta sul lato delle cerniere (UNI/DIN).
+"""
+import copy
+import json
+
+VERSIONE = 1
+
+FINESTRE = u"finestre"
+PORTE = u"porte"
+CATEGORIE = ((FINESTRE, u"Finestre"), (PORTE, u"Porte"))
+
+# (chiave, etichetta)
+ANTE = (
+    (u"fisso", u"Fisso"),
+    (u"battente_sx", u"Battente, cerniere a sinistra"),
+    (u"battente_dx", u"Battente, cerniere a destra"),
+    (u"vasistas", u"Vasistas (a ribalta)"),
+    (u"anta_ribalta_sx", u"Anta-ribalta, cerniere a sinistra"),
+    (u"anta_ribalta_dx", u"Anta-ribalta, cerniere a destra"),
+    (u"scorrevole_sx", u"Scorrevole verso sinistra"),
+    (u"scorrevole_dx", u"Scorrevole verso destra"),
+    (u"porta_sx", u"Porta, cerniere a sinistra"),
+    (u"porta_dx", u"Porta, cerniere a destra"),
+)
+NOMI_ANTE = dict(ANTE)
+FISSO = u"fisso"
+
+
+def apribile(anta):
+    return anta != FISSO
+
+
+def scorrevole(anta):
+    return anta.startswith(u"scorrevole")
+
+
+def porta(anta):
+    return anta.startswith(u"porta")
+
+
+# (chiave, etichetta, valore predefinito mm, minimo mm)
+PROFILI = (
+    (u"telaio", u"Telaio sezione", 70.0, 20.0),
+    (u"soglia", u"Soglia sezione", 70.0, 10.0),
+    (u"montante", u"Montante sezione", 80.0, 20.0),
+    (u"anta", u"Anta sezione", 80.0, 20.0),
+    (u"telaio_prof", u"Telaio profondità", 70.0, 20.0),
+    (u"anta_prof", u"Anta profondità", 68.0, 20.0),
+    (u"anta_spost", u"Anta spostamento", 0.0, None),
+    (u"vetro", u"Vetro spessore", 28.0, 4.0),
+    (u"zoccolo", u"Zoccolo altezza", 0.0, 0.0),
+    (u"freccia_l", u"Freccia lunghezza", 120.0, 10.0),
+    (u"freccia_a", u"Freccia apertura", 50.0, 5.0),
+)
+PROFILI_PREDEFINITI = dict((k, v) for k, _e, v, _m in PROFILI)
+
+
+class SchemaErrore(ValueError):
+    pass
+
+
+# --- costruzione ------------------------------------------------------------------
+def cella(anta=FISSO):
+    return {u"tipo": u"cella", u"anta": anta}
+
+
+def divisione(verso, figli, misure, montante=True):
+    return {u"tipo": u"divisione", u"verso": verso, u"montante": bool(montante),
+            u"misure": [float(m) for m in misure], u"figli": list(figli)}
+
+
+def nuovo(radice, larghezza, altezza, nome=u"", categoria=FINESTRE, profili=None):
+    p = dict(PROFILI_PREDEFINITI)
+    p.update(profili or {})
+    return {u"versione": VERSIONE, u"nome": nome, u"categoria": categoria,
+            u"larghezza": float(larghezza), u"altezza": float(altezza),
+            u"profili": p, u"radice": radice}
+
+
+def copia(schema):
+    return copy.deepcopy(schema)
+
+
+# --- JSON -------------------------------------------------------------------------
+def to_json(schema):
+    testo = json.dumps(schema, ensure_ascii=False, sort_keys=True)
+    if not isinstance(testo, type(u"")):
+        testo = testo.decode("utf-8")
+    return testo
+
+
+def from_json(testo):
+    try:
+        dati = json.loads(testo)
+    except Exception:
+        raise SchemaErrore(u"Schema non leggibile (JSON rovinato).")
+    return normalizza(dati)
+
+
+def normalizza(dati):
+    """Schema completo dai dati letti (profili mancanti = predefiniti); errore se la forma e' sbagliata."""
+    if not isinstance(dati, dict) or not isinstance(dati.get(u"radice"), dict):
+        raise SchemaErrore(u"Schema senza radice.")
+    s = nuovo(_nodo(dati[u"radice"]), dati.get(u"larghezza", 0), dati.get(u"altezza", 0),
+              nome=dati.get(u"nome", u"") or u"",
+              categoria=dati.get(u"categoria", FINESTRE),
+              profili=dict((k, float(v)) for k, v in (dati.get(u"profili") or {}).items()
+                           if k in PROFILI_PREDEFINITI))
+    return s
+
+
+def _nodo(d):
+    if not isinstance(d, dict):
+        raise SchemaErrore(u"Nodo non valido.")
+    if d.get(u"tipo") == u"cella":
+        return cella(d.get(u"anta", FISSO))
+    if d.get(u"tipo") == u"divisione":
+        return divisione(d.get(u"verso"), [_nodo(f) for f in d.get(u"figli") or []],
+                         d.get(u"misure") or [], d.get(u"montante", True))
+    raise SchemaErrore(u"Nodo di tipo sconosciuto: %s" % d.get(u"tipo"))
+
+
+# --- percorsi ---------------------------------------------------------------------
+def nome_percorso(percorso):
+    """(1, 0) -> u"2.1"; la radice -> u"" (numeri da 1, come si leggono)."""
+    return u".".join(u"%d" % (i + 1) for i in percorso)
+
+
+def nodo_in(radice, percorso):
+    n = radice
+    for i in percorso:
+        n = n[u"figli"][i]
+    return n
+
+
+def celle(radice, percorso=()):
+    """[(percorso, cella)] in ordine (colonne da sinistra, righe dal basso)."""
+    if radice[u"tipo"] == u"cella":
+        return [(tuple(percorso), radice)]
+    out = []
+    for i, f in enumerate(radice[u"figli"]):
+        out.extend(celle(f, tuple(percorso) + (i,)))
+    return out
+
+
+def divisioni(radice, percorso=()):
+    """[(percorso, divisione)] in ordine di visita."""
+    if radice[u"tipo"] == u"cella":
+        return []
+    out = [(tuple(percorso), radice)]
+    for i, f in enumerate(radice[u"figli"]):
+        out.extend(divisioni(f, tuple(percorso) + (i,)))
+    return out
+
+
+def _sostituisci(radice, percorso, nuovo_nodo):
+    if not percorso:
+        return nuovo_nodo
+    r = copy.deepcopy(radice)
+    padre = nodo_in(r, percorso[:-1])
+    padre[u"figli"][percorso[-1]] = nuovo_nodo
+    return r
+
+
+# --- modifiche (ritornano uno schema nuovo) ---------------------------------------------
+def imposta_anta(schema, percorso, anta):
+    if anta not in NOMI_ANTE:
+        raise SchemaErrore(u"Anta sconosciuta: %s" % anta)
+    s = copia(schema)
+    s[u"radice"] = _sostituisci(s[u"radice"], tuple(percorso), cella(anta))
+    return s
+
+
+def dividi(schema, percorso, verso, misura, montante=True):
+    """La cella al percorso diventa una divisione in due celle uguali a lei."""
+    s = copia(schema)
+    vecchia = nodo_in(s[u"radice"], percorso)
+    if vecchia[u"tipo"] != u"cella":
+        raise SchemaErrore(u"Si divide solo una cella.")
+    nuovo_nodo = divisione(verso, [cella(vecchia[u"anta"]), cella(vecchia[u"anta"])],
+                           [misura], montante)
+    s[u"radice"] = _sostituisci(s[u"radice"], tuple(percorso), nuovo_nodo)
+    return s
+
+
+def togli_divisione(schema, percorso_cella):
+    """La divisione che contiene la cella torna una cella sola (con l'anta della cella)."""
+    percorso_cella = tuple(percorso_cella)
+    if not percorso_cella:
+        raise SchemaErrore(u"Non c'e' nessuna divisione da togliere.")
+    s = copia(schema)
+    anta = nodo_in(s[u"radice"], percorso_cella).get(u"anta", FISSO)
+    s[u"radice"] = _sostituisci(s[u"radice"], percorso_cella[:-1], cella(anta))
+    return s
+
+
+def imposta_montante(schema, percorso_divisione, montante):
+    s = copia(schema)
+    nodo_in(s[u"radice"], percorso_divisione)[u"montante"] = bool(montante)
+    return s
+
+
+def imposta_misura(schema, percorso_divisione, indice, valore):
+    s = copia(schema)
+    nodo_in(s[u"radice"], percorso_divisione)[u"misure"][indice] = float(valore)
+    return s
+
+
+# --- controlli di struttura -------------------------------------------------------------
+def errori_struttura(schema):
+    """Errori che non dipendono dalle misure (le misure le controlla geometria.py)."""
+    err = []
+    if schema.get(u"categoria") not in (FINESTRE, PORTE):
+        err.append(u"Categoria non valida: scegli Finestre o Porte.")
+    _controlla(schema[u"radice"], (), err)
+    return err
+
+
+def _controlla(nodo, percorso, err):
+    dove = nome_percorso(percorso) or u"intero infisso"
+    if nodo[u"tipo"] == u"cella":
+        if nodo.get(u"anta") not in NOMI_ANTE:
+            err.append(u"Zona %s: tipo di anta sconosciuto." % dove)
+        return
+    figli = nodo[u"figli"]
+    if nodo.get(u"verso") not in (u"v", u"o"):
+        err.append(u"Zona %s: verso della divisione non valido." % dove)
+    if len(figli) < 2:
+        err.append(u"Zona %s: una divisione deve avere almeno due parti." % dove)
+    if len(nodo[u"misure"]) != len(figli) - 1:
+        err.append(u"Zona %s: servono %d misure." % (dove, max(len(figli) - 1, 0)))
+    if not nodo[u"montante"]:
+        for f in figli:
+            if f[u"tipo"] != u"cella" or not apribile(f.get(u"anta", FISSO)):
+                err.append(u"Zona %s: senza montante tutte le parti devono essere ante "
+                           u"apribili (non fissi, non altre divisioni)." % dove)
+                break
+        else:
+            n_scorr = len([f for f in figli if scorrevole(f[u"anta"])])
+            if 0 < n_scorr < len(figli):
+                err.append(u"Zona %s: senza montante non si mischiano ante scorrevoli e a "
+                           u"battente." % dove)
+    for i, f in enumerate(figli):
+        _controlla(f, percorso + (i,), err)
+
+
+# --- descrizioni ---------------------------------------------------------------------
+def conta_ante(schema):
+    n_apr = n_fissi = 0
+    for _p, c in celle(schema[u"radice"]):
+        if apribile(c[u"anta"]):
+            n_apr += 1
+        else:
+            n_fissi += 1
+    return n_apr, n_fissi
+
+
+def sigla(schema):
+    """Es. u"2A1F" (2 ante apribili, 1 fisso)."""
+    n_apr, n_fissi = conta_ante(schema)
+    parti = []
+    if n_apr:
+        parti.append(u"%dA" % n_apr)
+    if n_fissi:
+        parti.append(u"%dF" % n_fissi)
+    return u"".join(parti)
+
+
+def descrizione(schema):
+    """Testo per il parametro Apertura, es. u"2 Battente, cerniere a sinistra; 1 Fisso"."""
+    conti = []
+    for _p, c in celle(schema[u"radice"]):
+        nome = NOMI_ANTE.get(c[u"anta"], c[u"anta"])
+        for v in conti:
+            if v[0] == nome:
+                v[1] += 1
+                break
+        else:
+            conti.append([nome, 1])
+    return u"; ".join(u"%d %s" % (n, nome) for nome, n in conti)
+
+
+def nome_famiglia(schema):
+    tipo = u"Porta" if schema.get(u"categoria") == PORTE else u"Finestra"
+    return u"CDV_%s_%s" % (tipo, sigla(schema))
+
+
+def nome_tipo(schema):
+    """Es. u"120x150" (cm); se le misure non sono a cm tondi, in mm."""
+    l, h = schema[u"larghezza"], schema[u"altezza"]
+    if abs(l / 10.0 - round(l / 10.0)) < 1e-6 and abs(h / 10.0 - round(h / 10.0)) < 1e-6:
+        return u"%dx%d" % (int(round(l / 10.0)), int(round(h / 10.0)))
+    return u"%gx%g mm" % (l, h)
