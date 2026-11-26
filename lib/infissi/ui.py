@@ -23,19 +23,23 @@ from pyrevit import forms
 
 import avviso as AV
 import avviso_wpf as AVW
+import stile_finestre as SF
 from icone_wpf import colore
 
 from infissi import catalogo as C
 from infissi import geometria as G
 from infissi import schema as S
 
-TITOLO = u"CDV Tools - Infissi"
+TITOLO = u"Infissi"
 XAML = os.path.join(os.path.dirname(os.path.abspath(__file__)), u"configuratore.xaml")
 
 COLORI = {
-    u"telaio": u"#475569", u"montante": u"#475569", u"anta": u"#64748B",
-    u"zoccolo": u"#64748B", u"vetro": u"#CDEFFD",
+    u"telaio": u"#4A5866", u"montante": u"#4A5866", u"anta": u"#5B6B78",
+    u"zoccolo": u"#5B6B78", u"vetro": u"#CFE3F4",
 }
+ARANCIO = u"#E5862A"      # zona scelta
+SCURO = u"#2B3640"        # bordi e simboli di apertura
+GRIGIO = u"#5B6B78"
 ORDINE_DISEGNO = (u"telaio", u"montante", u"anta", u"zoccolo", u"vetro")
 MARGINE = 24.0
 _VIETATI = re.compile(u'[\\\\/:*?"<>|]')
@@ -55,7 +59,7 @@ def cartella_predefinita():
 
 class Configuratore(forms.WPFWindow):
     def __init__(self, schema=None, nome_famiglia=None, cartella=u"", modifica=False):
-        forms.WPFWindow.__init__(self, XAML)
+        forms.WPFWindow.__init__(self, SF.xaml(XAML), literal_string=True)
         self.risultato = None
         self.modifica = modifica
         self._carico = True
@@ -66,6 +70,7 @@ class Configuratore(forms.WPFWindow):
 
         self.voci = []
         self.riempi_schemi()
+        self.btnEliminaSchema.IsEnabled = False   # si attiva sugli schemi salvati da te
         self.cmbAnta.ItemsSource = [e for _k, e in S.ANTE]
 
         self.schema = S.copia(schema) if schema else S.copia(self.voci[0][1])
@@ -76,6 +81,7 @@ class Configuratore(forms.WPFWindow):
             self.txtNome.IsEnabled = False
             self.lstSchemi.IsEnabled = self.btnEliminaSchema.IsEnabled = False
             self.btnCrea.Content = u"Aggiorna famiglia"
+            self.lblTitolo.Text = u"Modifica infisso"
 
         self.lstSchemi.SelectionChanged += self.su_schema
         self.btnSalvaSchema.Click += self.su_salva_schema
@@ -93,9 +99,28 @@ class Configuratore(forms.WPFWindow):
         self.txtLarghezza.TextChanged += self.su_dimensione
         self.txtAltezza.TextChanged += self.su_dimensione
         self.btnCartella.Click += self.su_cartella
+        self.txtCartella.TextChanged += lambda s, a: self.aggiorna_file()
         self.btnAnnulla.Click += lambda s, a: self.Close()
         self.btnCrea.Click += self.su_crea
         self.carica_schema()
+        self.aggiorna_file()
+
+    # --- messaggi nella finestra (niente popup) ----------------------------------------
+    def _stato(self, testo, errore=False):
+        self.txtErrori.Text = testo
+        self.txtErrori.Foreground = colore(u"#DC2626" if errore else GRIGIO)
+
+    def aggiorna_file(self):
+        """Sotto i pulsanti: dove finisce la famiglia e se sovrascrive un file."""
+        nome = (self.txtNome.Text or u"").strip()
+        cartella = (self.txtCartella.Text or u"").strip() or cartella_predefinita()
+        percorso = os.path.join(cartella, nome + u".rfa")
+        if nome and os.path.exists(percorso) and not self.modifica:
+            self.lblFile.Text = u"%s esiste già: verrà sovrascritto" % percorso
+            self.lblFile.Foreground = colore(ARANCIO)
+        else:
+            self.lblFile.Text = u"Salvata in %s" % cartella
+            self.lblFile.Foreground = colore(GRIGIO)
 
     # --- catalogo --------------------------------------------------------------------
     def riempi_schemi(self, seleziona=None):
@@ -117,6 +142,7 @@ class Configuratore(forms.WPFWindow):
         if self._carico or self.lstSchemi.SelectedIndex < 0:
             return
         self.schema = S.copia(self.voci[self.lstSchemi.SelectedIndex][1])
+        self.btnEliminaSchema.IsEnabled = bool(self.voci[self.lstSchemi.SelectedIndex][0])
         self.sel = None
         if not self._nome_manuale:
             self._imposta_nome(S.nome_famiglia(self.schema))
@@ -131,21 +157,23 @@ class Configuratore(forms.WPFWindow):
         try:
             percorso = C.salva_schema(self.schema)
         except Exception as ex:
-            forms.alert(u"Non riesco a salvare lo schema:\n%s" % ex, title=TITOLO)
+            self._stato(u"Schema non salvato: %s" % ex, errore=True)
             return
         self.riempi_schemi(seleziona=percorso)
-        AVW.mostra(u"Schema \"%s\" salvato" % nome)
+        self._stato(u"Schema \"%s\" salvato" % nome)
 
     def su_elimina_schema(self, sender, args):
         i = self.lstSchemi.SelectedIndex
         if i < 0 or not self.voci[i][0]:
-            forms.alert(u"Si eliminano solo gli schemi salvati da te (quelli con ★).", title=TITOLO)
             return
         nome = self.voci[i][1].get(u"nome")
+        # cancella un file e non si annulla: questa domanda resta
         if not forms.alert(u"Elimino lo schema \"%s\"?" % nome, title=TITOLO, yes=True, no=True):
             return
         C.elimina_schema(self.voci[i][0])
         self.riempi_schemi()
+        self.btnEliminaSchema.IsEnabled = False
+        self._stato(u"Schema \"%s\" eliminato" % nome)
 
     # --- campi -------------------------------------------------------------------------
     def _imposta_nome(self, nome):
@@ -208,12 +236,13 @@ class Configuratore(forms.WPFWindow):
         if not self.pnlMisure.Children.Count:
             tb = TextBlock()
             tb.Text = u"(nessuna divisione)"
-            tb.Foreground = colore(u"#94A3B8")
+            tb.Foreground = colore(u"#8C9AA6")
             self.pnlMisure.Children.Add(tb)
 
     def su_nome(self, sender, args):
         if not self._carico:
             self._nome_manuale = True
+        self.aggiorna_file()
 
     def su_categoria(self, sender, args):
         if self._carico:
@@ -351,7 +380,7 @@ class Configuratore(forms.WPFWindow):
         oy = (h - 16 + H * sc) / 2.0
         self._scala = (sc, ox, oy)
 
-        def rett(r, riempi, bordo=u"#334155", spessore=0.8):
+        def rett(r, riempi, bordo=SCURO, spessore=0.8):
             x0, y0, x1, y1 = r
             el = Rectangle()
             el.Width = max((x1 - x0) * sc, 0.5)
@@ -375,17 +404,17 @@ class Configuratore(forms.WPFWindow):
                 ln = Line()
                 ln.X1, ln.Y1 = ox + seg[u"p0"][0] * sc, oy - seg[u"p0"][1] * sc
                 ln.X2, ln.Y2 = ox + seg[u"p1"][0] * sc, oy - seg[u"p1"][1] * sc
-                ln.Stroke = colore(u"#1E293B")
+                ln.Stroke = colore(SCURO)
                 ln.StrokeThickness = 1
                 ln.StrokeDashArray = tratteggio
                 cnv.Children.Add(ln)
         if self.sel is not None:
             for c in self.ris[u"celle"]:
                 if c[u"percorso"] == self.sel:
-                    rett(G.rettangolo(self.ris, c[u"luce"]), u"#33F97316", u"#F97316", 2.5)
+                    rett(G.rettangolo(self.ris, c[u"luce"]), u"#33E5862A", ARANCIO, 2.5)
         quota = TextBlock()
         quota.Text = u"%g x %g mm   ·   %s" % (L, H, S.descrizione(self.schema))
-        quota.Foreground = colore(u"#64748B")
+        quota.Foreground = colore(GRIGIO)
         Canvas.SetLeft(quota, ox)
         Canvas.SetTop(quota, oy + 4)
         cnv.Children.Add(quota)
@@ -396,7 +425,8 @@ class Configuratore(forms.WPFWindow):
             return
         nome = (self.txtNome.Text or u"").strip()
         if not nome or _VIETATI.search(nome):
-            forms.alert(u"Nome famiglia non valido (non usare \\ / : * ? \" < > |).", title=TITOLO)
+            self._stato(u"Nome della famiglia non valido: non usare \\ / : * ? \" < > |", errore=True)
+            self.txtNome.Focus()
             return
         cartella = (self.txtCartella.Text or u"").strip() or cartella_predefinita()
         self.risultato = {u"schema": S.copia(self.schema), u"nome": nome, u"cartella": cartella}
@@ -417,11 +447,10 @@ def _modello(app, categoria, imp):
     modello = C.trova_modello(categoria, [app.FamilyTemplatePath], imp)
     if modello:
         return modello
-    forms.alert(u"Non trovo il modello famiglia %s (%s).\nSceglilo tu: lo ricordo per le "
-                u"prossime volte." % (u"Porta" if categoria == S.PORTE else u"Finestra",
-                                     u", ".join(C.MODELLI[categoria][:2])), title=TITOLO)
+    tipo = u"Porta" if categoria == S.PORTE else u"Finestra"
+    AVW.attenzione(u"Non trovo il modello famiglia %s: sceglilo, lo ricordo per le prossime volte" % tipo)
     modello = forms.pick_file(file_ext=u"rft", init_dir=app.FamilyTemplatePath or u"",
-                              title=u"Modello famiglia")
+                              title=u"Modello famiglia %s (%s)" % (tipo, u", ".join(C.MODELLI[categoria][:2])))
     if modello:
         imp[u"modello_" + categoria] = modello
     return modello
@@ -444,30 +473,24 @@ def crea_e_carica(uidoc, risultato, tipi=None, posiziona=True):
     cartella = risultato[u"cartella"]
     percorso = os.path.join(cartella, risultato[u"nome"] + u".rfa")
     tipi = tipi or [(S.nome_tipo(schema), schema)]
-    domanda = u"Creo la famiglia \"%s\" (%d tip%s) in\n%s\ne la carico nel progetto?" % (
-        risultato[u"nome"], len(tipi), u"o" if len(tipi) == 1 else u"i", percorso)
-    if os.path.exists(percorso):
-        domanda += u"\n\nIl file esiste gia': verra' sovrascritto."
-    if not forms.alert(domanda, title=TITOLO, yes=True, no=True):
-        return None
+    # la finestra ha gia' detto dove va il file e se ne sovrascrive uno: nessuna conferma
     try:
         if not os.path.isdir(cartella):
             os.makedirs(cartella)
         imp[u"cartella"] = cartella
         C.salva_impostazioni(imp)
     except Exception as ex:
-        forms.alert(u"Non riesco a usare la cartella:\n%s\n\n%s" % (cartella, ex), title=TITOLO)
+        AVW.errore(u"Non riesco a usare la cartella %s: %s" % (cartella, ex))
         return None
     try:
         famdoc, report = RF.crea_famiglia(app, modello, schema, percorso, tipi)
         famiglia = RF.carica(doc, famdoc)
     except Exception as ex:
-        forms.alert(u"La famiglia non e' stata creata:\n%s" % ex, title=TITOLO)
+        AVW.errore(u"Famiglia non creata: %s" % ex)
         return None
     problemi = RF.problemi(report)
     if problemi:
-        forms.alert(u"Famiglia creata e caricata, ma da controllare:\n- " + u"\n- ".join(problemi) +
-                    u"\n\nAprila e prova a cambiare le misure nei tipi.", title=TITOLO)
+        AVW.attenzione(AV.con_errori(u"Famiglia \"%s\" caricata, da controllare" % risultato[u"nome"], problemi))
     else:
         AVW.mostra(u"Famiglia \"%s\" creata e caricata" % risultato[u"nome"], AV.INFO)
     if famiglia is not None and posiziona:

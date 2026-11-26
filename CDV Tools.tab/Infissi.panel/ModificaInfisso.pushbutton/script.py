@@ -5,9 +5,8 @@ from pyrevit import DB, revit, script
 from infissi import parametri as PA
 from infissi import revit_famiglia as RF
 from infissi import schema as S
+import avviso_wpf as AVW
 from infissi import ui as UI
-
-forms = UI.forms
 
 
 def _nome(elemento):
@@ -54,7 +53,7 @@ def _tipi(doc, famiglia, tipo_scelto, schema_nuovo):
 def main():
     uidoc = revit.uidoc
     if uidoc is None or uidoc.Document.IsFamilyDocument:
-        forms.alert(u"Apri un progetto (non una famiglia).", title=UI.TITOLO)
+        AVW.errore(u"Apri un progetto (non una famiglia)")
         return
     doc = uidoc.Document
     istanza = _istanza(uidoc)
@@ -64,22 +63,20 @@ def main():
     try:
         schema = RF.schema_del_tipo(tipo)
     except S.SchemaErrore as ex:
-        forms.alert(u"Lo schema salvato nella famiglia e' rovinato:\n%s" % ex, title=UI.TITOLO)
+        AVW.errore(u"Lo schema salvato nella famiglia è rovinato: %s" % ex)
         return
     if schema is None:
-        forms.alert(u"Questo elemento non e' stato creato con il Configuratore infissi "
-                    u"(manca il parametro \"%s\")." % PA.SCHEMA, title=UI.TITOLO)
+        AVW.errore(u"Questo elemento non è stato creato con il Configuratore infissi")
         return
     famiglia = tipo.Family
     risultato = UI.apri(schema=schema, nome_famiglia=famiglia.Name, modifica=True)
     if not risultato:
         script.exit()
     tipi, saltati = _tipi(doc, famiglia, tipo, risultato[u"schema"])
-    if saltati:
-        if not forms.alert(u"Con il nuovo schema questi tipi non stanno e restano come sono:\n- " +
-                           u"\n- ".join(saltati) + u"\n\nContinuo?", title=UI.TITOLO, yes=True, no=True):
-            return
-    UI.crea_e_carica(uidoc, risultato, tipi, posiziona=False)
+    famiglia_nuova = UI.crea_e_carica(uidoc, risultato, tipi, posiziona=False)
+    if famiglia_nuova is not None and saltati:
+        # i tipi con misure che non stanno nel nuovo schema restano com'erano: lo si dice dopo
+        AVW.attenzione(u"Tipi rimasti com'erano (misure fuori dal nuovo schema): " + u", ".join(saltati))
 
 
 if __name__ == "__main__":

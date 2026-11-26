@@ -67,3 +67,21 @@ def test_script_caricano_lo_stile():
     for p in FINESTRE:
         s = _leggi(os.path.join(os.path.dirname(p), "script.py"))
         assert u"SF.xaml(" in s and u"literal_string=True" in s, p
+
+
+def test_finestre_in_lib_usano_lo_stile_condiviso():
+    """Anche le finestre in lib/ (scelta, configuratore infissi) senza stili propri ne' vecchi colori."""
+    lib = os.path.join(QUI, "..", "lib")
+    finestre = sorted(glob.glob(os.path.join(lib, "*.xaml")) + glob.glob(os.path.join(lib, "*", "*.xaml")))
+    assert len(finestre) >= 2
+    chiavi = set(re.findall(u'x:Key="([^"]+)"', SF.RISORSE))
+    vecchi = set(SF.CONVERSIONE_COLORI)
+    for p in finestre:
+        t = _leggi(p)
+        assert u"<Window.Resources>" not in t, p
+        assert u"CDV Tools" not in t, p
+        for k in re.findall(u"StaticResource (\\w+)", t):
+            assert k in chiavi, (p, k)
+        for c in re.findall(u"#[0-9A-Fa-f]{6}\\b", t):
+            assert c.upper() not in vecchi, (p, c)
+        xml.dom.minidom.parseString(SF.prepara_xaml(t).encode("utf-8"))

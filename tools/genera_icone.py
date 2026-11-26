@@ -357,6 +357,24 @@ I["Allinea"] = (
     + vista(7, 18, 13, 8) + L("M7,29.5 H17", SCURO, 1.8)
     + L("M4,1 V31", ARANCIO, 2.4))
 
+# --- Infissi ------------------------------------------------------------------
+# finestra a due ante vista da fuori: telaio blu, vetri azzurri, simbolo di apertura tratteggiato
+_FINESTRA = (
+    R(2, 2, 22, 28, BIANCO, BLU, 2.2)
+    + R(4.5, 4.5, 7.5, 23, AZZURRO, BLU, 1.1) + R(14, 4.5, 7.5, 23, AZZURRO, BLU, 1.1)
+    + L("M13,2 V30", BLU, 2.2)
+    + L("M12,4.5 L4.5,16 L12,27.5", SCURO, 0.9, cap="round")
+    + L("M14,4.5 L21.5,16 L14,27.5", SCURO, 0.9, cap="round"))
+I["Configuratore"] = (
+    _FINESTRA
+    + C(25, 25, 6.2, ARANCIO) + L("M25,21.3 V28.7 M21.3,25 H28.7", BIANCO, 2.2, cap="round"))
+I["ModificaInfisso"] = (
+    _FINESTRA
+    + '<g transform="rotate(45 24 20)">'
+    + R(21.6, 9, 4.8, 15, ARANCIO) + P("M21.6,24 H26.4 L24,28.6 Z", SCURO)
+    + R(21.6, 6.4, 4.8, 2.6, MARRONE)
+    + "</g>")
+
 # ------------------------------------------------------------------------------
 # DOVE VANNO I FILE
 # ------------------------------------------------------------------------------
@@ -402,6 +420,8 @@ PERCORSI = {
     "CreateLegendComponents": os.path.join("Tavole.panel", "CreateLegendComponents.pushbutton", "icon.png"),
     "AlignTrueNorth": os.path.join("Tavole.panel", "AlignTrueNorth.pushbutton", "icon.png"),
     "AlignViewports": os.path.join("Tavole.panel", "AlignViewports.pushbutton", "icon.png"),
+    "Configuratore": os.path.join("Infissi.panel", "Configuratore.pushbutton", "icon.png"),
+    "ModificaInfisso": os.path.join("Infissi.panel", "ModificaInfisso.pushbutton", "icon.png"),
 }
 
 _RENDER_JS = r"""

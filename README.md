@@ -88,8 +88,9 @@ selezione a riposo.
   chiudono una sull'altra). Il simbolo di apertura ha la punta sul lato delle cerniere (UNI/DIN);
 - a destra **categoria** (Finestre o Porte, scelta ogni volta), nome, larghezza e altezza esterne
   del telaio, **misure delle zone** (ognuna dal bordo o dall'asse precedente all'asse seguente:
-  l'ultima zona prende il resto) e **profili** (telaio, soglia, montante, anta, profondità, vetro,
-  zoccolo delle porte, frecce degli scorrevoli).
+  l'ultima zona prende il resto). In **Opzioni avanzate** i **profili** (telaio, soglia, montante,
+  anta, profondità, vetro, zoccolo delle porte, frecce degli scorrevoli) e la cartella delle famiglie;
+  sotto i pulsanti una riga dice dove finisce il file e se ne sovrascrive uno.
 
 **Crea famiglia e carica** parte dal modello famiglia di Revit (*Finestra metrica* / *Porta
 metrica*; se non lo trova lo chiede una volta), salva la `.rfa` nella cartella scelta e la carica
@@ -97,10 +98,12 @@ nel progetto, pronta da posizionare. Nella famiglia tutto è parametro di tipo: 
 `L zona …`/`H zona …`, profili, materiali (telaio e vetro), `Apertura` (descrizione per gli abachi)
 e `Schema CDV` (lo schema, per rimodificarla). Telaio, montanti, ante, vetri e zoccoli sono
 estrusioni bloccate a piani di riferimento quotati; le linee di apertura hanno gli estremi quotati.
-Alla fine il tool allarga la famiglia di 30 cm per prova: se qualcosa non segue le misure lo dice.
+Alla fine il tool allarga la famiglia di 30 cm per prova: se qualcosa non segue le misure lo dice
+nell'avviso in basso a destra.
 
 **Modifica Infisso**: selezioni un infisso creato dal configuratore, si riapre il suo schema con le
-misure del tipo; la famiglia viene rigenerata e ricaricata con tutti i suoi tipi.
+misure del tipo; la famiglia viene rigenerata e ricaricata con tutti i suoi tipi (quelli con misure
+che non stanno nel nuovo schema restano com'erano, e l'avviso li elenca).
 
 ## Installazione
 
