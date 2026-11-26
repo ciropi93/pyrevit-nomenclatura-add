@@ -9,7 +9,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install pytest pyflakes
-      - run: python -m pyflakes lib tests
+      - run: python -m pyflakes lib "CDV Tools.tab/Infissi.panel" tests
       - run: python -m pytest -q tests
 
   # pyRevit esegue gli script con IronPython 2.7: Python 2.7 e' il riferimento piu' vicino

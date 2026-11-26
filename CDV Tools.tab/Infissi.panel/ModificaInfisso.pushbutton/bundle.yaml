@@ -1,0 +1,4 @@
+title: "Modifica\nInfisso"
+tooltip: Seleziona un infisso creato con il Configuratore e riapri il suo schema per cambiarlo. La famiglia viene rigenerata e ricaricata nel progetto con tutti i suoi tipi.
+author: CDV Tools
+context: doc-project

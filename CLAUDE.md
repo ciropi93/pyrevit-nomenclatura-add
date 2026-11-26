@@ -1,7 +1,8 @@
 # CDV Tools (estensione pyRevit)
 
 Un solo tab `CDV Tools.tab` (la radice del repo è l'estensione) con i pannelli Viste, Grafica, Campiture,
-Tavole e Modellazione. Utente: scrive in italiano; risposte brevi e semplici.
+Tavole, Modellazione e Infissi. Utente: scrive in italiano; risposte brevi e semplici.
+Il pannello **Infissi** ha la logica in `lib/infissi/` (API Revit solo in `revit_famiglia.py` e `ui.py`, test in `tests/test_infissi.py`).
 
 ## Regole di lavoro
 - Codice compatibile **IronPython 2.7** (motore predefinito di pyRevit): niente f-string, niente `print()` con keyword, stringhe `u"..."`.
@@ -15,4 +16,4 @@ Tavole e Modellazione. Utente: scrive in italiano; risposte brevi e semplici.
 
 ## Comandi
 - Test: `python -m pytest -q tests`
-- Lint: `python -m pyflakes lib tests`
+- Lint: `python -m pyflakes lib "CDV Tools.tab/Infissi.panel" tests`
