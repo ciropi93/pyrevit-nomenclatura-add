@@ -136,7 +136,7 @@ class Configuratore(forms.WPFWindow):
         self.cmbAnta.SelectionChanged += self.su_anta
         self.cmbChiusura.SelectionChanged += self.su_chiusura
         self.chkSoglia.Click += self.su_soglia
-        self.chkManiglie.Click += self.su_maniglie
+        self.cmbManiglia.SelectionChanged += self.su_maniglia
         self.cmbPianta.SelectionChanged += self.su_pianta
         for box, chiave in ((self.txtLarghezza, (u"larghezza",)), (self.txtAltezza, (u"altezza",))):
             self._aggancia_evidenza(box, chiave)
@@ -287,7 +287,6 @@ class Configuratore(forms.WPFWindow):
             self.txtLarghezza.Text = u"%g" % self.schema[u"larghezza"]
             self.txtAltezza.Text = u"%g" % self.schema[u"altezza"]
             self.chkSoglia.IsChecked = bool(self.schema.get(u"soglia", True))
-            self.chkManiglie.IsChecked = bool(self.schema.get(u"maniglie", False))
             self.cmbPianta.SelectedIndex = [k for k, _e in S.SIMBOLI_PIANTA].index(
                 self.schema.get(u"simbolo_pianta", u"nessuno"))
             self.riempi_profili()
@@ -458,6 +457,7 @@ class Configuratore(forms.WPFWindow):
         self.schema[u"categoria"] = S.PORTE if self.rbPorte.IsChecked else S.FINESTRE
         if not self._nome_manuale:
             self._imposta_nome(S.nome_famiglia(self.schema))
+        self.aggiorna_selezione()       # le maniglie predefinite cambiano con la categoria
         self._aggiorna_contorno()       # davanzali per le finestre, soglia per le porte
 
     def su_dimensione(self, sender, args):
@@ -507,13 +507,20 @@ class Configuratore(forms.WPFWindow):
         vecchio = self._carico
         self._carico = True
         try:
+            # maniglie: solo quelle adatte all'anta (l'antipanico sulle ante-porta)
+            self.maniglie_cella = S.maniglie_valide(c[u"anta"]) if attiva else []
+            self.cmbManiglia.ItemsSource = [S.NOMI_MANIGLIE[k] for k in self.maniglie_cella]
+            self.cmbManiglia.IsEnabled = len(self.maniglie_cella) > 1
             if attiva:
                 self.cmbAnta.SelectedIndex = [k for k, _e in S.ANTE].index(c[u"anta"])
                 self.cmbChiusura.SelectedIndex = [k for k, _e in S.RIEMPIMENTI].index(
                     S.riempimento_valido(c[u"anta"], c.get(u"riempimento", S.VETRO)))
+                self.cmbManiglia.SelectedIndex = self.maniglie_cella.index(
+                    S.maniglia_di(c, self.schema[u"categoria"]))
             else:
                 self.cmbAnta.SelectedIndex = -1
                 self.cmbChiusura.SelectedIndex = -1
+                self.cmbManiglia.SelectedIndex = -1
             if ha_padre:
                 self.chkMontante.IsChecked = S.nodo_in(self.schema[u"radice"], self.sel[:-1])[u"montante"]
         finally:
@@ -541,11 +548,15 @@ class Configuratore(forms.WPFWindow):
             self._aggiorna_profili()
             self.ridisegna()
 
-    def su_maniglie(self, sender, args):
-        if not self._carico:
-            self.schema[u"maniglie"] = bool(self.chkManiglie.IsChecked)
-            self._aggiorna_profili()
-            self.ridisegna()
+    def su_maniglia(self, sender, args):
+        if self._carico or self.sel is None or self.cmbManiglia.SelectedIndex < 0:
+            return
+        scelta = self.maniglie_cella[self.cmbManiglia.SelectedIndex]
+        self.schema = S.imposta_maniglia(self.schema, self.sel, scelta)
+        self._dopo_modifica(struttura=False)
+        if scelta == S.ANTIPANICO:
+            self._stato(u"Maniglione sul lato da cui si spinge: nel progetto gira la porta "
+                        u"perché apra verso la via d'uscita")
 
     def su_pianta(self, sender, args):
         if not self._carico and self.cmbPianta.SelectedIndex >= 0:

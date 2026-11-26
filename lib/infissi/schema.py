@@ -9,12 +9,13 @@ Lo schema e' un dizionario (si salva cosi' com'e' in JSON):
      "radice": nodo}
 
      "soglia": True,       # traverso in basso; False = telaio a U (porte: non si inciampa)
-     "maniglie": True,     # maniglie sulle ante apribili
      "simbolo_pianta": "tratteggio",   # finestre in pianta: nessuno | tratteggio | continuo
+     "contorno": {...},    # come sta nel muro: posizione, mazzetta, mostre, davanzali...
 
 Un nodo e' una cella o una divisione:
 
-    {"tipo": "cella", "anta": "battente_sx", "riempimento": "vetro" | "zoccolo" | "pannello"}
+    {"tipo": "cella", "anta": "battente_sx", "riempimento": "vetro" | "zoccolo" | "pannello",
+     "maniglia": "interna"}   # facoltativa: senza, quella predefinita (vedi maniglia_di)
     {"tipo": "divisione", "verso": "v" | "o", "montante": True,
      "misure": [600], "figli": [nodo, nodo]}
 
@@ -29,7 +30,7 @@ sinistra; il simbolo e' un triangolo con la punta sul lato delle cerniere (UNI/D
 import copy
 import json
 
-VERSIONE = 1
+VERSIONE = 2      # 2: maniglie per anta (prima un si'/no "maniglie" per tutto lo schema)
 
 FINESTRE = u"finestre"
 PORTE = u"porte"
@@ -192,9 +193,49 @@ class SchemaErrore(ValueError):
     pass
 
 
+# --- maniglie (per anta) ------------------------------------------------------------
+NESSUNA = u"nessuna"
+INTERNA = u"interna"
+DUE_LATI = u"due_lati"
+ANTIPANICO = u"antipanico"
+MANIGLIE = ((NESSUNA, u"Nessuna"), (INTERNA, u"Maniglia sul lato interno"),
+            (DUE_LATI, u"Maniglia sui due lati"), (ANTIPANICO, u"Maniglione antipanico"))
+NOMI_MANIGLIE = dict(MANIGLIE)
+
+
+def maniglie_valide(anta):
+    """Maniglie che si possono mettere su un'anta (il maniglione antipanico solo sulle ante-porta)."""
+    if not apribile(anta):
+        return [NESSUNA]
+    if porta(anta):
+        return [NESSUNA, INTERNA, DUE_LATI, ANTIPANICO]
+    if scorrevole(anta):
+        return [NESSUNA, INTERNA, DUE_LATI]
+    return [NESSUNA, INTERNA]
+
+
+def maniglia_predefinita(anta, categoria):
+    """Porta: maniglia sui due lati; portafinestra (anta-porta tra le finestre) e finestre: dentro."""
+    if not apribile(anta):
+        return NESSUNA
+    if porta(anta) and categoria == PORTE:
+        return DUE_LATI
+    return INTERNA
+
+
+def maniglia_di(c, categoria):
+    """Maniglia della cella: quella scelta se va bene per l'anta, se no la predefinita."""
+    scelta = c.get(u"maniglia")
+    return scelta if scelta in maniglie_valide(c[u"anta"]) else maniglia_predefinita(c[u"anta"], categoria)
+
+
 # --- costruzione ------------------------------------------------------------------
-def cella(anta=FISSO, riempimento=VETRO):
-    return {u"tipo": u"cella", u"anta": anta, u"riempimento": riempimento_valido(anta, riempimento)}
+def cella(anta=FISSO, riempimento=VETRO, maniglia=None):
+    """maniglia None = la predefinita per l'anta e la categoria (vedi maniglia_di)."""
+    c = {u"tipo": u"cella", u"anta": anta, u"riempimento": riempimento_valido(anta, riempimento)}
+    if maniglia in maniglie_valide(anta):
+        c[u"maniglia"] = maniglia
+    return c
 
 
 def divisione(verso, figli, misure, montante=True):
@@ -213,9 +254,13 @@ def nuovo(radice, larghezza, altezza, nome=u"", categoria=FINESTRE, profili=None
     p.update(profili or {})
     if soglia is None:
         soglia = not ha_ante_porta(radice)
+    if not maniglie:
+        # maniglie spente per tutte le ante (schemi di prima senza maniglie)
+        for _p, c in celle(radice):
+            c[u"maniglia"] = NESSUNA
     return {u"versione": VERSIONE, u"nome": nome, u"categoria": categoria,
             u"larghezza": float(larghezza), u"altezza": float(altezza),
-            u"profili": p, u"radice": radice, u"soglia": bool(soglia), u"maniglie": bool(maniglie),
+            u"profili": p, u"radice": radice, u"soglia": bool(soglia),
             u"simbolo_pianta": simbolo_pianta if simbolo_pianta in NOMI_SIMBOLI_PIANTA else u"nessuno",
             u"contorno": normalizza_contorno(contorno)}
 
@@ -246,11 +291,17 @@ def normalizza(dati):
         raise SchemaErrore(u"Schema senza radice.")
     profili = dict((k, float(v)) for k, v in (dati.get(u"profili") or {}).items()
                    if k in PROFILI_PREDEFINITI)
-    # schemi di prima: con soglia e senza maniglie (la famiglia non cambia finche' non si sceglie)
-    s = nuovo(_nodo(dati[u"radice"]), dati.get(u"larghezza", 0), dati.get(u"altezza", 0),
+    # schemi di prima: con soglia e senza maniglie (la famiglia non cambia finche' non si sceglie);
+    # "maniglie" (si'/no per tutto lo schema) c'era prima delle maniglie per anta
+    radice = _nodo(dati[u"radice"])
+    if (dati.get(u"versione") or 1) >= 2:
+        maniglie = True                   # ogni anta ha la sua (o la predefinita)
+    else:
+        maniglie = bool(dati.get(u"maniglie", False))
+    s = nuovo(radice, dati.get(u"larghezza", 0), dati.get(u"altezza", 0),
               nome=dati.get(u"nome", u"") or u"",
               categoria=dati.get(u"categoria", FINESTRE), profili=profili,
-              soglia=dati.get(u"soglia", True), maniglie=dati.get(u"maniglie", False),
+              soglia=dati.get(u"soglia", True), maniglie=maniglie,
               simbolo_pianta=dati.get(u"simbolo_pianta", u"nessuno"),
               contorno=dati.get(u"contorno"))      # schemi di prima: niente contorno
     # chiusura mancante: come prima, lo zoccolo c'era sulle porte se il profilo era > 0
@@ -266,7 +317,7 @@ def _nodo(d):
     if not isinstance(d, dict):
         raise SchemaErrore(u"Nodo non valido.")
     if d.get(u"tipo") == u"cella":
-        c = cella(d.get(u"anta", FISSO), d.get(u"riempimento") or VETRO)
+        c = cella(d.get(u"anta", FISSO), d.get(u"riempimento") or VETRO, d.get(u"maniglia"))
         if u"riempimento" not in d:
             c[u"_riempimento_mancante"] = True
         return c
@@ -324,8 +375,18 @@ def imposta_anta(schema, percorso, anta):
         raise SchemaErrore(u"Anta sconosciuta: %s" % anta)
     s = copia(schema)
     vecchia = nodo_in(s[u"radice"], tuple(percorso))
+    # la maniglia scelta resta se va bene anche per la nuova anta
     s[u"radice"] = _sostituisci(s[u"radice"], tuple(percorso),
-                                cella(anta, vecchia.get(u"riempimento", VETRO)))
+                                cella(anta, vecchia.get(u"riempimento", VETRO), vecchia.get(u"maniglia")))
+    return s
+
+
+def imposta_maniglia(schema, percorso, maniglia):
+    s = copia(schema)
+    c = nodo_in(s[u"radice"], tuple(percorso))
+    if maniglia not in maniglie_valide(c[u"anta"]):
+        raise SchemaErrore(u"Maniglia non adatta a quest'anta: %s" % maniglia)
+    c[u"maniglia"] = maniglia
     return s
 
 
@@ -344,8 +405,8 @@ def dividi(schema, percorso, verso, misura, montante=True):
     vecchia = nodo_in(s[u"radice"], percorso)
     if vecchia[u"tipo"] != u"cella":
         raise SchemaErrore(u"Si divide solo una cella.")
-    r = vecchia.get(u"riempimento", VETRO)
-    nuovo_nodo = divisione(verso, [cella(vecchia[u"anta"], r), cella(vecchia[u"anta"], r)],
+    r, m = vecchia.get(u"riempimento", VETRO), vecchia.get(u"maniglia")
+    nuovo_nodo = divisione(verso, [cella(vecchia[u"anta"], r, m), cella(vecchia[u"anta"], r, m)],
                            [misura], montante)
     s[u"radice"] = _sostituisci(s[u"radice"], tuple(percorso), nuovo_nodo)
     return s
@@ -359,7 +420,8 @@ def togli_divisione(schema, percorso_cella):
     s = copia(schema)
     vecchia = nodo_in(s[u"radice"], percorso_cella)
     s[u"radice"] = _sostituisci(s[u"radice"], percorso_cella[:-1],
-                                cella(vecchia.get(u"anta", FISSO), vecchia.get(u"riempimento", VETRO)))
+                                cella(vecchia.get(u"anta", FISSO), vecchia.get(u"riempimento", VETRO),
+                                      vecchia.get(u"maniglia")))
     return s
 
 

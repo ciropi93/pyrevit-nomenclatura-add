@@ -50,14 +50,30 @@ FORMULE_PROFONDITA = {
     u"Vetro B inizio": u"%s + %s / 2 - %s / 2" % (P(u"anta_spost"), P(u"anta_prof"), P(u"vetro")),
     u"Vetro B fine": u"%s + %s / 2 + %s / 2" % (P(u"anta_spost"), P(u"anta_prof"), P(u"vetro")),
 }
-if INTERNO > 0:
-    FORMULE_PROFONDITA[u"Maniglia inizio"] = u"%s + %s / 2" % (P(u"anta_spost"), P(u"anta_prof"))
-    FORMULE_PROFONDITA[u"Maniglia fine"] = u"%s + %s / 2 + %s" % (
-        P(u"anta_spost"), P(u"anta_prof"), P(u"maniglia_sporg"))
-else:
-    FORMULE_PROFONDITA[u"Maniglia inizio"] = u"%s - %s / 2 - %s" % (
-        P(u"anta_spost"), P(u"anta_prof"), P(u"maniglia_sporg"))
-    FORMULE_PROFONDITA[u"Maniglia fine"] = u"%s - %s / 2" % (P(u"anta_spost"), P(u"anta_prof"))
+def _tratto(verso, d1, d2):
+    """(inizio, fine) di un pezzo che va da d1 a d2 fuori dalla faccia dell'anta, dal lato `verso`
+    (+1/-1 in profondita', vedi G.INTERNO_PROF). d1/d2: formule ("" = sulla faccia). inizio e'
+    sempre il valore piu' piccolo."""
+    segno = u" + " if verso > 0 else u" - "
+    faccia = P(u"anta_spost") + segno + u"%s / 2" % P(u"anta_prof")
+
+    def a(d):
+        return faccia + (segno + d if d else u"")
+    return (a(d1), a(d2)) if verso > 0 else (a(d2), a(d1))
+
+
+_SP = P(u"maniglia_sporg")
+# maniglia: placca (fino a 1/6 della sporgenza), collo, leva (l'ultimo quarto)
+_PARTI = {u"placca": (u"", u"%s / 6" % _SP), u"collo": (u"%s / 6" % _SP, u"%s * 3 / 4" % _SP),
+          u"leva": (u"%s * 3 / 4" % _SP, _SP)}
+for _lato, _verso in ((u"int", G.INTERNO_PROF), (u"est", -G.INTERNO_PROF)):
+    for _parte, (_d1, _d2) in _PARTI.items():
+        _inizio, _fine = G.PROFONDITA[u"man_%s_%s" % (_parte, _lato)]
+        FORMULE_PROFONDITA[_inizio], FORMULE_PROFONDITA[_fine] = _tratto(_verso, _d1, _d2)
+# antipanico: sul lato da cui si spinge, opposto a quello verso cui apre l'anta (l'interno)
+for _chiave, (_d1, _d2) in ((u"panico_supporto", (u"", _SP)), (u"panico_barra", (u"%s / 2" % _SP, _SP))):
+    _inizio, _fine = G.PROFONDITA[_chiave]
+    FORMULE_PROFONDITA[_inizio], FORMULE_PROFONDITA[_fine] = _tratto(-G.INTERNO_PROF, _d1, _d2)
 FORMULA_MONTANTE_MEZZO = u"%s / 2" % P(u"montante")
 
 # spessori delle ante aperte (vedi G.SPESSORI_APERTI): pos/neg = verso il vano a destra/sinistra
