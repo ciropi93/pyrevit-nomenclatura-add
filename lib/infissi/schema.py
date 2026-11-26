@@ -109,6 +109,84 @@ PROFILI = (
 )
 PROFILI_PREDEFINITI = dict((k, v) for k, _e, v, _m in PROFILI)
 
+# --- contorno: come l'infisso sta nel muro (passo 5 del Configuratore) --------------------
+# schema["contorno"] = {"posizione": ..., "mazzetta": bool, ..., "misure": {chiave: mm}}
+POSIZIONI = ((u"centro", u"In mezzo al muro"), (u"filo_esterno", u"Dal filo esterno"),
+             (u"filo_interno", u"Dal filo interno"))
+NOMI_POSIZIONI = dict(POSIZIONI)
+# elementi che si accendono (nella famiglia: parametro Si'/No, tranne la mazzetta che taglia il muro)
+ELEMENTI_CONTORNO = (
+    (u"mazzetta", u"Mazzetta esterna"),
+    (u"mostra_est", u"Mostra esterna"),
+    (u"mostra_int", u"Mostra interna"),
+    (u"dav_est", u"Davanzale esterno"),
+    (u"dav_int", u"Davanzale interno"),
+    (u"soglia_pietra", u"Soglia in pietra"),
+    (u"imbotte", u"Imbotte"),
+)
+NOMI_ELEMENTI_CONTORNO = dict(ELEMENTI_CONTORNO)
+# (chiave, nome del parametro, mm, minimo)
+MISURE_CONTORNO = (
+    (u"posizione", u"Posizione telaio", 50.0, 0.0),     # dal filo scelto alla faccia del telaio
+    (u"mazzetta", u"Mazzetta", 40.0, 5.0),
+    (u"mostra_l", u"Mostra larghezza", 70.0, 5.0),
+    (u"mostra_sp", u"Mostra spessore", 20.0, 2.0),
+    (u"dav_est_sp", u"Davanzale est. spessore", 30.0, 5.0),
+    (u"dav_est_sporg", u"Davanzale est. sporgenza", 40.0, 1.0),
+    (u"dav_est_ris", u"Davanzale est. risvolto", 30.0, 1.0),
+    (u"dav_int_sp", u"Davanzale int. spessore", 30.0, 5.0),
+    (u"dav_int_sporg", u"Davanzale int. sporgenza", 30.0, 1.0),
+    (u"dav_int_ris", u"Davanzale int. risvolto", 30.0, 1.0),
+    (u"soglia_sp", u"Soglia pietra spessore", 30.0, 5.0),
+    (u"soglia_sporg", u"Soglia pietra sporgenza", 20.0, 1.0),
+    (u"imbotte_sp", u"Imbotte spessore", 20.0, 2.0),
+    (u"muro", u"Spessore muro (anteprima)", 300.0, 50.0),   # solo per disegno e controlli
+)
+MISURE_CONTORNO_PREDEFINITE = dict((k, v) for k, _e, v, _m in MISURE_CONTORNO)
+# quali misure servono a ogni elemento (per mostrarle solo quando l'elemento e' acceso)
+MISURE_DI = {
+    u"mazzetta": (u"mazzetta",),
+    u"mostra_est": (u"mostra_l", u"mostra_sp"), u"mostra_int": (u"mostra_l", u"mostra_sp"),
+    u"dav_est": (u"dav_est_sp", u"dav_est_sporg", u"dav_est_ris"),
+    u"dav_int": (u"dav_int_sp", u"dav_int_sporg", u"dav_int_ris"),
+    u"soglia_pietra": (u"soglia_sp", u"soglia_sporg"),
+    u"imbotte": (u"imbotte_sp",),
+}
+
+
+def contorno_vuoto():
+    """Niente contorno: telaio in mezzo al muro, foro semplice (come le famiglie di prima)."""
+    c = {u"posizione": u"centro", u"misure": dict(MISURE_CONTORNO_PREDEFINITE)}
+    for k, _e in ELEMENTI_CONTORNO:
+        c[k] = False
+    return c
+
+
+def normalizza_contorno(dati):
+    c = contorno_vuoto()
+    if not isinstance(dati, dict):
+        return c
+    if dati.get(u"posizione") in NOMI_POSIZIONI:
+        c[u"posizione"] = dati[u"posizione"]
+    for k, _e in ELEMENTI_CONTORNO:
+        c[k] = bool(dati.get(k, False))
+    for k, v in (dati.get(u"misure") or {}).items():
+        if k in MISURE_CONTORNO_PREDEFINITE:
+            c[u"misure"][k] = float(v)
+    return c
+
+
+def elementi_ammessi(categoria):
+    """Elementi del contorno che hanno senso per la categoria (soglia alle porte, davanzali alle finestre)."""
+    no = (u"dav_est", u"dav_int") if categoria == PORTE else (u"soglia_pietra",)
+    return [k for k, _e in ELEMENTI_CONTORNO if k not in no]
+
+
+def contorno_attivo(schema, elemento):
+    """True se l'elemento del contorno e' acceso e ha senso per la categoria dello schema."""
+    c = schema.get(u"contorno") or {}
+    return bool(c.get(elemento)) and elemento in elementi_ammessi(schema.get(u"categoria"))
+
 
 class SchemaErrore(ValueError):
     pass
@@ -129,7 +207,7 @@ def ha_ante_porta(radice):
 
 
 def nuovo(radice, larghezza, altezza, nome=u"", categoria=FINESTRE, profili=None,
-          soglia=None, maniglie=True, simbolo_pianta=u"tratteggio"):
+          soglia=None, maniglie=True, simbolo_pianta=u"tratteggio", contorno=None):
     """soglia None = senza soglia se ci sono ante-porta (non si inciampa), altrimenti con."""
     p = dict(PROFILI_PREDEFINITI)
     p.update(profili or {})
@@ -138,7 +216,8 @@ def nuovo(radice, larghezza, altezza, nome=u"", categoria=FINESTRE, profili=None
     return {u"versione": VERSIONE, u"nome": nome, u"categoria": categoria,
             u"larghezza": float(larghezza), u"altezza": float(altezza),
             u"profili": p, u"radice": radice, u"soglia": bool(soglia), u"maniglie": bool(maniglie),
-            u"simbolo_pianta": simbolo_pianta if simbolo_pianta in NOMI_SIMBOLI_PIANTA else u"nessuno"}
+            u"simbolo_pianta": simbolo_pianta if simbolo_pianta in NOMI_SIMBOLI_PIANTA else u"nessuno",
+            u"contorno": normalizza_contorno(contorno)}
 
 
 def copia(schema):
@@ -172,7 +251,8 @@ def normalizza(dati):
               nome=dati.get(u"nome", u"") or u"",
               categoria=dati.get(u"categoria", FINESTRE), profili=profili,
               soglia=dati.get(u"soglia", True), maniglie=dati.get(u"maniglie", False),
-              simbolo_pianta=dati.get(u"simbolo_pianta", u"nessuno"))
+              simbolo_pianta=dati.get(u"simbolo_pianta", u"nessuno"),
+              contorno=dati.get(u"contorno"))      # schemi di prima: niente contorno
     # chiusura mancante: come prima, lo zoccolo c'era sulle porte se il profilo era > 0
     zoccolo_prima = profili.get(u"zoccolo", 0.0) > 0
     for _p, c in celle(s[u"radice"]):

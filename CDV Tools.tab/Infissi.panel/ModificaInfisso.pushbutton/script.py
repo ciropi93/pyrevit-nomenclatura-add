@@ -10,10 +10,18 @@ from infissi import ui as UI
 
 
 def _nome(elemento):
+    """Nome del tipo. Su FamilySymbol .Name puo' non andare in IronPython; le proprieta' .NET
+    lette dalla classe vogliono __get__ (GetValue e' di pythonnet e qui non esiste)."""
+    try:
+        p = elemento.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+        if p is not None and p.AsString():
+            return p.AsString()
+    except Exception:
+        pass
     try:
         return elemento.Name
     except Exception:
-        return DB.Element.Name.GetValue(elemento)
+        return DB.Element.Name.__get__(elemento)
 
 
 def _istanza(uidoc):

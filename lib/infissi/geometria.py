@@ -46,7 +46,7 @@ PROFONDITA = {
 
 # lato interno della profondita' (+1 = verso "Anta fine"): ci vanno maniglie, archi e ante
 # aperte. Se nel modello famiglia di Revit l'interno e' dall'altra parte, si cambia qui.
-INTERNO = 1
+INTERNO = -1
 
 # livelli di dettaglio di Revit (Basso/Medio/Alto)
 BASSO, MEDIO, ALTO = u"basso", u"medio", u"alto"
@@ -59,6 +59,9 @@ SOLO_BASSO = (BASSO,)
 APERTA = u"Aperta in 3D"
 CHIUSA = u"Chiusa in 3D"
 FILO_ANTA = u"Filo anta interno"
+ASSE_TELAIO = u"Asse telaio dal filo"     # dal filo del muro all'asse del telaio
+MEZZO_TELAIO = u"Mezzo telaio"           # meta' profondita' del telaio: asse -> facce
+MURO = u"Spessore muro (anteprima)"
 
 # spessore delle ante aperte (estrusioni sul piano delle cerniere, verso il vano):
 # {verso: (parametro inizio, parametro fine)}; None = 0
@@ -139,20 +142,26 @@ class _Piani(object):
 
 
 class _PianiY(_Piani):
-    """Piani paralleli al muro (normale y): radice "centro", l'asse del muro."""
-    def __init__(self):
+    """Piani paralleli al muro (normale y). Radici: "centro" (l'asse del muro) e le due facce
+    del muro "esterno"/"interno" (nel modello famiglia sono i piani Esterno/Interno, legati
+    al muro: seguono il suo spessore)."""
+    def __init__(self, spessore_muro=0.0):
         self.lista = []
         self._per_chiave = {}
         self.per_id = {}
-        self._registra({u"id": u"centro", u"verso": u"y", u"pos": 0.0,
-                        u"base": None, u"param": None, u"segno": 0})
+        self._n = 0
+        meta = float(spessore_muro) / 2.0
+        for pid, pos in ((u"centro", 0.0), (u"esterno", -INTERNO * meta), (u"interno", INTERNO * meta)):
+            self._registra({u"id": pid, u"verso": u"y", u"pos": pos,
+                            u"base": None, u"param": None, u"segno": 0})
 
     def aggiungi(self, base, param, segno, valore):
         chiave = (base, param, segno)
         if chiave in self._per_chiave:
             return self._per_chiave[chiave]
         b = self.per_id[base]
-        pid = u"Y%d" % len(self.lista)
+        self._n += 1
+        pid = u"Y%d" % self._n
         self._registra({u"id": pid, u"verso": u"y", u"pos": b[u"pos"] + segno * valore,
                         u"base": base, u"param": param, u"segno": segno})
         self._per_chiave[chiave] = pid
@@ -178,22 +187,33 @@ def _differenza(fa, fb):
     return u"%s - (%s)" % (fa or u"0", fb)
 
 
-def calcola(schema):
+def calcola(schema, spessore_muro=None):
+    """spessore_muro: quello del muro del modello famiglia (in Revit); di base quello
+    dell'anteprima scelto nel passo 5."""
     L = float(schema[u"larghezza"])
     H = float(schema[u"altezza"])
     prof = schema[u"profili"]
     valori = {LARGHEZZA: L, ALTEZZA: H, MONTANTE_MEZZO: prof[u"montante"] / 2.0}
     for k, nome in NOMI_PROFILI.items():
         valori[nome] = float(prof[k])
+    contorno = schema.get(u"contorno") or S.contorno_vuoto()
+    for k, nome, _v, _m in S.MISURE_CONTORNO:
+        valori[nome] = float(contorno[u"misure"].get(k, S.MISURE_CONTORNO_PREDEFINITE[k]))
+    if spessore_muro is not None:
+        valori[MURO] = float(spessore_muro)
 
     ris = {u"piani": None, u"pezzi": [], u"celle": [], u"simboli": [], u"derivati": [],
            u"errori": [], u"misure": [], u"valori": valori,
-           u"piani_y": [], u"pianta": [], u"pezzi_aperti": []}
+           u"piani_y": [], u"pianta": [], u"pezzi_aperti": [], u"contorno": [],
+           u"asse": u"centro", u"asse_y": 0.0}
     err = ris[u"errori"]
     if L <= 0 or H <= 0:
         err.append(u"Larghezza e altezza devono essere maggiori di zero.")
     for k, etichetta, _v, minimo in S.PROFILI:
         if minimo is not None and prof[k] < minimo:
+            err.append(u"%s: almeno %g mm." % (etichetta, minimo))
+    for k, etichetta, _v, minimo in S.MISURE_CONTORNO:
+        if valori[etichetta] < minimo and _misura_in_uso(schema, k):
             err.append(u"%s: almeno %g mm." % (etichetta, minimo))
     err.extend(S.errori_struttura(schema))
     if L <= 0 or H <= 0:
@@ -206,8 +226,19 @@ def calcola(schema):
         if not err:
             raise
         ris[u"piani"], ris[u"pezzi"], ris[u"celle"], ris[u"simboli"] = [], [], [], []
-        ris[u"piani_y"], ris[u"pianta"], ris[u"pezzi_aperti"] = [], [], []
+        ris[u"piani_y"], ris[u"pianta"], ris[u"pezzi_aperti"], ris[u"contorno"] = [], [], [], []
     return ris
+
+
+def _misura_in_uso(schema, chiave):
+    """La misura del contorno conta per lo schema (se no il suo minimo non si controlla)."""
+    if chiave == u"muro":
+        return True
+    c = schema.get(u"contorno") or {}
+    if chiave == u"posizione":
+        return c.get(u"posizione", u"centro") != u"centro"
+    return any(chiave in S.MISURE_DI[e] for e in S.elementi_ammessi(schema.get(u"categoria"))
+               if S.contorno_attivo(schema, e))
 
 
 def _costruisci(schema, L, H, valori, ris):
@@ -234,9 +265,13 @@ def _costruisci(schema, L, H, valori, ris):
             ris[u"pezzi"].append(_pezzo(u"telaio", esterni, None, u"telaio", None))
         bordo_basso = (u"basso", u"terra")        # ante e vetri arrivano quasi a terra
 
-    # filo interno dell'anta: da qui partono archi in pianta e ante aperte
-    piani_y = _PianiY()
+    # piani paralleli al muro: asse del telaio (dove sta nel muro), poi filo interno dell'anta,
+    # da cui partono archi in pianta e ante aperte
+    piani_y = _PianiY(valori[MURO])
     ris[u"piani_y"] = piani_y.lista
+    asse = _asse_telaio(schema, piani_y, valori, ris)
+    ris[u"asse"] = asse
+    ris[u"asse_y"] = piani_y.pos(asse)
     spost, prof_a = valori[profilo(u"anta_spost")], valori[profilo(u"anta_prof")]
     if INTERNO > 0:
         filo, f_filo = spost + prof_a / 2.0, u"%s + %s / 2" % (profilo(u"anta_spost"), profilo(u"anta_prof"))
@@ -244,7 +279,7 @@ def _costruisci(schema, L, H, valori, ris):
         filo, f_filo = prof_a / 2.0 - spost, u"%s / 2 - %s" % (profilo(u"anta_prof"), profilo(u"anta_spost"))
     valori[FILO_ANTA] = filo
     stato = {u"scorrevoli": 0, u"maniglie": bool(schema.get(u"maniglie", False)),
-             u"piani_y": piani_y, u"f_filo": f_filo, u"filo": None,
+             u"piani_y": piani_y, u"f_filo": f_filo, u"filo": None, u"asse": asse,
              u"simbolo_finestre": schema.get(u"simbolo_pianta", u"nessuno")}
     bordi = {u"sx": (u"sx", u"telaio"), u"dx": (u"dx", u"telaio"),
              u"basso": bordo_basso, u"alto": (u"alto", u"telaio")}
@@ -256,6 +291,7 @@ def _costruisci(schema, L, H, valori, ris):
 
     for c in ris[u"celle"]:
         _controlla_cella(c, piani, valori, err)
+    _contorno(schema, piani, piani_y, asse, valori, ris)
 
 
 def _pezzo(tipo, esterni, interni, profondita, percorso, dettaglio=TUTTI, stato=None):
@@ -470,7 +506,7 @@ def _filo(stato, valori, ris):
     """Piano y del filo interno dell'anta (creato una volta sola)."""
     if stato[u"filo"] is None:
         _derivato(ris, None, FILO_ANTA, stato[u"f_filo"], valori[FILO_ANTA])
-        stato[u"filo"] = stato[u"piani_y"].aggiungi(u"centro", FILO_ANTA, INTERNO, valori[FILO_ANTA])
+        stato[u"filo"] = stato[u"piani_y"].aggiungi(stato[u"asse"], FILO_ANTA, INTERNO, valori[FILO_ANTA])
     return stato[u"filo"]
 
 
@@ -546,6 +582,123 @@ def _aperta_scorre(c, propri, piani, valori, ris):
                        pz[u"profondita"], c[u"percorso"], dettaglio=MEDIO_ALTO, stato=u"aperta")
         ris[u"pezzi"].append(nuovo)
     return True
+
+
+# --- contorno: posizione nel muro, foro, mostre, davanzali, imbotte ------------------------
+MC = dict((k, e) for k, e, _v, _m in S.MISURE_CONTORNO)    # chiave -> nome del parametro
+MAT_MOSTRE = u"Materiale mostre"
+MAT_DAVANZALI = u"Materiale davanzali"
+MAT_IMBOTTE = u"Materiale imbotte"
+MAT_MAZZETTA = u"Materiale mazzetta"
+
+
+def _asse_telaio(schema, piani_y, valori, ris):
+    """Piano y dell'asse del telaio: l'asse del muro, o a una distanza da una sua faccia."""
+    posizione = (schema.get(u"contorno") or {}).get(u"posizione", u"centro")
+    if posizione == u"centro":
+        return u"centro"
+    tp = profilo(u"telaio_prof")
+    v = valori[MC[u"posizione"]] + valori[tp] / 2.0
+    _derivato(ris, None, ASSE_TELAIO, u"%s + %s / 2" % (MC[u"posizione"], tp), v)
+    valori[ASSE_TELAIO] = v
+    if posizione == u"filo_esterno":
+        return piani_y.aggiungi(u"esterno", ASSE_TELAIO, INTERNO, v)
+    return piani_y.aggiungi(u"interno", ASSE_TELAIO, -INTERNO, v)
+
+
+def _contorno(schema, piani, py, asse, valori, ris):
+    """Elementi del contorno in ris["contorno"]: {chiave, nome, tipo, x, z, y, visibile, materiale}.
+
+    x, z: coppie di piani (prospetto); y: coppia di piani paralleli al muro.
+    tipo: mazzetta, mostra, davanzale, soglia, imbotte.
+    visibile: parametro Si'/No che accende l'elemento nella famiglia.
+    """
+    err = ris[u"errori"]
+    porta = schema.get(u"categoria") == S.PORTE
+    T = valori[MURO]
+    tp = valori[profilo(u"telaio_prof")]
+    if abs(py.pos(asse)) + tp / 2.0 > T / 2.0 + _EPS:
+        err.append(u"Il telaio (profondità %g mm) esce dal muro di %g mm: cambia la posizione nel muro "
+                   u"o lo spessore del muro." % (tp, T))
+    facce = {}
+
+    def faccia(lato):
+        """Piano y della faccia del telaio verso l'esterno ("est") o l'interno ("int")."""
+        if lato not in facce:
+            _derivato(ris, None, MEZZO_TELAIO, u"%s / 2" % profilo(u"telaio_prof"), tp / 2.0)
+            valori[MEZZO_TELAIO] = tp / 2.0
+            facce[lato] = py.aggiungi(asse, MEZZO_TELAIO, -INTERNO if lato == u"est" else INTERNO, tp / 2.0)
+        return facce[lato]
+
+    def spazio(a, b, cosa):
+        if abs(py.pos(a) - py.pos(b)) < 1.0:
+            err.append(u"%s: tra il telaio e il filo del muro non c'è spazio (cambia la posizione nel muro)."
+                       % cosa)
+
+    def el(chiave, nome, tipo, x, z, y, materiale=None):
+        ris[u"contorno"].append({
+            u"chiave": chiave, u"nome": nome, u"tipo": tipo, u"x": x, u"z": z, u"y": y,
+            u"visibile": S.NOMI_ELEMENTI_CONTORNO[chiave], u"materiale": materiale})
+
+    att = lambda e: S.contorno_attivo(schema, e)  # noqa: E731
+    sx, dx, basso, alto = u"sx", u"dx", u"basso", u"alto"
+    hx0, hx1, hz1 = sx, dx, alto          # bordi del foro sul lato esterno
+    if att(u"mazzetta"):
+        # riseghe piene nel foro, dal filo esterno del muro alla faccia del telaio: da fuori il
+        # foro e' piu' stretto e il telaio sta dietro la battuta. (Un vuoto che taglia il muro
+        # ospite le API di Revit non lo permettono nelle famiglie: il foro resta quello del modello.)
+        n, m = MC[u"mazzetta"], valori[MC[u"mazzetta"]]
+        hx0, hx1, hz1 = piani.aggiungi(sx, n, 1, m), piani.aggiungi(dx, n, -1, m), piani.aggiungi(alto, n, -1, m)
+        spazio(u"esterno", faccia(u"est"), u"Mazzetta")
+        y = (u"esterno", faccia(u"est"))
+        el(u"mazzetta", u"Mazzetta sinistra", u"mazzetta", (sx, hx0), (basso, alto), y, MAT_MAZZETTA)
+        el(u"mazzetta", u"Mazzetta destra", u"mazzetta", (hx1, dx), (basso, alto), y, MAT_MAZZETTA)
+        el(u"mazzetta", u"Mazzetta sopra", u"mazzetta", (hx0, hx1), (hz1, alto), y, MAT_MAZZETTA)
+
+    for chiave, filo, bordi, davanzale in ((u"mostra_est", u"esterno", (hx0, hx1, hz1), u"dav_est"),
+                                           (u"mostra_int", u"interno", (sx, dx, alto), u"dav_int")):
+        if not att(chiave):
+            continue
+        nl, w = MC[u"mostra_l"], valori[MC[u"mostra_l"]]
+        fuori = -INTERNO if filo == u"esterno" else INTERNO
+        y = (filo, py.aggiungi(filo, MC[u"mostra_sp"], fuori, valori[MC[u"mostra_sp"]]))
+        b0, b1, bz = bordi
+        m0, m1, mz = piani.aggiungi(b0, nl, -1, w), piani.aggiungi(b1, nl, 1, w), piani.aggiungi(bz, nl, 1, w)
+        sotto = not porta and not att(davanzale)     # finestre senza davanzale: cornice chiusa
+        z0 = piani.aggiungi(basso, nl, -1, w) if sotto else basso
+        nome = S.NOMI_ELEMENTI_CONTORNO[chiave]
+        el(chiave, nome + u" sinistra", u"mostra", (m0, b0), (z0, mz), y, MAT_MOSTRE)
+        el(chiave, nome + u" destra", u"mostra", (b1, m1), (z0, mz), y, MAT_MOSTRE)
+        el(chiave, nome + u" sopra", u"mostra", (b0, b1), (bz, mz), y, MAT_MOSTRE)
+        if sotto:
+            el(chiave, nome + u" sotto", u"mostra", (b0, b1), (z0, basso), y, MAT_MOSTRE)
+
+    for chiave, filo, lato, b0, b1 in ((u"dav_est", u"esterno", u"est", hx0, hx1),
+                                       (u"dav_int", u"interno", u"int", sx, dx)):
+        if not att(chiave):
+            continue
+        suf = u"est" if lato == u"est" else u"int"
+        nr, nsp, nsg = MC[u"dav_%s_ris" % suf], MC[u"dav_%s_sp" % suf], MC[u"dav_%s_sporg" % suf]
+        fuori = -INTERNO if filo == u"esterno" else INTERNO
+        x = (piani.aggiungi(b0, nr, -1, valori[nr]), piani.aggiungi(b1, nr, 1, valori[nr]))
+        z = (piani.aggiungi(basso, nsp, -1, valori[nsp]), basso)
+        y = (faccia(lato), py.aggiungi(filo, nsg, fuori, valori[nsg]))
+        el(chiave, S.NOMI_ELEMENTI_CONTORNO[chiave], u"davanzale", x, z, y, MAT_DAVANZALI)
+
+    if att(u"soglia_pietra"):
+        nsp, nsg = MC[u"soglia_sp"], MC[u"soglia_sporg"]
+        z = (piani.aggiungi(basso, nsp, -1, valori[nsp]), basso)
+        y = (py.aggiungi(u"esterno", nsg, -INTERNO, valori[nsg]), u"interno")
+        el(u"soglia_pietra", S.NOMI_ELEMENTI_CONTORNO[u"soglia_pietra"], u"soglia", (sx, dx), z, y, MAT_DAVANZALI)
+
+    if att(u"imbotte"):
+        n, t = MC[u"imbotte_sp"], valori[MC[u"imbotte_sp"]]
+        i0, i1, iz = piani.aggiungi(sx, n, 1, t), piani.aggiungi(dx, n, -1, t), piani.aggiungi(alto, n, -1, t)
+        y = (faccia(u"int"), u"interno")
+        spazio(faccia(u"int"), u"interno", u"Imbotte")
+        el(u"imbotte", u"Imbotte sinistra", u"imbotte", (sx, i0), (basso, alto), y, MAT_IMBOTTE)
+        el(u"imbotte", u"Imbotte destra", u"imbotte", (i1, dx), (basso, alto), y, MAT_IMBOTTE)
+        el(u"imbotte", u"Imbotte sopra", u"imbotte", (i0, i1), (iz, alto), y, MAT_IMBOTTE)
 
 
 # --- maniglie ---------------------------------------------------------------------------

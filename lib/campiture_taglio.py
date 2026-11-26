@@ -82,7 +82,7 @@ def crea(doc, view, tipo_id, facce):
 
 def tipi_campitura(doc):
     tipi = DB.FilteredElementCollector(doc).OfClass(DB.FilledRegionType)
-    return dict((DB.Element.Name.GetValue(t), t) for t in tipi)
+    return dict((DB.Element.Name.__get__(t), t) for t in tipi)
 
 
 def vista_valida(view):

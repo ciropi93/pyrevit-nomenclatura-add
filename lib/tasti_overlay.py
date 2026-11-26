@@ -71,6 +71,7 @@ import icone_wpf as IW
 import finestre_wpf as FW
 import avviso as AV
 import avviso_wpf as AVW
+from infissi.parametri import SCHEMA as PARAMETRO_SCHEMA_INFISSO
 
 
 # Stessa chiave della prima versione: al Reload spegne anche il vecchio pannello
@@ -87,6 +88,10 @@ SCRIPT_INVERTI_MURO = os.path.join(
 SCRIPT_RITAGLIA = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     u"CDV Tools.tab", u"Tavole.panel", u"CropImage.pushbutton", u"script.py",
+)
+SCRIPT_MODIFICA_INFISSO = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    u"CDV Tools.tab", u"Infissi.panel", u"ModificaInfisso.pushbutton", u"script.py",
 )
 _LIB = os.path.dirname(os.path.abspath(__file__))
 ATTESA_DOPPIO_CLIC_S = 0.8   # oltre, il doppio clic non apre piu' la palette annotazioni
@@ -321,6 +326,18 @@ def _coppie_sezioni(doc, cache):
     return cache[u"valore"]
 
 
+def _infisso_cdv(doc, elemento):
+    """True se e' una finestra/porta creata con il Configuratore (il tipo ha lo schema CDV)."""
+    if not isinstance(elemento, DB.FamilyInstance):
+        return False
+    try:
+        tipo = doc.GetElement(elemento.GetTypeId())
+        p = tipo.LookupParameter(PARAMETRO_SCHEMA_INFISSO) if tipo is not None else None
+        return p is not None and bool(p.AsString())
+    except Exception:
+        return False
+
+
 def _gruppi_cdv(doc, elementi, cache=None):
     """Strumenti CDV legati al contesto: (gruppi, madre_uid).
 
@@ -332,6 +349,8 @@ def _gruppi_cdv(doc, elementi, cache=None):
     vista = doc.ActiveView
     n_allinea = len(elementi) if (vista is not None
                                   and AO.vista_ammessa(str(vista.ViewType))) else 0
+    if len(elementi) == 1 and _infisso_cdv(doc, elementi[0]):
+        return TC.comandi_per_selezione(0, in_tavola=False, n_infissi=1), None
     muri = [e for e in elementi if isinstance(e, DB.Wall)]
     if muri and len(muri) == len(elementi):
         return TC.comandi_per_selezione(0, in_tavola=False, n_muri=len(muri),
@@ -425,6 +444,17 @@ def _ritaglia_immagine():
         sys.path.append(_LIB)
     modulo = imp.load_source("cdv_cropimage_script", SCRIPT_RITAGLIA)
     modulo.main()
+
+
+def _modifica_infisso():
+    """Apre Modifica infisso sull'infisso selezionato (come il pulsante del pannello Infissi)."""
+    if _LIB not in sys.path:        # vedi _ritaglia_immagine
+        sys.path.append(_LIB)
+    modulo = imp.load_source("cdv_modificainfisso_script", SCRIPT_MODIFICA_INFISSO)
+    try:
+        modulo.main()
+    except SystemExit:              # script.exit() quando si annulla la finestra
+        pass
 
 
 def _comandi_disponibili():
@@ -526,6 +556,8 @@ class _GestoreAzione(UI.IExternalEventHandler):
                 _inverti_muri(self.maiuscolo)
             elif comando == TC.IMMAGINE_RITAGLIA:
                 _ritaglia_immagine()
+            elif comando == TC.INFISSO_MODIFICA:
+                _modifica_infisso()
             else:
                 # Allineamenti: lavorano sulla selezione corrente della tavola attiva
                 AIT.esegui_da_ribbon(comando)
@@ -1540,7 +1572,7 @@ class TastiOverlay(object):
             self._nascondi_finestra()
             self._nascondi_lettere()
             self._aggiorna_segui()
-        elif comando in (TC.SEZIONE_APRI, TC.IMMAGINE_RITAGLIA):
+        elif comando in (TC.SEZIONE_APRI, TC.IMMAGINE_RITAGLIA, TC.INFISSO_MODIFICA):
             # Si apre una finestra: i tasti si tolgono di mezzo e tornano dopo
             # (chiave azzerata = la selezione viene riletta al prossimo Idling).
             self.nascondi()

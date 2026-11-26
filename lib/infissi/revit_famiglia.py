@@ -24,6 +24,10 @@ NOMI_SOTTOCATEGORIE = {
     u"pianta_porta": ((u"Apertura in pianta", u"Rotazione in pianta", u"Plan Swing"),
                       u"Apertura in pianta"),
     u"pianta_finestra": ((u"Apertura in pianta finestre",), u"Apertura in pianta finestre"),
+    u"mostre": ((u"Mostre", u"Trim"), u"Mostre"),
+    u"davanzali": ((u"Davanzali", u"Sill"), u"Davanzali"),
+    u"imbotte": ((u"Imbotte",), u"Imbotte"),
+    u"mazzetta": ((u"Mazzetta",), u"Mazzetta"),
 }
 # sottocategoria delle linee in pianta per stile (vedi G: ris["pianta"][..]["stile"])
 SOTTOCATEGORIA_PIANTA = {u"porta": u"pianta_porta", u"finestra_continuo": u"pianta_porta",
@@ -49,7 +53,8 @@ class _Errori(DB.IFailuresPreprocessor):
 
     def __init__(self):
         self.messaggi = []
-        self.giri = 0
+        self.elementi = []      # id degli elementi coinvolti negli errori (durante la gestione
+        self.giri = 0           # degli errori GetElement non li trova: li descrive il costruttore)
 
     def PreprocessFailures(self, accessor):
         risolti = False
@@ -63,6 +68,13 @@ class _Errori(DB.IFailuresPreprocessor):
                 testo = u"errore di Revit"
             if testo not in self.messaggi:
                 self.messaggi.append(testo)
+            try:
+                for eid in list(f.GetFailingElementIds()) + list(f.GetAdditionalElementIds()):
+                    k = _chiave_id(eid)
+                    if k not in self.elementi:
+                        self.elementi.append(k)
+            except Exception:
+                pass
             if self.giri < self.GIRI_MAX and f.GetSeverity() == DB.FailureSeverity.Error \
                     and f.HasResolutions():
                 accessor.ResolveFailure(f)
@@ -80,42 +92,13 @@ def _chiave_id(eid):
     return v if v is not None else eid.IntegerValue
 
 
-def _stacca(curva):
-    """Stacca la linea da quelle che toccano i suoi estremi (Revit le unisce da solo)."""
-    try:
-        curva.SetGeometryCurve(curva.GeometryCurve, True)
-    except Exception:
-        pass
-
-
-class _Estremi(object):
-    """Estremi gia' quotati. Due linee unite in un punto lo condividono: quotarlo da
-    entrambe le linee e' un vincolo doppio (Revit: troppi vincoli), quindi si quota una volta."""
-
-    def __init__(self):
-        self.per_punto = {}
-
-    @staticmethod
-    def _chiave(punto):
-        return (round(punto[0], 1), round(punto[1], 1))
-
-    def unito(self, curva, indice, punto):
-        """True se l'estremo e' unito a una linea gia' quotata in quel punto."""
-        gia = self.per_punto.get(self._chiave(punto))
-        if not gia:
-            return False
-        try:
-            vicine = set(_chiave_id(e) for e in curva.GetAdjoinedCurveElements(indice))
-        except Exception:
-            return True     # non si sa: meglio un estremo libero che un vincolo doppio
-        return bool(vicine & gia)
-
-    def segna(self, curva, punto):
-        try:
-            k = _chiave_id(curva.Id)
-        except Exception:
-            return
-        self.per_punto.setdefault(self._chiave(punto), set()).add(k)
+# Linee dei simboli (prospetto e pianta): ognuna sul SUO piano di schizzo, poi si quotano
+# tutti gli estremi. Revit unisce da solo le linee dello stesso piano di schizzo che hanno
+# un estremo in comune, ma non sempre (dove se ne incontrano tre ne unisce due, e non si
+# sa quali) e lo fa a una rigenerazione successiva (GetAdjoinedCurveElements prima non lo
+# dice). Con linee unite, quotare entrambi gli estremi e' un vincolo doppio (Revit: troppi
+# vincoli); quotarne uno solo lascia libero l'altro se Revit non le ha unite. Con un piano
+# di schizzo per linea non si uniscono mai e ogni estremo ha le sue quote.
 
 
 class OpzioniCaricamento(DB.IFamilyLoadOptions):
@@ -199,20 +182,28 @@ def _tratteggio(famdoc):
     return None
 
 
-def _visibilita(elemento, dettaglio, modello=True, pianta=True):
+def _visibilita(elemento, dettaglio, modello=True, pianta=True, motivi=None):
     """Livelli di dettaglio (e pianta si'/no) in cui l'elemento della famiglia si vede."""
     try:
-        tipo = DB.FamilyElementVisibilityType.Model if modello else DB.FamilyElementVisibilityType.ViewSpecific
-        vis = DB.FamilyElementVisibility(tipo)
-        vis.IsShownInCoarse = G.BASSO in dettaglio
-        vis.IsShownInMedium = G.MEDIO in dettaglio
-        vis.IsShownInFine = G.ALTO in dettaglio
-        if modello:
-            vis.IsShownInPlanRCP = pianta
-        elemento.SetVisibility(vis)
-        return True
-    except Exception:
+        return _imposta_visibilita(elemento, dettaglio, modello, pianta)
+    except Exception as ex:
+        if motivi is not None and u"%s" % ex not in motivi:
+            motivi.append(u"%s" % ex)
         return False
+
+
+def _imposta_visibilita(elemento, dettaglio, modello, pianta):
+    tipo = DB.FamilyElementVisibilityType.Model if modello else DB.FamilyElementVisibilityType.ViewSpecific
+    vis = DB.FamilyElementVisibility(tipo)
+    vis.IsShownInCoarse = G.BASSO in dettaglio
+    vis.IsShownInMedium = G.MEDIO in dettaglio
+    vis.IsShownInFine = G.ALTO in dettaglio
+    if modello:
+        # "Pianta/Controsoffitto" degli elementi di modello (IsShownInPlanRCP vale solo
+        # per quelli specifici della vista)
+        vis.IsShownInTopBottom = pianta
+    elemento.SetVisibility(vis)
+    return True
 
 
 def _vista_prospetto(famdoc):
@@ -226,6 +217,19 @@ def _vista_prospetto(famdoc):
         raise FamigliaErrore(u"Nel modello famiglia non trovo il prospetto frontale.")
     # di solito "Esterno"/"Exterior" ha la direzione di vista verso +Y o -Y: va bene la prima
     return candidate[0]
+
+
+class _PianoLivello(object):
+    """Un livello usato come piano di bordo: quanto serve di un ReferencePlane."""
+
+    def __init__(self, livello):
+        self.livello = livello
+        self.Id = livello.Id
+        self.Name = livello.Name
+        self.BubbleEnd = DB.XYZ(0, 0, livello.Elevation)
+
+    def GetReference(self):
+        return self.livello.GetPlaneReference()
 
 
 def _piani_modello(famdoc, larghezza, altezza):
@@ -252,14 +256,55 @@ def _piani_modello(famdoc, larghezza, altezza):
 
     cv = coppia(vert, larghezza, -larghezza / 2.0)
     co = coppia(oriz, altezza, 0.0)
+    if co is None:
+        # modello Porta: in basso non c'e' un piano, c'e' il livello di riferimento
+        for lv in DB.FilteredElementCollector(famdoc).OfClass(DB.Level):
+            oriz.append((lv.Elevation, _PianoLivello(lv)))
+        co = coppia(oriz, altezza, 0.0)
     if cv is None or co is None:
+        def elenco(lista):
+            return u", ".join(u"%s %.0f" % (rp.Name, a / MM) for a, rp in sorted(lista, key=lambda v: v[0]))
         raise FamigliaErrore(u"Nel modello famiglia non trovo i piani di riferimento di "
-                             u"larghezza e altezza.")
+                             u"larghezza e altezza (cerco %.0f x %.0f mm).\nVerticali: %s\n"
+                             u"Orizzontali: %s" % (larghezza / MM, altezza / MM,
+                                                    elenco(vert), elenco(oriz)))
     out = {u"sx": cv[1], u"dx": cv[2], u"basso": co[1], u"alto": co[2], u"centro": None}
     for y, rp in front:
         if abs(y) < TOLL:
             out[u"centro"] = rp
     return out
+
+
+def _spessore_muro(famdoc):
+    """Spessore (mm) del muro ospite del modello famiglia; None se non c'e' un muro."""
+    for w in DB.FilteredElementCollector(famdoc).OfClass(DB.Wall):
+        return w.Width / MM
+    return None
+
+
+def _facce_muro(famdoc, spessore_mm):
+    """Piani del modello sulle facce del muro: {"esterno": rp, "interno": rp} (quelli che ci sono).
+    Sono i piani Esterno/Interno del modello, legati alle facce: seguono lo spessore del muro."""
+    out = {}
+    if not spessore_mm:
+        return out
+    meta = ft(spessore_mm) / 2.0
+    for rp in DB.FilteredElementCollector(famdoc).OfClass(DB.ReferencePlane):
+        if abs(rp.Normal.Y) < 0.99:
+            continue
+        y = rp.BubbleEnd.Y
+        for nome, pos in ((u"esterno", -G.INTERNO * meta), (u"interno", G.INTERNO * meta)):
+            if abs(y - pos) < TOLL and nome not in out:
+                out[nome] = rp
+    return out
+
+
+def _vista_lato(famdoc):
+    """Un prospetto laterale (guarda lungo x): li' le facce parallele al muro sono linee."""
+    for v in DB.FilteredElementCollector(famdoc).OfClass(DB.View):
+        if not v.IsTemplate and v.ViewType == DB.ViewType.Elevation and abs(v.ViewDirection.X) > 0.99:
+            return v
+    return None
 
 
 # --- costruzione ------------------------------------------------------------------------
@@ -269,18 +314,34 @@ class _Costruttore(object):
         self.crea = famdoc.FamilyCreate
         self.fm = famdoc.FamilyManager
         self.schema = schema
-        self.ris = G.calcola(schema)
+        # le facce del muro sono quelle del modello famiglia: si calcola con il suo spessore
+        self.spessore_muro = _spessore_muro(famdoc)
+        self.ris = G.calcola(schema, self.spessore_muro)
         if self.ris[u"errori"]:
             raise FamigliaErrore(u"\n".join(self.ris[u"errori"]))
         self.parametri = PA.elenco(schema, self.ris)
         self.report = {u"quote": 0, u"allineamenti": 0, u"simboli": 0, u"flex": u"",
-                       u"pianta": 0, u"aperte": 0, u"visibilita": 0, u"formule": []}
+                       u"pianta": 0, u"aperte": 0, u"visibilita": 0, u"formule": [],
+                       u"motivi_quote": [], u"motivi_visibilita": [], u"linee_fuori": [],
+                       u"contorno": 0, u"motivi_contorno": []}
         self.fp = {}
         self.rp = {}
         self.estrusioni = []
         self.simboli = []
         self.estrusioni_aperte = []
+        self.contorno = []
         self.pianta = None
+        self.descrizioni = {}       # id elemento -> cosa e' (per spiegare gli errori di Revit)
+
+    def _descrivi(self, elemento, testo):
+        try:
+            self.descrizioni[_chiave_id(elemento.Id)] = testo
+        except Exception:
+            pass
+
+    def spiega(self, ids):
+        """Descrizione degli elementi coinvolti in un errore di Revit."""
+        return [self.descrizioni.get(k, u"elemento %s" % k) for k in ids]
 
     # coordinate: mm dello schema -> piedi del modello famiglia
     def X(self, mm):
@@ -306,28 +367,69 @@ class _Costruttore(object):
         self.doc.Regenerate()
 
         self.vista = _vista_prospetto(self.doc)
+        self.vista_lato = _vista_lato(self.doc)
         bordi = _piani_modello(self.doc, ft(self.schema[u"larghezza"]), ft(self.schema[u"altezza"]))
         for k in G.RADICI:
             self.rp[k] = bordi[k]
         self.x0 = bordi[u"sx"].BubbleEnd.X
         self.z0 = bordi[u"basso"].BubbleEnd.Z
         self.y0 = 0.0
-        if bordi[u"centro"] is not None:
-            self.piano_schizzo = DB.SketchPlane.Create(self.doc, bordi[u"centro"].Id)
-        else:
-            self.piano_schizzo = DB.SketchPlane.Create(
-                self.doc, DB.Plane.CreateByNormalAndOrigin(DB.XYZ.BasisY, DB.XYZ.Zero))
+        self.centro = bordi[u"centro"]
+        self.piano_asse = self.centro
 
+        self._togli_dal_modello()
         self._parametri()
         self._piani()
+        self._prepara_y()
         self._estrusioni()
         self.doc.Regenerate()
         self._allinea()
         self._simboli()
-        self._pianta_e_aperte(bordi[u"centro"])
+        self._pianta_e_aperte()
+        self._contorno()
         self._tipi(tipi)
         self._flex()
         return self.report
+
+    def _nuovo_piano_schizzo(self):
+        """Piano di schizzo del prospetto: sull'asse del telaio (di base il piano "centro" del
+        modello, cioe' l'asse del muro)."""
+        if self.piano_asse is not None:
+            return DB.SketchPlane.Create(self.doc, self.piano_asse.Id)
+        return DB.SketchPlane.Create(
+            self.doc, DB.Plane.CreateByNormalAndOrigin(DB.XYZ.BasisY, DB.XYZ.Zero))
+
+    def _togli_dal_modello(self):
+        """Toglie i solidi del modello famiglia (la mostra del modello Porta: le mostre le fa il
+        contorno). Il foro nel muro resta quello del modello."""
+        ids = []
+        for cls in (DB.Extrusion, DB.Sweep, DB.Blend, DB.Revolution, DB.SweptBlend):
+            ids.extend(e.Id for e in DB.FilteredElementCollector(self.doc).OfClass(cls))
+        for eid in ids:
+            try:
+                self.doc.Delete(eid)
+            except Exception:
+                pass
+        if ids:
+            self.doc.Regenerate()
+
+    def _prepara_y(self):
+        """Pianta del modello, piani paralleli al muro (asse del telaio, facce...) e piano di
+        schizzo sull'asse del telaio: tutto il serramento si costruisce da li'."""
+        self.pianta = _vista_pianta(self.doc)
+        self.yc = self.centro.BubbleEnd.Y if self.centro is not None else 0.0
+        self.rp[u"centro"] = self.centro
+        self.rp.update(_facce_muro(self.doc, self.spessore_muro))
+        if self.pianta is not None and self.centro is not None:
+            self._piani_y()
+        asse = self.ris[u"asse"]
+        if asse != u"centro":
+            if asse not in self.rp:
+                raise FamigliaErrore(u"Non riesco a mettere il telaio nella posizione scelta: nel modello "
+                                     u"famiglia mancano la pianta o i piani Esterno/Interno del muro.")
+            self.piano_asse = self.rp[asse]
+        self.y0 = self.yc + ft(self.ris[u"asse_y"])
+        self.piano_schizzo = self._nuovo_piano_schizzo()
 
     def _parametri(self):
         fm = self.fm
@@ -379,9 +481,13 @@ class _Costruttore(object):
             ra.Append(rif_b)
             dim = self.crea.NewDimension(vista or self.vista, linea, ra)
             dim.FamilyLabel = self.fp[param]
+            self._descrivi(dim, u"quota %s" % param)
             return True
-        except Exception:
+        except Exception as ex:
             self.report[u"quote"] += 1
+            motivo = u"%s: %s" % (param, ex)
+            if motivo not in self.report[u"motivi_quote"]:
+                self.report[u"motivi_quote"].append(motivo)
             return False
 
     def _piani(self):
@@ -390,7 +496,7 @@ class _Costruttore(object):
         livello_quote = {u"v": self.Z(self.schema[u"altezza"]) + ft(400),
                          u"o": self.X(self.schema[u"larghezza"]) + ft(400)}
         passo = ft(60)
-        for i, p in enumerate(self.ris[u"piani"]):
+        for p in self.ris[u"piani"]:
             if p[u"base"] is None:
                 continue
             if p[u"verso"] == u"v":
@@ -407,6 +513,13 @@ class _Costruttore(object):
             except Exception:
                 pass
             self.rp[p[u"id"]] = rp
+        # prima tutti i piani, poi le quote: un piano appena creato non e' ancora un
+        # riferimento geometrico finche' Revit non rigenera
+        self.doc.Regenerate()
+        for i, p in enumerate(self.ris[u"piani"]):
+            if p[u"base"] is None:
+                continue
+            rp = self.rp[p[u"id"]]
             base = self.rp[p[u"base"]]
             q = livello_quote[p[u"verso"]] + (i % 8) * passo
             pb = [x for x in self.ris[u"piani"] if x[u"id"] == p[u"base"]][0][u"pos"]
@@ -465,15 +578,17 @@ class _Costruttore(object):
 
     def _visibile(self, ext, pz, pianta=True):
         """Livelli di dettaglio e (ante) aperta/chiusa dal parametro di istanza."""
-        if not _visibilita(ext, pz.get(u"dettaglio", G.TUTTI), pianta=pianta):
+        if not _visibilita(ext, pz.get(u"dettaglio", G.TUTTI), pianta=pianta,
+                           motivi=self.report[u"motivi_visibilita"]):
             self.report[u"visibilita"] += 1
         nome = {u"chiusa": G.CHIUSA, u"aperta": G.APERTA}.get(pz.get(u"stato"))
         if nome and nome in self.fp:
             try:
                 self.fm.AssociateElementParameterToFamilyParameter(
                     ext.get_Parameter(DB.BuiltInParameter.IS_VISIBLE_PARAM), self.fp[nome])
-            except Exception:
+            except Exception as ex:
                 self.report[u"visibilita"] += 1
+                self.report[u"motivi_visibilita"].append(u"%s: %s" % (nome, ex))
 
     def _allinea(self):
         opt = DB.Options()
@@ -511,67 +626,57 @@ class _Costruttore(object):
         for s in self.ris[u"simboli"]:
             for seg in s[u"segmenti"]:
                 linea = DB.Line.CreateBound(self.punto(*seg[u"p0"]), self.punto(*seg[u"p1"]))
-                curva = self.crea.NewSymbolicCurve(linea, self.piano_schizzo)
+                # un piano di schizzo per linea: vedi il commento 'Linee dei simboli' in cima
+                curva = self.crea.NewSymbolicCurve(linea, self._nuovo_piano_schizzo())
                 if stile is not None:
                     try:
                         curva.Subcategory = stile
                     except Exception:
                         pass
-                _stacca(curva)
+                self._descrivi(curva, u"linea simbolo %s-%s" % (seg[u"p0"], seg[u"p1"]))
                 self.simboli.append((curva, seg))
-        # prima tutte le linee, poi le quote: cosi' si sa quali estremi Revit ha unito
         self.doc.Regenerate()
-        estremi = _Estremi()
         for curva, seg in self.simboli:
-            self._blocca_simbolo(curva, seg, estremi)
+            for indice in (0, 1):
+                self._quota_estremo_simbolo(curva, seg, indice)
+        self.doc.Regenerate()   # i vincoli in conflitto emergono qui, non piu' avanti
 
-    def _blocca_simbolo(self, curva, seg, estremi):
-        """Quota ogni estremo (x e z) dal suo piano base con il suo parametro."""
-        ok = True
-        cx0, cz0, cx1, cz1 = seg[u"coord"]
-        for indice, punto, cx, cz in ((0, seg[u"p0"], cx0, cz0), (1, seg[u"p1"], cx1, cz1)):
-            if estremi.unito(curva, indice, punto):
-                estremi.segna(curva, punto)
-                continue
-            estremi.segna(curva, punto)
-            try:
-                rif_estremo = curva.GeometryCurve.GetEndPointReference(indice)
-            except Exception:
-                rif_estremo = None
-            if rif_estremo is None:
-                ok = False
-                continue
-            for (pid, param, _segno), verso in ((cx, u"v"), (cz, u"o")):
-                pb = [p for p in self.ris[u"piani"] if p[u"id"] == pid][0][u"pos"]
-                if verso == u"v":
-                    z = self.Z(punto[1])
-                    linea = DB.Line.CreateBound(DB.XYZ(self.X(pb), self.y0, z),
-                                                DB.XYZ(self.X(punto[0]), self.y0, z))
-                else:
-                    x = self.X(punto[0])
-                    linea = DB.Line.CreateBound(DB.XYZ(x, self.y0, self.Z(pb)),
-                                                DB.XYZ(x, self.y0, self.Z(punto[1])))
-                if not self._quota(self.rp[pid].GetReference(), rif_estremo, linea, param):
-                    ok = False
-        if not ok:
+    def _quota_estremo_simbolo(self, curva, seg, indice):
+        """Quota l'estremo (x e z) dal suo piano base con il suo parametro."""
+        punto = seg[u"p0"] if indice == 0 else seg[u"p1"]
+        cx, cz = seg[u"coord"][2 * indice], seg[u"coord"][2 * indice + 1]
+        try:
+            rif_estremo = curva.GeometryCurve.GetEndPointReference(indice)
+        except Exception:
+            rif_estremo = None
+        if rif_estremo is None:
             self.report[u"simboli"] += 1
+            return
+        for (pid, param, _segno), verso in ((cx, u"v"), (cz, u"o")):
+            pb = [p for p in self.ris[u"piani"] if p[u"id"] == pid][0][u"pos"]
+            if verso == u"v":
+                z = self.Z(punto[1])
+                linea = DB.Line.CreateBound(DB.XYZ(self.X(pb), self.y0, z),
+                                            DB.XYZ(self.X(punto[0]), self.y0, z))
+            else:
+                x = self.X(punto[0])
+                linea = DB.Line.CreateBound(DB.XYZ(x, self.y0, self.Z(pb)),
+                                            DB.XYZ(x, self.y0, self.Z(punto[1])))
+            if not self._quota(self.rp[pid].GetReference(), rif_estremo, linea, param):
+                self.report[u"simboli"] += 1
 
     # --- pianta e ante aperte --------------------------------------------------------------
     def Y(self, mm):
         return self.yc + ft(mm)
 
-    def _pianta_e_aperte(self, centro):
-        """Piani paralleli al muro, simboli in pianta e ante aperte (dove serve)."""
+    def _pianta_e_aperte(self):
+        """Simboli in pianta e ante aperte (dove serve); i piani paralleli al muro ci sono gia'."""
         if not self.ris[u"pianta"] and not self.ris[u"pezzi_aperti"]:
             return
-        self.pianta = _vista_pianta(self.doc)
-        if self.pianta is None or centro is None:
+        if self.pianta is None or self.centro is None:
             self.report[u"pianta"] += len(self.ris[u"pianta"])
             self.report[u"aperte"] += len(self.ris[u"pezzi_aperti"])
             return
-        self.yc = centro.BubbleEnd.Y
-        self.rp[u"centro"] = centro
-        self._piani_y()
         self._simboli_pianta()
         self._aperte()
 
@@ -579,9 +684,12 @@ class _Costruttore(object):
         L = ft(self.schema[u"larghezza"])
         sporg = ft(300)
         x_quote = self.X(self.schema[u"larghezza"]) + ft(400)
-        for i, p in enumerate(self.ris[u"piani_y"]):
+        for p in self.ris[u"piani_y"]:
             if p[u"base"] is None:
                 continue
+            if p[u"base"] in (u"esterno", u"interno") and p[u"base"] not in self.rp:
+                raise FamigliaErrore(u"Nel modello famiglia non trovo il piano %s sulla faccia del muro."
+                                     % p[u"base"].capitalize())
             y = self.Y(p[u"pos"])
             rp = self.crea.NewReferencePlane(DB.XYZ(self.x0 - sporg, y, self.z0),
                                              DB.XYZ(self.x0 + L + sporg, y, self.z0),
@@ -591,6 +699,12 @@ class _Costruttore(object):
             except Exception:
                 pass
             self.rp[p[u"id"]] = rp
+        self.doc.Regenerate()       # vedi _piani: prima i piani, poi le quote
+        for i, p in enumerate(self.ris[u"piani_y"]):
+            if p[u"base"] is None:
+                continue
+            y = self.Y(p[u"pos"])
+            rp = self.rp[p[u"id"]]
             yb = [q for q in self.ris[u"piani_y"] if q[u"id"] == p[u"base"]][0][u"pos"]
             x = x_quote + (i % 6) * ft(60)
             linea = DB.Line.CreateBound(DB.XYZ(x, self.Y(yb), self.z0), DB.XYZ(x, y, self.z0))
@@ -604,7 +718,6 @@ class _Costruttore(object):
     def _simboli_pianta(self):
         if not self.ris[u"pianta"]:
             return
-        piano = self._piano_orizzontale()
         stili = {}
         for chiave in (u"pianta_porta", u"pianta_finestra"):
             sc = _sottocategoria(self.doc, chiave)
@@ -626,6 +739,7 @@ class _Costruttore(object):
         for simb in self.ris[u"pianta"]:
             stile = stili.get(SOTTOCATEGORIA_PIANTA[simb[u"stile"]])
             for seg in simb[u"segmenti"]:
+                piano = self._piano_orizzontale()      # uno per linea: commento 'Linee dei simboli'
                 try:
                     if seg[u"tipo"] == u"arco":
                         c = seg[u"centro"]
@@ -647,42 +761,34 @@ class _Costruttore(object):
                     except Exception:
                         pass
                 _visibilita(curva, G.TUTTI, modello=False)
-                _stacca(curva)
                 create.append((curva, seg))
         self.doc.Regenerate()
-        estremi = _Estremi()
         for curva, seg in create:
-            if not self._blocca_pianta(curva, seg, estremi):
-                self.report[u"pianta"] += 1
+            for indice in (0, 1):
+                self._quota_estremo_pianta(curva, seg, indice)
 
-    def _blocca_pianta(self, curva, seg, estremi):
-        """Quota ogni estremo: x da un piano x, y da un piano parallelo al muro (in pianta)."""
-        ok = True
-        cx0, cy0, cx1, cy1 = seg[u"coord"]
+    def _quota_estremo_pianta(self, curva, seg, indice):
+        """Quota l'estremo: x da un piano x, y da un piano parallelo al muro (in pianta)."""
+        punto = seg[u"p0"] if indice == 0 else seg[u"p1"]
+        cx, cy = seg[u"coord"][2 * indice], seg[u"coord"][2 * indice + 1]
         tutti = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani"])
         tutti_y = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani_y"])
-        for indice, punto, cx, cy in ((0, seg[u"p0"], cx0, cy0), (1, seg[u"p1"], cx1, cy1)):
-            if estremi.unito(curva, indice, punto):
-                estremi.segna(curva, punto)
-                continue
-            estremi.segna(curva, punto)
-            try:
-                rif = curva.GeometryCurve.GetEndPointReference(indice)
-            except Exception:
-                rif = None
-            if rif is None:
-                ok = False
-                continue
-            for (pid, param, _segno), verso in ((cx, u"x"), (cy, u"y")):
-                if verso == u"x":
-                    xb, y = self.X(tutti[pid]), self.Y(punto[1])
-                    linea = DB.Line.CreateBound(DB.XYZ(xb, y, self.z0), DB.XYZ(self.X(punto[0]), y, self.z0))
-                else:
-                    x, yb = self.X(punto[0]), self.Y(tutti_y[pid])
-                    linea = DB.Line.CreateBound(DB.XYZ(x, yb, self.z0), DB.XYZ(x, self.Y(punto[1]), self.z0))
-                if not self._quota(self.rp[pid].GetReference(), rif, linea, param, self.pianta):
-                    ok = False
-        return ok
+        try:
+            rif = curva.GeometryCurve.GetEndPointReference(indice)
+        except Exception:
+            rif = None
+        if rif is None:
+            self.report[u"pianta"] += 1
+            return
+        for (pid, param, _segno), verso in ((cx, u"x"), (cy, u"y")):
+            if verso == u"x":
+                xb, y = self.X(tutti[pid]), self.Y(punto[1])
+                linea = DB.Line.CreateBound(DB.XYZ(xb, y, self.z0), DB.XYZ(self.X(punto[0]), y, self.z0))
+            else:
+                x, yb = self.X(punto[0]), self.Y(tutti_y[pid])
+                linea = DB.Line.CreateBound(DB.XYZ(x, yb, self.z0), DB.XYZ(x, self.Y(punto[1]), self.z0))
+            if not self._quota(self.rp[pid].GetReference(), rif, linea, param, self.pianta):
+                self.report[u"pianta"] += 1
 
     def _aperte(self):
         """Ante aperte a 90 gradi: estrusioni sul piano delle cerniere, verso il vano."""
@@ -780,6 +886,101 @@ class _Costruttore(object):
                             self.report[u"aperte"] += 1
                         break
 
+    # --- contorno: mostre, davanzali, soglia, imbotte, foro con la mazzetta ---------------------
+    def _contorno(self):
+        """Ogni elemento e' un'estrusione disegnata in prospetto sul suo piano parallelo al muro;
+        le facce si bloccano ai piani: x/z nel prospetto, y nel prospetto laterale."""
+        elementi = self.ris[u"contorno"]
+        if not elementi:
+            return
+        if self.vista_lato is None or self.centro is None:
+            self.report[u"contorno"] += len(elementi)
+            self.report[u"motivi_contorno"].append(u"manca il prospetto laterale o il piano centro")
+            return
+        for e in elementi:
+            try:
+                ext = self._estrusione_contorno(e)
+                self._descrivi(ext, e[u"nome"])
+                self.contorno.append((ext, e))
+            except Exception as ex:
+                self.report[u"contorno"] += 1
+                self.report[u"motivi_contorno"].append(u"%s: %s" % (e[u"nome"], ex))
+        self.doc.Regenerate()
+        for ext, e in self.contorno:
+            self._allinea_contorno(ext, e)
+
+    def _estrusione_contorno(self, e):
+        pos = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani"])
+        pos_y = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani_y"])
+        x0, x1 = sorted(pos[k] for k in e[u"x"])
+        z0, z1 = sorted(pos[k] for k in e[u"z"])
+        ya, yb = pos_y[e[u"y"][0]], pos_y[e[u"y"][1]]
+        sp = DB.SketchPlane.Create(self.doc, self.rp[e[u"y"][0]].Id)
+        yw = self.Y(ya)
+        pts = [DB.XYZ(self.X(x0), yw, self.Z(z0)), DB.XYZ(self.X(x1), yw, self.Z(z0)),
+               DB.XYZ(self.X(x1), yw, self.Z(z1)), DB.XYZ(self.X(x0), yw, self.Z(z1))]
+        ca = DB.CurveArray()
+        for i in range(4):
+            ca.Append(DB.Line.CreateBound(pts[i], pts[(i + 1) % 4]))
+        profilo = DB.CurveArrArray()
+        profilo.Append(ca)
+        # l'estrusione va lungo la normale del piano di schizzo: da ya a yb
+        off = ft(yb - ya) * (1 if sp.GetPlane().Normal.Y > 0 else -1)
+        ext = self.crea.NewExtrusion(True, profilo, sp, abs(off) or ft(1))
+        ext.StartOffset = min(0.0, off)
+        ext.EndOffset = max(0.0, off)
+        for nome, bip in ((e[u"visibile"], DB.BuiltInParameter.IS_VISIBLE_PARAM),
+                          (e[u"materiale"], DB.BuiltInParameter.MATERIAL_ID_PARAM)):
+            if nome and nome in self.fp:
+                try:
+                    self.fm.AssociateElementParameterToFamilyParameter(ext.get_Parameter(bip), self.fp[nome])
+                except Exception as ex:
+                    self.report[u"motivi_contorno"].append(u"%s, %s: %s" % (e[u"nome"], nome, ex))
+        sc = _sottocategoria(self.doc, {u"mostra": u"mostre", u"imbotte": u"imbotte", u"mazzetta": u"mazzetta"}
+                             .get(e[u"tipo"], u"davanzali"))
+        if sc is not None:
+            try:
+                ext.Subcategory = sc
+            except Exception:
+                pass
+        _visibilita(ext, G.TUTTI)
+        return ext
+
+    def _allinea_contorno(self, ext, e):
+        """Blocca le facce dell'elemento ai suoi piani: x e z nel prospetto, y nel laterale."""
+        opt = DB.Options()
+        opt.ComputeReferences = True
+        opt.IncludeNonVisibleObjects = True
+        piani = dict((p[u"id"], p) for p in self.ris[u"piani"])
+        piani_y = dict((p[u"id"], p) for p in self.ris[u"piani_y"])
+        candidati = {u"x": [piani[k] for k in e[u"x"]], u"z": [piani[k] for k in e[u"z"]],
+                     u"y": [piani_y[k] for k in e[u"y"]]}
+        bloccati = 0
+        for faccia in _facce(ext, opt):
+            n = faccia.FaceNormal
+            if abs(n.X) > 0.99:
+                asse, pos, conv, vista = u"x", faccia.Origin.X, self.X, self.vista
+            elif abs(n.Z) > 0.99:
+                asse, pos, conv, vista = u"z", faccia.Origin.Z, self.Z, self.vista
+            elif abs(n.Y) > 0.99:
+                asse, pos, conv, vista = u"y", faccia.Origin.Y, self.Y, self.vista_lato
+            else:
+                continue
+            for p in candidati[asse]:
+                if abs(conv(p[u"pos"]) - pos) < TOLL:
+                    try:
+                        al = self.crea.NewAlignment(vista, self.rp[p[u"id"]].GetReference(), faccia.Reference)
+                        al.IsLocked = True
+                        bloccati += 1
+                    except Exception as ex:
+                        self.report[u"allineamenti"] += 1
+                        motivo = u"%s (%s): %s" % (e[u"nome"], asse, ex)
+                        if motivo not in self.report[u"motivi_contorno"]:
+                            self.report[u"motivi_contorno"].append(motivo)
+                    break
+        if bloccati < 6:
+            self.report[u"motivi_contorno"].append(u"%s: %d facce bloccate su 6" % (e[u"nome"], bloccati))
+
     def _tipi(self, tipi):
         fm = self.fm
         primo = fm.CurrentType
@@ -796,7 +997,7 @@ class _Costruttore(object):
         s2 = S.copia(self.schema)
         s2[u"larghezza"] += FLEX_MM
         s2[u"altezza"] += FLEX_MM
-        ris2 = G.calcola(s2)
+        ris2 = G.calcola(s2, self.spessore_muro)
         st = DB.SubTransaction(self.doc)
         st.Start()
         try:
@@ -821,7 +1022,19 @@ class _Costruttore(object):
                     q = c.GetEndPoint(i)
                     if abs(q.X - (x0 + ft(p[0]))) > TOLL * 2 or abs(q.Z - (z0 + ft(p[1]))) > TOLL * 2:
                         simboli_fuori += 1
+                        self.report[u"linee_fuori"].append(u"%s-%s estremo %d" % (
+                            _seg[u"p0"], _seg[u"p1"], i))
                         break
+            # contorno: x e z come da geometria
+            pos2 = dict((p[u"id"], p[u"pos"]) for p in ris2[u"piani"])
+            for (ext, e), e2 in zip(self.contorno, ris2[u"contorno"]):
+                bb = ext.get_BoundingBox(None)
+                x = sorted(pos2[k] for k in e2[u"x"])
+                z = sorted(pos2[k] for k in e2[u"z"])
+                if bb is None or max(abs(bb.Min.X - (x0 + ft(x[0]))), abs(bb.Max.X - (x0 + ft(x[1]))),
+                                     abs(bb.Min.Z - (z0 + ft(z[0]))), abs(bb.Max.Z - (z0 + ft(z[1])))) > TOLL * 2:
+                    pezzi_fuori += 1
+                    self.report[u"linee_fuori"].append(e[u"nome"])
             self.report[u"pezzi_fuori"] = pezzi_fuori
             self.report[u"simboli_fuori"] = simboli_fuori
         except Exception as ex:
@@ -863,16 +1076,22 @@ def crea_famiglia(app, modello, schema, percorso_rfa, tipi=None):
         opz.SetClearAfterRollback(True)
         t.SetFailureHandlingOptions(opz)
         t.Start()
+        costruttore = None
         try:
-            report = _Costruttore(famdoc, schema).esegui(tipi)
+            costruttore = _Costruttore(famdoc, schema)
+            report = costruttore.esegui(tipi)
             esito = t.Commit()
         except Exception:
             if t.HasStarted() and not t.HasEnded():
                 t.RollBack()
             raise
         if esito != DB.TransactionStatus.Committed:
-            raise FamigliaErrore(u"Revit non accetta la famiglia: %s"
-                                 % (u"; ".join(errori.messaggi) or u"motivo sconosciuto"))
+            testo = u"Revit non accetta la famiglia: %s" % (u"; ".join(errori.messaggi)
+                                                            or u"motivo sconosciuto")
+            if errori.elementi and costruttore is not None:
+                testo += u"\nElementi coinvolti: %s" % u", ".join(
+                    costruttore.spiega(errori.elementi)[:16])
+            raise FamigliaErrore(testo)
         report[u"revit"] = list(errori.messaggi)
         opzioni = DB.SaveAsOptions()
         opzioni.OverwriteExistingFile = True
@@ -917,6 +1136,8 @@ def problemi(report):
         righe.append(u"Revit ha tolto dei vincoli in conflitto: %s" % u"; ".join(report[u"revit"][:3]))
     if report.get(u"visibilita"):
         righe.append(u"%d pezzi senza visibilità per dettaglio o apertura" % report[u"visibilita"])
+    if report.get(u"contorno"):
+        righe.append(u"%d elementi del contorno non creati" % report[u"contorno"])
     return righe
 
 
@@ -935,7 +1156,7 @@ def schema_del_tipo(tipo):
             if q is not None and q.HasValue:
                 valori[chiave] = q.AsDouble() / MM
                 break
-    nomi = [e for _k, e, _v, _m in S.PROFILI]
+    nomi = [e for _k, e, _v, _m in S.PROFILI] + [e for _k, e, _v, _m in S.MISURE_CONTORNO]
     for _perc, div in S.divisioni(schema[u"radice"]):
         for i in range(len(div[u"figli"]) - 1):
             nomi.append(G.nome_misura(div[u"verso"], tuple(_perc) + (i,)))
