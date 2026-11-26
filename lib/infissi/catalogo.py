@@ -15,7 +15,12 @@ c = S.cella
 dv = lambda figli, misure, montante=True: S.divisione(u"v", figli, misure, montante)  # noqa: E731
 do = lambda figli, misure, montante=True: S.divisione(u"o", figli, misure, montante)  # noqa: E731
 
-_PORTA = {u"soglia": 30.0, u"zoccolo": 200.0}
+_PORTA = {}   # ante-porta: senza soglia (lo decide S.nuovo) e con zoccolo (porta_z)
+
+
+def porta_z(anta):
+    """Anta-porta vetrata con zoccolo in basso."""
+    return c(anta, S.ZOCCOLO)
 
 
 def _due_ante(sx=u"battente_sx", dx=u"anta_ribalta_dx", meta=600):
@@ -37,18 +42,18 @@ def preimpostati():
           1800, 2000, u"3 ante + sopraluce diviso"),
         N(c(u"vasistas"), 800, 600, u"Vasistas"),
         N(do([c(u"fisso"), c(u"vasistas")], [1000]), 800, 1500, u"Fisso + vasistas sopra"),
-        N(c(u"porta_sx"), 900, 2400, u"Portafinestra 1 anta", profili=_PORTA),
-        N(_due_ante(u"porta_sx", u"porta_dx", 700), 1400, 2400, u"Portafinestra 2 ante",
+        N(porta_z(u"porta_sx"), 900, 2400, u"Portafinestra 1 anta", profili=_PORTA),
+        N(dv([porta_z(u"porta_sx"), porta_z(u"porta_dx")], [700], montante=False), 1400, 2400, u"Portafinestra 2 ante",
           profili=_PORTA),
-        N(do([_due_ante(u"porta_sx", u"porta_dx", 700), c(u"fisso")], [2200]), 1400, 2800,
+        N(do([dv([porta_z(u"porta_sx"), porta_z(u"porta_dx")], [700], montante=False), c(u"fisso")], [2200]), 1400, 2800,
           u"Portafinestra 2 ante + sopraluce", profili=_PORTA),
-        N(dv([c(u"fisso"), c(u"porta_dx")], [500]), 1400, 2400, u"Portafinestra + laterale fisso",
+        N(dv([c(u"fisso"), porta_z(u"porta_dx")], [500]), 1400, 2400, u"Portafinestra + laterale fisso",
           profili=_PORTA),
         N(dv([c(u"scorrevole_dx"), c(u"scorrevole_sx")], [900], montante=False), 1800, 2400,
           u"Scorrevole 2 ante", profili={u"soglia": 30.0}),
         N(dv([c(u"scorrevole_dx"), c(u"fisso")], [1000]), 2000, 2400, u"Scorrevole + fisso",
           profili={u"soglia": 30.0}),
-        N(dv([c(u"porta_sx"), c(u"fisso")], [1000]), 1500, 2400, u"Porta + laterale fisso",
+        N(dv([porta_z(u"porta_sx"), c(u"fisso")], [1000]), 1500, 2400, u"Porta + laterale fisso",
           categoria=S.PORTE, profili=_PORTA),
     ]
 

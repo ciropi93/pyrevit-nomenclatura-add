@@ -317,7 +317,8 @@ class _Costruttore(object):
                 fm.AssociateElementParameterToFamilyParameter(ext.get_Parameter(bip),
                                                               self.fp[nome])
             vetro = pz[u"tipo"] == u"vetro"
-            mat = PA.MATERIALE_VETRO if vetro else PA.MATERIALE_TELAIO
+            mat = {u"vetro": PA.MATERIALE_VETRO,
+                   u"pannello": PA.MATERIALE_PANNELLO}.get(pz[u"tipo"], PA.MATERIALE_TELAIO)
             try:
                 fm.AssociateElementParameterToFamilyParameter(
                     ext.get_Parameter(DB.BuiltInParameter.MATERIAL_ID_PARAM), self.fp[mat])

@@ -23,6 +23,11 @@ DATI = u"dati"
 
 MATERIALE_TELAIO = u"Materiale telaio"
 MATERIALE_VETRO = u"Materiale vetro"
+MATERIALE_PANNELLO = u"Materiale pannello"
+
+# lato interno della profondita' (+1 = verso "Anta fine"): ci va la maniglia.
+# Se nel modello famiglia di Revit l'interno e' dall'altra parte, basta cambiare segno qui.
+INTERNO = 1
 APERTURA = u"Apertura"
 SCHEMA = u"Schema CDV"
 
@@ -45,6 +50,14 @@ FORMULE_PROFONDITA = {
     u"Vetro B inizio": u"%s + %s / 2 - %s / 2" % (P(u"anta_spost"), P(u"anta_prof"), P(u"vetro")),
     u"Vetro B fine": u"%s + %s / 2 + %s / 2" % (P(u"anta_spost"), P(u"anta_prof"), P(u"vetro")),
 }
+if INTERNO > 0:
+    FORMULE_PROFONDITA[u"Maniglia inizio"] = u"%s + %s / 2" % (P(u"anta_spost"), P(u"anta_prof"))
+    FORMULE_PROFONDITA[u"Maniglia fine"] = u"%s + %s / 2 + %s" % (
+        P(u"anta_spost"), P(u"anta_prof"), P(u"maniglia_sporg"))
+else:
+    FORMULE_PROFONDITA[u"Maniglia inizio"] = u"%s - %s / 2 - %s" % (
+        P(u"anta_spost"), P(u"anta_prof"), P(u"maniglia_sporg"))
+    FORMULE_PROFONDITA[u"Maniglia fine"] = u"%s - %s / 2" % (P(u"anta_spost"), P(u"anta_prof"))
 FORMULA_MONTANTE_MEZZO = u"%s / 2" % P(u"montante")
 
 
@@ -169,6 +182,8 @@ def elenco(schema, ris=None):
                                   d[u"formula"]))
     out.append(_parametro(MATERIALE_TELAIO, MATERIALE, MATERIALI))
     out.append(_parametro(MATERIALE_VETRO, MATERIALE, MATERIALI))
+    if any(pz[u"tipo"] == u"pannello" for pz in ris[u"pezzi"]):
+        out.append(_parametro(MATERIALE_PANNELLO, MATERIALE, MATERIALI))
     out.append(_parametro(APERTURA, TESTO, DATI, S.descrizione(schema)))
     out.append(_parametro(SCHEMA, TESTO, DATI, S.to_json(schema)))
     return out

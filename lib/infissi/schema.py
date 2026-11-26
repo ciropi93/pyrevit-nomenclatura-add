@@ -8,9 +8,12 @@ Lo schema e' un dizionario (si salva cosi' com'e' in JSON):
      "profili": {"telaio": 70, ...},                # mm, vedi PROFILI
      "radice": nodo}
 
+     "soglia": True,       # traverso in basso; False = telaio a U (porte: non si inciampa)
+     "maniglie": True,     # maniglie sulle ante apribili
+
 Un nodo e' una cella o una divisione:
 
-    {"tipo": "cella", "anta": "battente_sx"}
+    {"tipo": "cella", "anta": "battente_sx", "riempimento": "vetro" | "zoccolo" | "pannello"}
     {"tipo": "divisione", "verso": "v" | "o", "montante": True,
      "misure": [600], "figli": [nodo, nodo]}
 
@@ -60,19 +63,38 @@ def porta(anta):
     return anta.startswith(u"porta")
 
 
+# chiusura della zona: tutta vetro, vetro con pannello in basso (solo ante-porta), cieca
+VETRO = u"vetro"
+ZOCCOLO = u"zoccolo"
+PANNELLO = u"pannello"
+RIEMPIMENTI = ((VETRO, u"Vetrata"), (ZOCCOLO, u"Vetrata con zoccolo"), (PANNELLO, u"Cieca"))
+NOMI_RIEMPIMENTI = dict(RIEMPIMENTI)
+
+
+def riempimento_valido(anta, riempimento):
+    """Lo zoccolo ha senso solo sulle ante-porta: altrove diventa vetro."""
+    if riempimento == ZOCCOLO and not porta(anta):
+        return VETRO
+    return riempimento if riempimento in NOMI_RIEMPIMENTI else VETRO
+
+
 # (chiave, etichetta, valore predefinito mm, minimo mm)
 PROFILI = (
     (u"telaio", u"Telaio sezione", 70.0, 20.0),
     (u"soglia", u"Soglia sezione", 70.0, 10.0),
+    (u"terra", u"Luce a terra", 10.0, 1.0),       # sotto l'anta, senza soglia
     (u"montante", u"Montante sezione", 80.0, 20.0),
     (u"anta", u"Anta sezione", 80.0, 20.0),
     (u"telaio_prof", u"Telaio profondità", 70.0, 20.0),
     (u"anta_prof", u"Anta profondità", 68.0, 20.0),
     (u"anta_spost", u"Anta spostamento", 0.0, None),
     (u"vetro", u"Vetro spessore", 28.0, 4.0),
-    (u"zoccolo", u"Zoccolo altezza", 0.0, 0.0),
+    (u"zoccolo", u"Zoccolo altezza", 200.0, 0.0),
     (u"freccia_l", u"Freccia lunghezza", 120.0, 10.0),
     (u"freccia_a", u"Freccia apertura", 50.0, 5.0),
+    (u"maniglia_l", u"Maniglia lunghezza", 130.0, 20.0),
+    (u"maniglia_sporg", u"Maniglia sporgenza", 60.0, 5.0),
+    (u"maniglia_porta", u"Maniglia porte da terra", 1050.0, 100.0),
 )
 PROFILI_PREDEFINITI = dict((k, v) for k, _e, v, _m in PROFILI)
 
@@ -82,8 +104,8 @@ class SchemaErrore(ValueError):
 
 
 # --- costruzione ------------------------------------------------------------------
-def cella(anta=FISSO):
-    return {u"tipo": u"cella", u"anta": anta}
+def cella(anta=FISSO, riempimento=VETRO):
+    return {u"tipo": u"cella", u"anta": anta, u"riempimento": riempimento_valido(anta, riempimento)}
 
 
 def divisione(verso, figli, misure, montante=True):
@@ -91,12 +113,20 @@ def divisione(verso, figli, misure, montante=True):
             u"misure": [float(m) for m in misure], u"figli": list(figli)}
 
 
-def nuovo(radice, larghezza, altezza, nome=u"", categoria=FINESTRE, profili=None):
+def ha_ante_porta(radice):
+    return any(porta(c[u"anta"]) for _p, c in celle(radice))
+
+
+def nuovo(radice, larghezza, altezza, nome=u"", categoria=FINESTRE, profili=None,
+          soglia=None, maniglie=True):
+    """soglia None = senza soglia se ci sono ante-porta (non si inciampa), altrimenti con."""
     p = dict(PROFILI_PREDEFINITI)
     p.update(profili or {})
+    if soglia is None:
+        soglia = not ha_ante_porta(radice)
     return {u"versione": VERSIONE, u"nome": nome, u"categoria": categoria,
             u"larghezza": float(larghezza), u"altezza": float(altezza),
-            u"profili": p, u"radice": radice}
+            u"profili": p, u"radice": radice, u"soglia": bool(soglia), u"maniglie": bool(maniglie)}
 
 
 def copia(schema):
@@ -123,11 +153,19 @@ def normalizza(dati):
     """Schema completo dai dati letti (profili mancanti = predefiniti); errore se la forma e' sbagliata."""
     if not isinstance(dati, dict) or not isinstance(dati.get(u"radice"), dict):
         raise SchemaErrore(u"Schema senza radice.")
+    profili = dict((k, float(v)) for k, v in (dati.get(u"profili") or {}).items()
+                   if k in PROFILI_PREDEFINITI)
+    # schemi di prima: con soglia e senza maniglie (la famiglia non cambia finche' non si sceglie)
     s = nuovo(_nodo(dati[u"radice"]), dati.get(u"larghezza", 0), dati.get(u"altezza", 0),
               nome=dati.get(u"nome", u"") or u"",
-              categoria=dati.get(u"categoria", FINESTRE),
-              profili=dict((k, float(v)) for k, v in (dati.get(u"profili") or {}).items()
-                           if k in PROFILI_PREDEFINITI))
+              categoria=dati.get(u"categoria", FINESTRE), profili=profili,
+              soglia=dati.get(u"soglia", True), maniglie=dati.get(u"maniglie", False))
+    # chiusura mancante: come prima, lo zoccolo c'era sulle porte se il profilo era > 0
+    zoccolo_prima = profili.get(u"zoccolo", 0.0) > 0
+    for _p, c in celle(s[u"radice"]):
+        if c.get(u"_riempimento_mancante"):
+            del c[u"_riempimento_mancante"]
+            c[u"riempimento"] = ZOCCOLO if (porta(c[u"anta"]) and zoccolo_prima) else VETRO
     return s
 
 
@@ -135,7 +173,10 @@ def _nodo(d):
     if not isinstance(d, dict):
         raise SchemaErrore(u"Nodo non valido.")
     if d.get(u"tipo") == u"cella":
-        return cella(d.get(u"anta", FISSO))
+        c = cella(d.get(u"anta", FISSO), d.get(u"riempimento") or VETRO)
+        if u"riempimento" not in d:
+            c[u"_riempimento_mancante"] = True
+        return c
     if d.get(u"tipo") == u"divisione":
         return divisione(d.get(u"verso"), [_nodo(f) for f in d.get(u"figli") or []],
                          d.get(u"misure") or [], d.get(u"montante", True))
@@ -189,7 +230,18 @@ def imposta_anta(schema, percorso, anta):
     if anta not in NOMI_ANTE:
         raise SchemaErrore(u"Anta sconosciuta: %s" % anta)
     s = copia(schema)
-    s[u"radice"] = _sostituisci(s[u"radice"], tuple(percorso), cella(anta))
+    vecchia = nodo_in(s[u"radice"], tuple(percorso))
+    s[u"radice"] = _sostituisci(s[u"radice"], tuple(percorso),
+                                cella(anta, vecchia.get(u"riempimento", VETRO)))
+    return s
+
+
+def imposta_riempimento(schema, percorso, riempimento):
+    if riempimento not in NOMI_RIEMPIMENTI:
+        raise SchemaErrore(u"Chiusura sconosciuta: %s" % riempimento)
+    s = copia(schema)
+    c = nodo_in(s[u"radice"], tuple(percorso))
+    c[u"riempimento"] = riempimento_valido(c[u"anta"], riempimento)
     return s
 
 
@@ -199,7 +251,8 @@ def dividi(schema, percorso, verso, misura, montante=True):
     vecchia = nodo_in(s[u"radice"], percorso)
     if vecchia[u"tipo"] != u"cella":
         raise SchemaErrore(u"Si divide solo una cella.")
-    nuovo_nodo = divisione(verso, [cella(vecchia[u"anta"]), cella(vecchia[u"anta"])],
+    r = vecchia.get(u"riempimento", VETRO)
+    nuovo_nodo = divisione(verso, [cella(vecchia[u"anta"], r), cella(vecchia[u"anta"], r)],
                            [misura], montante)
     s[u"radice"] = _sostituisci(s[u"radice"], tuple(percorso), nuovo_nodo)
     return s
@@ -211,8 +264,9 @@ def togli_divisione(schema, percorso_cella):
     if not percorso_cella:
         raise SchemaErrore(u"Non c'e' nessuna divisione da togliere.")
     s = copia(schema)
-    anta = nodo_in(s[u"radice"], percorso_cella).get(u"anta", FISSO)
-    s[u"radice"] = _sostituisci(s[u"radice"], percorso_cella[:-1], cella(anta))
+    vecchia = nodo_in(s[u"radice"], percorso_cella)
+    s[u"radice"] = _sostituisci(s[u"radice"], percorso_cella[:-1],
+                                cella(vecchia.get(u"anta", FISSO), vecchia.get(u"riempimento", VETRO)))
     return s
 
 
@@ -243,6 +297,8 @@ def _controlla(nodo, percorso, err):
     if nodo[u"tipo"] == u"cella":
         if nodo.get(u"anta") not in NOMI_ANTE:
             err.append(u"Zona %s: tipo di anta sconosciuto." % dove)
+        if nodo.get(u"riempimento", VETRO) not in NOMI_RIEMPIMENTI:
+            err.append(u"Zona %s: chiusura sconosciuta." % dove)
         return
     figli = nodo[u"figli"]
     if nodo.get(u"verso") not in (u"v", u"o"):
@@ -293,6 +349,11 @@ def descrizione(schema):
     conti = []
     for _p, c in celle(schema[u"radice"]):
         nome = NOMI_ANTE.get(c[u"anta"], c[u"anta"])
+        r = c.get(u"riempimento", VETRO)
+        if r == PANNELLO:
+            nome += u", cieca"
+        elif r == ZOCCOLO:
+            nome += u", con zoccolo"
         for v in conti:
             if v[0] == nome:
                 v[1] += 1

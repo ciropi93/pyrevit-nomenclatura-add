@@ -42,10 +42,21 @@
                        Text="Prospetto visto da fuori. Clicca una zona per sceglierla, poi cambia l'anta o dividila."/>
             <Border DockPanel.Dock="Bottom" Style="{StaticResource Scheda}" Margin="0,8,0,0">
                 <StackPanel>
-                    <DockPanel Margin="0,0,0,6">
-                        <TextBlock Text="ANTA" Style="{StaticResource Etichetta}" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="cmbAnta" MinWidth="240"/>
-                    </DockPanel>
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="ANTA" Style="{StaticResource Etichetta}" Margin="0" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="1" x:Name="cmbAnta" MinWidth="240"/>
+                        <TextBlock Grid.Row="1" Text="CHIUSURA" Style="{StaticResource Etichetta}" Margin="0,6,0,0" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="cmbChiusura" MinWidth="240" Margin="0,6,0,0"
+                                  ToolTip="Vetrata, vetrata con pannello in basso (solo ante-porta) o cieca"/>
+                    </Grid>
                     <WrapPanel>
                         <Button x:Name="btnDividiV" Content="Dividi in colonne"/>
                         <Button x:Name="btnDividiO" Content="Dividi in righe"/>
@@ -71,6 +82,10 @@
                             <RadioButton x:Name="rbFinestre" Content="Finestre" Margin="0,0,16,0" GroupName="cat"/>
                             <RadioButton x:Name="rbPorte" Content="Porte" GroupName="cat"/>
                         </StackPanel>
+                        <CheckBox x:Name="chkSoglia" Content="Soglia in basso" Margin="0,8,0,0"
+                                  ToolTip="Spenta: niente traverso in basso, il telaio è a U e non si inciampa (porte)"/>
+                        <CheckBox x:Name="chkManiglie" Content="Maniglie"
+                                  ToolTip="Sul lato opposto alle cerniere, sul lato interno"/>
                         <TextBlock Text="NOME DELLA FAMIGLIA" Style="{StaticResource Etichetta}" Margin="0,10,0,4"/>
                         <TextBox x:Name="txtNome"/>
                         <TextBlock Text="TELAIO, MISURE ESTERNE (MM)" Style="{StaticResource Etichetta}" Margin="0,10,0,4"/>

@@ -32,6 +32,7 @@ PROFONDITA = {
     u"vetro_anta": (u"Vetro anta inizio", u"Vetro anta fine"),
     u"vetro_a": (u"Vetro A inizio", u"Vetro A fine"),
     u"vetro_b": (u"Vetro B inizio", u"Vetro B fine"),
+    u"maniglia": (u"Maniglia inizio", u"Maniglia fine"),
 }
 
 LUCE_MIN_FISSO = 50.0       # mm di vetro libero minimo in una cella fissa
@@ -63,6 +64,10 @@ def nome_mezza_larghezza(percorso):
 
 def nome_freccia(percorso, alto):
     return (u"Freccia alto %s" if alto else u"Freccia basso %s") % nome_zona(percorso)
+
+
+def nome_quota_maniglia(percorso):
+    return u"Maniglia quota %s" % nome_zona(percorso)
 
 
 class _Piani(object):
@@ -150,18 +155,28 @@ def _costruisci(schema, L, H, valori, ris):
     piani = _Piani(L, H)
     ris[u"piani"] = piani.lista
 
-    # telaio perimetrale (cornice)
+    # telaio perimetrale: cornice con la soglia, a U senza (si passa senza inciampare)
     t, s = valori[profilo(u"telaio")], valori[profilo(u"soglia")]
-    est = (u"sx", u"dx", u"basso", u"alto")
-    inn = (piani.aggiungi(u"sx", profilo(u"telaio"), 1, t),
-           piani.aggiungi(u"dx", profilo(u"telaio"), -1, t),
-           piani.aggiungi(u"basso", profilo(u"soglia"), 1, s),
-           piani.aggiungi(u"alto", profilo(u"telaio"), -1, t))
-    ris[u"pezzi"].append(_pezzo(u"telaio", est, inn, u"telaio", None))
+    if schema.get(u"soglia", True):
+        est = (u"sx", u"dx", u"basso", u"alto")
+        inn = (piani.aggiungi(u"sx", profilo(u"telaio"), 1, t),
+               piani.aggiungi(u"dx", profilo(u"telaio"), -1, t),
+               piani.aggiungi(u"basso", profilo(u"soglia"), 1, s),
+               piani.aggiungi(u"alto", profilo(u"telaio"), -1, t))
+        ris[u"pezzi"].append(_pezzo(u"telaio", est, inn, u"telaio", None))
+        bordo_basso = (u"basso", u"soglia")
+    else:
+        i_sx = piani.aggiungi(u"sx", profilo(u"telaio"), 1, t)
+        i_dx = piani.aggiungi(u"dx", profilo(u"telaio"), -1, t)
+        i_alto = piani.aggiungi(u"alto", profilo(u"telaio"), -1, t)
+        for esterni in ((u"sx", i_sx, u"basso", u"alto"), (i_dx, u"dx", u"basso", u"alto"),
+                        (i_sx, i_dx, i_alto, u"alto")):
+            ris[u"pezzi"].append(_pezzo(u"telaio", esterni, None, u"telaio", None))
+        bordo_basso = (u"basso", u"terra")        # ante e vetri arrivano quasi a terra
 
-    stato = {u"scorrevoli": 0}
+    stato = {u"scorrevoli": 0, u"maniglie": bool(schema.get(u"maniglie", False))}
     bordi = {u"sx": (u"sx", u"telaio"), u"dx": (u"dx", u"telaio"),
-             u"basso": (u"basso", u"soglia"), u"alto": (u"alto", u"telaio")}
+             u"basso": bordo_basso, u"alto": (u"alto", u"telaio")}
     _visita(schema[u"radice"], (), bordi, piani, valori, ris, stato)
 
     for c in ris[u"celle"]:
@@ -183,7 +198,7 @@ def _faccia(bordo, lato, piani, valori):
     if tipo == u"battuta":
         return pid
     nome = {u"telaio": profilo(u"telaio"), u"soglia": profilo(u"soglia"),
-            u"montante": MONTANTE_MEZZO}[tipo]
+            u"terra": profilo(u"terra"), u"montante": MONTANTE_MEZZO}[tipo]
     return piani.aggiungi(pid, nome, _DENTRO[lato], valori[nome])
 
 
@@ -227,8 +242,10 @@ def _cella(nodo, percorso, bordi, piani, valori, ris, stato):
     anta = nodo[u"anta"]
     luce = tuple(_faccia(bordi[lato], lato, piani, valori) for lato in RADICI)
     regione = tuple(bordi[lato][0] for lato in RADICI)
+    riemp = S.riempimento_valido(anta, nodo.get(u"riempimento", S.VETRO))
     c = {u"percorso": percorso, u"anta": anta, u"regione": regione, u"luce": luce,
-         u"anta_interna": None, u"vetro": luce, u"zoccolo": None, u"livello": u""}
+         u"anta_interna": None, u"vetro": luce, u"zoccolo": None, u"livello": u"",
+         u"riempimento": riemp}
     if S.apribile(anta):
         a = valori[profilo(u"anta")]
         nome = profilo(u"anta")
@@ -244,17 +261,24 @@ def _cella(nodo, percorso, bordi, piani, valori, ris, stato):
         prof_vetro = u"vetro_" + livello if livello else u"vetro_anta"
         ris[u"pezzi"].append(_pezzo(u"anta", luce, interna, prof_anta, percorso))
         z = valori[profilo(u"zoccolo")]
-        if S.porta(anta) and z > 0:
+        if riemp == S.ZOCCOLO and z > 0:
             cima = piani.aggiungi(interna[2], profilo(u"zoccolo"), 1, z)
             c[u"zoccolo"] = (interna[0], interna[1], interna[2], cima)
             c[u"vetro"] = (interna[0], interna[1], cima, interna[3])
             ris[u"pezzi"].append(_pezzo(u"zoccolo", c[u"zoccolo"], None, prof_anta, percorso))
-        ris[u"pezzi"].append(_pezzo(u"vetro", c[u"vetro"], None, prof_vetro, percorso))
+        if riemp == S.PANNELLO:
+            ris[u"pezzi"].append(_pezzo(u"pannello", c[u"vetro"], None, prof_anta, percorso))
+        else:
+            ris[u"pezzi"].append(_pezzo(u"vetro", c[u"vetro"], None, prof_vetro, percorso))
+    elif riemp == S.PANNELLO:
+        ris[u"pezzi"].append(_pezzo(u"pannello", luce, None, u"telaio", percorso))
     else:
         ris[u"pezzi"].append(_pezzo(u"vetro", luce, None, u"vetro", percorso))
     ris[u"celle"].append(c)
     if S.apribile(anta):
         _simbolo(c, piani, valori, ris)
+        if stato[u"maniglie"]:
+            _maniglia(c, piani, valori, ris)
 
 
 # --- simboli di apertura -------------------------------------------------------------
@@ -337,6 +361,63 @@ def _simbolo(c, piani, valori, ris):
     ris[u"simboli"].append({u"cella": per, u"segmenti": segmenti})
 
 
+# --- maniglie ---------------------------------------------------------------------------
+def lato_maniglia(anta):
+    """Lato della maniglia: opposto alle cerniere; negli scorrevoli il lato che chiude
+    (opposto al verso di apertura); nel vasistas in alto (u"alto")."""
+    if anta == u"vasistas":
+        return u"alto"
+    return u"dx" if anta.endswith(u"_sx") else u"sx"
+
+
+def _maniglia(c, piani, valori, ris):
+    """Blocchetto sul profilo dell'anta, lato maniglia; segue le misure con una quota derivata."""
+    per = c[u"percorso"]
+    sx, dx, basso, alto = c[u"luce"]
+    isx, idx, ib, ia = c[u"anta_interna"]
+    fp = lambda pid: formula_posizione(piani.per_id, pid)  # noqa: E731
+    lung = valori[profilo(u"maniglia_l")]
+    nome_q = nome_quota_maniglia(per)
+    lato = lato_maniglia(c[u"anta"])
+    if lato == u"alto":
+        # vasistas: centrata in larghezza, nel traverso alto dell'anta
+        ml = (piani.pos(dx) - piani.pos(sx)) / 2.0
+        nome_ml = nome_mezza_larghezza(per)
+        _derivato(ris, piani, nome_ml, u"(%s) / 2" % _differenza(fp(dx), fp(sx)), ml)
+        valori[nome_ml] = ml
+        q = ml - lung / 2.0
+        _derivato(ris, piani, nome_q, u"%s - %s / 2" % (nome_ml, profilo(u"maniglia_l")), q)
+        valori[nome_q] = q
+        x0 = piani.aggiungi(sx, nome_q, 1, q)
+        x1 = piani.aggiungi(x0, profilo(u"maniglia_l"), 1, lung)
+        esterni = (x0, x1, ia, alto)
+        spazio = piani.pos(dx) - piani.pos(sx)
+    else:
+        y0 = piani.pos(basso)
+        if S.porta(c[u"anta"]):
+            # porte: a quota fissa da terra
+            mp = valori[profilo(u"maniglia_porta")]
+            q = mp - y0
+            _derivato(ris, piani, nome_q, _differenza(profilo(u"maniglia_porta"), fp(basso)), q)
+        else:
+            # finestre: a meta' altezza della luce
+            mh = (piani.pos(alto) - y0) / 2.0
+            nome_mh = nome_mezza_altezza(per)
+            _derivato(ris, piani, nome_mh, u"(%s) / 2" % _differenza(fp(alto), fp(basso)), mh)
+            valori[nome_mh] = mh
+            q = mh - lung / 2.0
+            _derivato(ris, piani, nome_q, u"%s - %s / 2" % (nome_mh, profilo(u"maniglia_l")), q)
+        valori[nome_q] = q
+        b = piani.aggiungi(basso, nome_q, 1, q)
+        a = piani.aggiungi(b, profilo(u"maniglia_l"), 1, lung)
+        esterni = (idx, dx, b, a) if lato == u"dx" else (sx, isx, b, a)
+        spazio = piani.pos(alto) - y0
+    if q < 0 or q + lung > spazio:
+        ris[u"errori"].append(u"Zona %s: la maniglia non sta nell'anta (cambia le misure della maniglia)."
+                              % nome_zona(per))
+    ris[u"pezzi"].append(_pezzo(u"maniglia", esterni, None, u"maniglia", per))
+
+
 # --- controlli sulle misure ----------------------------------------------------------
 def _controlla_cella(c, piani, valori, err):
     dove = nome_zona(c[u"percorso"])
@@ -371,3 +452,80 @@ def cella_in_punto(ris, x, y):
         if x0 - _EPS <= x <= x1 + _EPS and y0 - _EPS <= y <= y1 + _EPS:
             return c[u"percorso"]
     return None
+
+
+# --- evidenziazione del campo in uso (anteprima del configuratore) ---------------------------
+def _strisce(est, inn):
+    """Una cornice in quattro rettangoli: sotto, sopra, sinistra, destra."""
+    return [(est[0], est[1], est[2], inn[1]), (est[0], inn[3], est[2], est[3]),
+            (est[0], inn[1], inn[0], inn[3]), (inn[2], inn[1], est[2], inn[3])]
+
+
+# profilo -> tipi di pezzo che cambia
+_PEZZI_DEL_PROFILO = {
+    u"telaio": (u"telaio",), u"telaio_prof": (u"telaio",), u"soglia": (u"telaio",),
+    u"montante": (u"montante",), u"anta": (u"anta",), u"anta_prof": (u"anta",),
+    u"anta_spost": (u"anta",), u"vetro": (u"vetro",), u"zoccolo": (u"zoccolo",),
+    u"maniglia_l": (u"maniglia",),
+    u"maniglia_sporg": (u"maniglia",), u"maniglia_porta": (u"maniglia",),
+}
+
+
+def evidenzia(ris, schema, chiave):
+    """Cosa illuminare nell'anteprima mentre si scrive in un campo.
+
+    chiave: ("larghezza",) | ("altezza",) | ("misura", percorso_divisione, indice) |
+    ("profilo", k). Ritorna {"rettangoli": [(x0, y0, x1, y1)], "quota": (x0, y0, x1, y1) o None}
+    in mm; la quota e' orizzontale se y0 == y1.
+    """
+    out = {u"rettangoli": [], u"quota": None}
+    if not chiave or not ris.get(u"piani"):
+        return out
+    L, H = float(schema[u"larghezza"]), float(schema[u"altezza"])
+    tipo = chiave[0]
+    if tipo == u"larghezza":
+        out[u"rettangoli"].append((0.0, 0.0, L, H))
+        out[u"quota"] = (0.0, H, L, H)
+    elif tipo == u"altezza":
+        out[u"rettangoli"].append((0.0, 0.0, L, H))
+        out[u"quota"] = (L, 0.0, L, H)
+    elif tipo == u"misura":
+        perc, i = tuple(chiave[1]), chiave[2]
+        verso = S.nodo_in(schema[u"radice"], perc)[u"verso"]
+        dentro = [rettangolo(ris, c[u"regione"]) for c in ris[u"celle"]
+                  if tuple(c[u"percorso"][:len(perc) + 1]) == perc + (i,)]
+        if dentro:
+            r = (min(x[0] for x in dentro), min(x[1] for x in dentro),
+                 max(x[2] for x in dentro), max(x[3] for x in dentro))
+            out[u"rettangoli"].append(r)
+            out[u"quota"] = (r[0], r[3], r[2], r[3]) if verso == u"v" else (r[2], r[1], r[2], r[3])
+    elif tipo == u"profilo":
+        k = chiave[1]
+        if k.startswith(u"freccia"):
+            for simb in ris[u"simboli"]:
+                c = [x for x in ris[u"celle"] if x[u"percorso"] == simb[u"cella"]]
+                if c and S.scorrevole(c[0][u"anta"]):
+                    pts = [p for seg in simb[u"segmenti"] for p in (seg[u"p0"], seg[u"p1"])]
+                    out[u"rettangoli"].append((min(p[0] for p in pts), min(p[1] for p in pts),
+                                              max(p[0] for p in pts), max(p[1] for p in pts)))
+            return out
+        if k == u"terra":
+            if not schema.get(u"soglia", True):
+                t = float(schema[u"profili"][u"telaio"])
+                out[u"rettangoli"].append((t, 0.0, L - t, float(schema[u"profili"][u"terra"])))
+            return out
+        tipi = _PEZZI_DEL_PROFILO.get(k, ())
+        for pz in ris[u"pezzi"]:
+            if pz[u"tipo"] not in tipi:
+                continue
+            est = rettangolo(ris, pz[u"esterni"])
+            if pz[u"interni"]:
+                strisce = _strisce(est, rettangolo(ris, pz[u"interni"]))
+                if k == u"soglia":
+                    strisce = strisce[:1]           # solo il traverso in basso
+                elif k == u"telaio" and pz[u"tipo"] == u"telaio" and schema.get(u"soglia", True):
+                    strisce = strisce[1:]           # la sezione del telaio, non la soglia
+                out[u"rettangoli"].extend(strisce)
+            elif k != u"soglia":
+                out[u"rettangoli"].append(est)
+    return out

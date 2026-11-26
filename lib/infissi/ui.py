@@ -13,7 +13,7 @@ clr.AddReference("PresentationCore")
 clr.AddReference("PresentationFramework")
 clr.AddReference("WindowsBase")
 
-from System.Windows import GridLength, HorizontalAlignment, Thickness, VerticalAlignment
+from System.Windows import FontWeights, GridLength, HorizontalAlignment, Thickness, VerticalAlignment
 from System.Windows.Controls import (Canvas, ColumnDefinition, Grid, ListBoxItem, TextBlock,
                                      TextBox)
 from System.Windows.Media import DoubleCollection
@@ -35,12 +35,14 @@ XAML = os.path.join(os.path.dirname(os.path.abspath(__file__)), u"configuratore.
 
 COLORI = {
     u"telaio": u"#4A5866", u"montante": u"#4A5866", u"anta": u"#5B6B78",
-    u"zoccolo": u"#5B6B78", u"vetro": u"#CFE3F4",
+    u"zoccolo": u"#5B6B78", u"vetro": u"#CFE3F4", u"pannello": u"#C9D3DB",
+    u"maniglia": u"#2B3640",
 }
 ARANCIO = u"#E5862A"      # zona scelta
 SCURO = u"#2B3640"        # bordi e simboli di apertura
 GRIGIO = u"#5B6B78"
-ORDINE_DISEGNO = (u"telaio", u"montante", u"anta", u"zoccolo", u"vetro")
+BLU = u"#1F6FB2"          # parte che cambia il campo in uso
+ORDINE_DISEGNO = (u"telaio", u"montante", u"anta", u"zoccolo", u"vetro", u"pannello", u"maniglia")
 MARGINE = 24.0
 _VIETATI = re.compile(u'[\\\\/:*?"<>|]')
 
@@ -67,11 +69,13 @@ class Configuratore(forms.WPFWindow):
         self.ris = None
         self._scala = None
         self._nome_manuale = bool(nome_famiglia)
+        self.evid = None          # campo in uso: cosa illuminare nel disegno
 
         self.voci = []
         self.riempi_schemi()
         self.btnEliminaSchema.IsEnabled = False   # si attiva sugli schemi salvati da te
         self.cmbAnta.ItemsSource = [e for _k, e in S.ANTE]
+        self.cmbChiusura.ItemsSource = [e for _k, e in S.RIEMPIMENTI]
 
         self.schema = S.copia(schema) if schema else S.copia(self.voci[0][1])
         self.txtNome.Text = nome_famiglia or S.nome_famiglia(self.schema)
@@ -89,6 +93,11 @@ class Configuratore(forms.WPFWindow):
         self.cnvAnteprima.MouseLeftButtonDown += self.su_clic_anteprima
         self.cnvAnteprima.SizeChanged += lambda s, a: self.ridisegna()
         self.cmbAnta.SelectionChanged += self.su_anta
+        self.cmbChiusura.SelectionChanged += self.su_chiusura
+        self.chkSoglia.Click += self.su_soglia
+        self.chkManiglie.Click += self.su_maniglie
+        for box, chiave in ((self.txtLarghezza, (u"larghezza",)), (self.txtAltezza, (u"altezza",))):
+            self._aggancia_evidenza(box, chiave)
         self.btnDividiV.Click += lambda s, a: self.dividi(u"v")
         self.btnDividiO.Click += lambda s, a: self.dividi(u"o")
         self.btnTogli.Click += self.su_togli
@@ -190,6 +199,8 @@ class Configuratore(forms.WPFWindow):
             self.rbPorte.IsChecked = self.schema[u"categoria"] == S.PORTE
             self.txtLarghezza.Text = u"%g" % self.schema[u"larghezza"]
             self.txtAltezza.Text = u"%g" % self.schema[u"altezza"]
+            self.chkSoglia.IsChecked = bool(self.schema.get(u"soglia", True))
+            self.chkManiglie.IsChecked = bool(self.schema.get(u"maniglie", False))
             self.riempi_profili()
             self.riempi_misure()
         finally:
@@ -197,7 +208,15 @@ class Configuratore(forms.WPFWindow):
         self.aggiorna_selezione()
         self.ridisegna()
 
-    def _riga(self, pannello, etichetta, valore, tag, gestore, aiuto=None):
+    def _aggancia_evidenza(self, box, chiave):
+        box.GotFocus += lambda s, a, k=chiave: self._evidenzia(k)
+        box.LostFocus += lambda s, a: self._evidenzia(None)
+
+    def _evidenzia(self, chiave):
+        self.evid = chiave
+        self.ridisegna()
+
+    def _riga(self, pannello, etichetta, valore, tag, gestore, aiuto=None, evidenza=None):
         g = Grid()
         g.Margin = Thickness(0, 0, 0, 4)
         c0, c1 = ColumnDefinition(), ColumnDefinition()
@@ -215,6 +234,8 @@ class Configuratore(forms.WPFWindow):
         box.Width = 90
         box.HorizontalAlignment = HorizontalAlignment.Right
         box.TextChanged += gestore
+        if evidenza is not None:
+            self._aggancia_evidenza(box, evidenza)
         Grid.SetColumn(box, 1)
         g.Children.Add(tb)
         g.Children.Add(box)
@@ -224,7 +245,8 @@ class Configuratore(forms.WPFWindow):
         self.pnlProfili.Children.Clear()
         for k, etichetta, _v, minimo in S.PROFILI:
             aiuto = (u"Minimo %g mm" % minimo) if minimo is not None else None
-            self._riga(self.pnlProfili, etichetta, self.schema[u"profili"][k], k, self.su_profilo, aiuto)
+            self._riga(self.pnlProfili, etichetta, self.schema[u"profili"][k], k, self.su_profilo, aiuto,
+                       evidenza=(u"profilo", k))
 
     def riempi_misure(self):
         self.pnlMisure.Children.Clear()
@@ -232,7 +254,8 @@ class Configuratore(forms.WPFWindow):
             for i in range(len(div[u"figli"]) - 1):
                 nome = G.nome_misura(div[u"verso"], tuple(perc) + (i,))
                 self._riga(self.pnlMisure, nome, div[u"misure"][i], (tuple(perc), i), self.su_misura,
-                           u"Dal bordo esterno o dall'asse precedente all'asse seguente")
+                           u"Dal bordo esterno o dall'asse precedente all'asse seguente",
+                           evidenza=(u"misura", tuple(perc), i))
         if not self.pnlMisure.Children.Count:
             tb = TextBlock()
             tb.Text = u"(nessuna divisione)"
@@ -289,7 +312,7 @@ class Configuratore(forms.WPFWindow):
         attiva = c is not None and c[u"tipo"] == u"cella"
         if not attiva:
             self.sel = None
-        for ctl in (self.cmbAnta, self.btnDividiV, self.btnDividiO):
+        for ctl in (self.cmbAnta, self.cmbChiusura, self.btnDividiV, self.btnDividiO):
             ctl.IsEnabled = attiva
         ha_padre = attiva and len(self.sel) > 0
         self.btnTogli.IsEnabled = ha_padre
@@ -299,8 +322,11 @@ class Configuratore(forms.WPFWindow):
         try:
             if attiva:
                 self.cmbAnta.SelectedIndex = [k for k, _e in S.ANTE].index(c[u"anta"])
+                self.cmbChiusura.SelectedIndex = [k for k, _e in S.RIEMPIMENTI].index(
+                    S.riempimento_valido(c[u"anta"], c.get(u"riempimento", S.VETRO)))
             else:
                 self.cmbAnta.SelectedIndex = -1
+                self.cmbChiusura.SelectedIndex = -1
             if ha_padre:
                 self.chkMontante.IsChecked = S.nodo_in(self.schema[u"radice"], self.sel[:-1])[u"montante"]
         finally:
@@ -311,6 +337,26 @@ class Configuratore(forms.WPFWindow):
             return
         self.schema = S.imposta_anta(self.schema, self.sel, S.ANTE[self.cmbAnta.SelectedIndex][0])
         self._dopo_modifica(struttura=False)
+
+    def su_chiusura(self, sender, args):
+        if self._carico or self.sel is None or self.cmbChiusura.SelectedIndex < 0:
+            return
+        scelta = S.RIEMPIMENTI[self.cmbChiusura.SelectedIndex][0]
+        anta = S.nodo_in(self.schema[u"radice"], self.sel)[u"anta"]
+        self.schema = S.imposta_riempimento(self.schema, self.sel, scelta)
+        self._dopo_modifica(struttura=False)
+        if scelta == S.ZOCCOLO and not S.porta(anta):
+            self._stato(u"Lo zoccolo si mette solo sulle ante-porta: resta vetrata", errore=True)
+
+    def su_soglia(self, sender, args):
+        if not self._carico:
+            self.schema[u"soglia"] = bool(self.chkSoglia.IsChecked)
+            self.ridisegna()
+
+    def su_maniglie(self, sender, args):
+        if not self._carico:
+            self.schema[u"maniglie"] = bool(self.chkManiglie.IsChecked)
+            self.ridisegna()
 
     def dividi(self, verso):
         if self.sel is None or not self.ris or not self.ris[u"celle"]:
@@ -412,12 +458,53 @@ class Configuratore(forms.WPFWindow):
             for c in self.ris[u"celle"]:
                 if c[u"percorso"] == self.sel:
                     rett(G.rettangolo(self.ris, c[u"luce"]), u"#33E5862A", ARANCIO, 2.5)
+        if self.evid is not None:
+            try:
+                ev = G.evidenzia(self.ris, self.schema, self.evid)
+            except (IndexError, KeyError, TypeError):
+                ev = {u"rettangoli": [], u"quota": None}   # zona appena tolta: niente da illuminare
+            for r in ev[u"rettangoli"]:
+                rett(r, u"#661F6FB2", BLU, 2)
+            if ev[u"quota"] is not None:
+                self._disegna_quota(cnv, ev[u"quota"], sc, ox, oy)
         quota = TextBlock()
         quota.Text = u"%g x %g mm   ·   %s" % (L, H, S.descrizione(self.schema))
         quota.Foreground = colore(GRIGIO)
         Canvas.SetLeft(quota, ox)
         Canvas.SetTop(quota, oy + 4)
         cnv.Children.Add(quota)
+
+    def _disegna_quota(self, cnv, q, sc, ox, oy):
+        """Linea di quota blu, poco fuori dal disegno, con la misura scritta."""
+        x0, y0, x1, y1 = q
+        orizzontale = abs(y1 - y0) < 1e-6
+        scost = 10.0
+        if orizzontale:
+            px0, px1 = ox + x0 * sc, ox + x1 * sc
+            py = oy - y0 * sc - scost
+            punti = ((px0, py, px1, py), (px0, py - 4, px0, py + 4), (px1, py - 4, px1, py + 4))
+            valore = x1 - x0
+            tx, ty = (px0 + px1) / 2.0 - 16, py - 18
+        else:
+            py0, py1 = oy - y0 * sc, oy - y1 * sc
+            px = ox + x0 * sc + scost
+            punti = ((px, py0, px, py1), (px - 4, py0, px + 4, py0), (px - 4, py1, px + 4, py1))
+            valore = y1 - y0
+            tx, ty = px + 4, (py0 + py1) / 2.0 - 8
+        for a, b, c, d in punti:
+            ln = Line()
+            ln.X1, ln.Y1, ln.X2, ln.Y2 = a, b, c, d
+            ln.Stroke = colore(BLU)
+            ln.StrokeThickness = 1.5
+            cnv.Children.Add(ln)
+        tb = TextBlock()
+        tb.Text = u"%g" % valore
+        tb.Foreground = colore(BLU)
+        tb.FontWeight = FontWeights.Bold
+        tb.Background = colore(u"#FFFFFF")
+        Canvas.SetLeft(tb, tx)
+        Canvas.SetTop(tb, ty)
+        cnv.Children.Add(tb)
 
     # --- fine ----------------------------------------------------------------------------
     def su_crea(self, sender, args):

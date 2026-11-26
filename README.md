@@ -91,6 +91,15 @@ selezione a riposo.
   l'ultima zona prende il resto). In **Opzioni avanzate** i **profili** (telaio, soglia, montante,
   anta, profondità, vetro, zoccolo delle porte, frecce degli scorrevoli) e la cartella delle famiglie;
   sotto i pulsanti una riga dice dove finisce il file e se ne sovrascrive uno.
+- per ogni zona anche la **chiusura**: vetrata, vetrata con zoccolo (solo ante-porta, altezza nei
+  profili) o cieca (pannello pieno, con il suo materiale `Materiale pannello`);
+- **Soglia in basso**: spenta (di base quando ci sono ante-porta) il telaio è a U e sotto le ante
+  resta solo la `Luce a terra` (10 mm): non si inciampa;
+- **Maniglie**: sul lato opposto alle cerniere (scorrevoli: lato che chiude; vasistas: in alto al
+  centro), a metà altezza nelle finestre e a `Maniglia porte da terra` (1050 mm) nelle porte;
+  sono solidi 3D sul lato interno e seguono le misure;
+- quando scrivi in un campo (larghezza, misura di una zona, un profilo) il disegno **illumina in
+  blu la parte che cambia**, con la quota.
 
 **Crea famiglia e carica** parte dal modello famiglia di Revit (*Finestra metrica* / *Porta
 metrica*; se non lo trova lo chiede una volta), salva la `.rfa` nella cartella scelta e la carica

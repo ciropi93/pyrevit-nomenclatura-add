@@ -121,9 +121,11 @@ def test_pezzi_riempiono_il_vano_senza_sovrapporsi(schema):
     celle = dict((c["percorso"], c) for c in ris["celle"])
     pezzi = []
     for pz in ris["pezzi"]:
-        if pz["tipo"] in ("vetro", "zoccolo") and pz["cella"] is not None \
+        if pz["tipo"] == "maniglia":
+            continue        # sta sopra il profilo dell'anta, sul lato interno
+        if pz["tipo"] in ("vetro", "zoccolo", "pannello") and pz["cella"] is not None \
                 and celle[pz["cella"]]["anta_interna"] is not None:
-            continue        # vetro e zoccolo stanno dentro l'anta
+            continue        # vetro, zoccolo e pannello stanno dentro l'anta
         est = rett(ris, pz["esterni"])
         if pz["interni"] and pz["tipo"] == "telaio":
             pezzi.extend(strisce(est, rett(ris, pz["interni"])))
@@ -133,7 +135,12 @@ def test_pezzi_riempiono_il_vano_senza_sovrapporsi(schema):
         assert area_rett(a) > 0
         for b in pezzi[i + 1:]:
             assert not sovrapposti(a, b), (a, b)
-    assert abs(sum(area_rett(r) for r in pezzi) - schema["larghezza"] * schema["altezza"]) < 1e-3
+    atteso = schema["larghezza"] * schema["altezza"]
+    if not schema["soglia"]:
+        # senza soglia resta libera la luce a terra tra i due montanti del telaio
+        pr = schema["profili"]
+        atteso -= (schema["larghezza"] - 2 * pr["telaio"]) * pr["terra"]
+    assert abs(sum(area_rett(r) for r in pezzi) - atteso) < 1e-3
 
 
 @pytest.mark.parametrize("schema", C.preimpostati(), ids=lambda s: s["nome"])
@@ -143,7 +150,7 @@ def test_dentro_anta_vetro_e_zoccolo_riempiono(schema):
         if c["anta_interna"] is None:
             continue
         dentro = [rett(ris, p["esterni"]) for p in ris["pezzi"]
-                  if p["cella"] == c["percorso"] and p["tipo"] in ("vetro", "zoccolo")]
+                  if p["cella"] == c["percorso"] and p["tipo"] in ("vetro", "zoccolo", "pannello")]
         assert abs(sum(area_rett(r) for r in dentro) - area_rett(rett(ris, c["anta_interna"]))) < 1e-3
 
 
@@ -378,3 +385,121 @@ def test_struttura_rotta_non_esplode():
     s = S.nuovo(S.divisione("v", [S.cella(), S.cella(), S.cella()], [400]), 1200, 1500)
     ris = G.calcola(s)
     assert ris["errori"] and ris["celle"] == []
+
+
+# --- soglia, chiusura, maniglie, evidenziazione ----------------------------------------
+def _preimpostato(nome):
+    return [x for x in C.preimpostati() if x["nome"] == nome][0]
+
+
+def test_schemi_vecchi_restano_come_erano():
+    vecchio = {"larghezza": 900, "altezza": 2400, "categoria": "finestre",
+               "profili": {"zoccolo": 200},
+               "radice": {"tipo": "cella", "anta": "porta_sx"}}
+    s = S.normalizza(vecchio)
+    assert s["soglia"] is True and s["maniglie"] is False
+    assert s["radice"]["riempimento"] == S.ZOCCOLO
+    assert "_riempimento_mancante" not in s["radice"]
+    senza_zoccolo = S.normalizza(dict(vecchio, profili={"zoccolo": 0}))
+    assert senza_zoccolo["radice"]["riempimento"] == S.VETRO
+    # e si rilegge uguale dal JSON
+    assert S.from_json(S.to_json(s)) == s
+
+
+def test_nuovi_schemi_porte_senza_soglia():
+    assert _preimpostato("Portafinestra 1 anta")["soglia"] is False
+    assert _preimpostato("2 ante")["soglia"] is True
+    assert _preimpostato("Scorrevole 2 ante")["soglia"] is True     # binario in basso
+    assert _preimpostato("2 ante")["maniglie"] is True
+
+
+def test_chiusura_conservata_e_zoccolo_solo_porte():
+    s = S.nuovo(S.cella("porta_sx", S.PANNELLO), 900, 2400)
+    s2 = S.imposta_anta(s, (), "porta_dx")
+    assert s2["radice"]["riempimento"] == S.PANNELLO
+    s3 = S.dividi(s2, (), "o", 2000)
+    assert [c["riempimento"] for _p, c in S.celle(s3["radice"])] == [S.PANNELLO, S.PANNELLO]
+    assert S.togli_divisione(s3, (0,))["radice"]["riempimento"] == S.PANNELLO
+    s4 = S.imposta_riempimento(S.nuovo(S.cella("battente_sx"), 800, 1400), (), S.ZOCCOLO)
+    assert s4["radice"]["riempimento"] == S.VETRO          # lo zoccolo e' delle porte
+    with pytest.raises(S.SchemaErrore):
+        S.imposta_riempimento(s, (), "legno")
+    assert "cieca" in S.descrizione(s)
+
+
+def test_senza_soglia_telaio_a_u_e_anta_quasi_a_terra():
+    s = _preimpostato("Portafinestra 1 anta")
+    ris = G.calcola(s)
+    assert ris["errori"] == []
+    telai = [p for p in ris["pezzi"] if p["tipo"] == "telaio"]
+    assert len(telai) == 3 and all(p["interni"] is None for p in telai)
+    # nessun pezzo del telaio sotto l'anta
+    anta = [p for p in ris["pezzi"] if p["tipo"] == "anta"][0]
+    x0, y0, x1, _y1 = rett(ris, anta["esterni"])
+    assert y0 == s["profili"]["terra"]
+    for t in telai:
+        tx0, ty0, tx1, _ty1 = rett(ris, t["esterni"])
+        assert not (ty0 < y0 and min(tx1, x1) - max(tx0, x0) > EPS)
+    assert "Soglia sezione" not in [p["nome"] for p in PA.elenco(s, ris)]
+
+
+def test_pannello_al_posto_del_vetro():
+    s = S.nuovo(S.divisione("v", [S.cella("fisso", S.PANNELLO), S.cella("porta_sx", S.PANNELLO)], [500]),
+                1400, 2400)
+    ris = G.calcola(s)
+    assert ris["errori"] == []
+    tipi = [p["tipo"] for p in ris["pezzi"]]
+    assert "vetro" not in tipi and tipi.count("pannello") == 2
+    assert "Materiale pannello" in [p["nome"] for p in PA.elenco(s, ris)]
+    assert "Materiale pannello" not in [p["nome"] for p in PA.elenco(due_ante())]
+
+
+@pytest.mark.parametrize("anta,lato", [("battente_sx", "dx"), ("anta_ribalta_dx", "sx"),
+                                       ("scorrevole_sx", "dx"), ("porta_dx", "sx"),
+                                       ("vasistas", "alto")])
+def test_maniglia_sul_lato_giusto(anta, lato):
+    s = S.nuovo(S.cella(anta), 900, 2400 if S.porta(anta) else 1400)
+    ris = G.calcola(s)
+    assert ris["errori"] == []
+    man = [p for p in ris["pezzi"] if p["tipo"] == "maniglia"]
+    assert len(man) == 1
+    mx0, my0, mx1, my1 = rett(ris, man[0]["esterni"])
+    lx0, ly0, lx1, ly1 = rett(ris, ris["celle"][0]["luce"])
+    if lato == "dx":
+        assert mx1 == lx1
+    elif lato == "sx":
+        assert mx0 == lx0
+    else:
+        assert my1 == ly1 and abs((mx0 + mx1) / 2 - (lx0 + lx1) / 2) < EPS
+    if S.porta(anta):
+        assert my0 == s["profili"]["maniglia_porta"]           # quota da terra
+    elif lato != "alto":
+        assert abs((my0 + my1) / 2 - (ly0 + ly1) / 2) < EPS     # a meta' altezza
+    assert "Maniglia inizio" in [p["nome"] for p in PA.elenco(s, ris)]
+
+
+def test_niente_maniglie_su_fissi_o_se_spente():
+    s = S.nuovo(S.cella("fisso"), 800, 800)
+    assert not [p for p in G.calcola(s)["pezzi"] if p["tipo"] == "maniglia"]
+    s = S.nuovo(S.cella("battente_sx"), 800, 1400, maniglie=False)
+    assert not [p for p in G.calcola(s)["pezzi"] if p["tipo"] == "maniglia"]
+
+
+def test_maniglia_che_non_sta():
+    s = S.nuovo(S.cella("battente_sx"), 800, 400)
+    s["profili"]["maniglia_l"] = 500
+    assert any("maniglia" in e for e in G.calcola(s)["errori"])
+
+
+def test_evidenzia():
+    s = tre_ante_sopraluce()
+    ris = G.calcola(s)
+    ev = G.evidenzia(ris, s, ("larghezza",))
+    assert ev["quota"] == (0.0, 2000.0, 1800.0, 2000.0)
+    ev = G.evidenzia(ris, s, ("misura", (0,), 1))           # colonna centrale delle ante
+    assert ev["rettangoli"] == [(600.0, 0.0, 1200.0, 1500.0)]
+    assert ev["quota"] == (600.0, 1500.0, 1200.0, 1500.0)
+    ev = G.evidenzia(ris, s, ("profilo", "soglia"))
+    assert ev["rettangoli"] == [(0.0, 0.0, 1800.0, s["profili"]["soglia"])]
+    assert len(G.evidenzia(ris, s, ("profilo", "montante"))["rettangoli"]) >= 2
+    assert G.evidenzia(ris, s, None)["rettangoli"] == []
