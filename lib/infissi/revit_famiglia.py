@@ -41,14 +41,81 @@ def ft(mm):
 
 
 # --- aiuti generici ------------------------------------------------------------------
-class _SoloAvvisi(DB.IFailuresPreprocessor):
-    """Toglie gli avvisi (non gli errori) mentre si costruisce la famiglia."""
+class _Errori(DB.IFailuresPreprocessor):
+    """Toglie gli avvisi; gli errori (es. vincoli in conflitto) li risolve come propone Revit
+    (di solito togliendo il vincolo) e se li segna, cosi' non compare la finestra di Revit."""
+
+    GIRI_MAX = 5
+
+    def __init__(self):
+        self.messaggi = []
+        self.giri = 0
 
     def PreprocessFailures(self, accessor):
+        risolti = False
         for f in accessor.GetFailureMessages():
             if f.GetSeverity() == DB.FailureSeverity.Warning:
                 accessor.DeleteWarning(f)
+                continue
+            try:
+                testo = f.GetDescriptionText()
+            except Exception:
+                testo = u"errore di Revit"
+            if testo not in self.messaggi:
+                self.messaggi.append(testo)
+            if self.giri < self.GIRI_MAX and f.GetSeverity() == DB.FailureSeverity.Error \
+                    and f.HasResolutions():
+                accessor.ResolveFailure(f)
+                risolti = True
+            else:
+                return DB.FailureProcessingResult.ProceedWithRollBack
+        if risolti:
+            self.giri += 1
+            return DB.FailureProcessingResult.ProceedWithCommit
         return DB.FailureProcessingResult.Continue
+
+
+def _chiave_id(eid):
+    v = getattr(eid, u"Value", None)          # Revit 2024+
+    return v if v is not None else eid.IntegerValue
+
+
+def _stacca(curva):
+    """Stacca la linea da quelle che toccano i suoi estremi (Revit le unisce da solo)."""
+    try:
+        curva.SetGeometryCurve(curva.GeometryCurve, True)
+    except Exception:
+        pass
+
+
+class _Estremi(object):
+    """Estremi gia' quotati. Due linee unite in un punto lo condividono: quotarlo da
+    entrambe le linee e' un vincolo doppio (Revit: troppi vincoli), quindi si quota una volta."""
+
+    def __init__(self):
+        self.per_punto = {}
+
+    @staticmethod
+    def _chiave(punto):
+        return (round(punto[0], 1), round(punto[1], 1))
+
+    def unito(self, curva, indice, punto):
+        """True se l'estremo e' unito a una linea gia' quotata in quel punto."""
+        gia = self.per_punto.get(self._chiave(punto))
+        if not gia:
+            return False
+        try:
+            vicine = set(_chiave_id(e) for e in curva.GetAdjoinedCurveElements(indice))
+        except Exception:
+            return True     # non si sa: meglio un estremo libero che un vincolo doppio
+        return bool(vicine & gia)
+
+    def segna(self, curva, punto):
+        try:
+            k = _chiave_id(curva.Id)
+        except Exception:
+            return
+        self.per_punto.setdefault(self._chiave(punto), set()).add(k)
 
 
 class OpzioniCaricamento(DB.IFamilyLoadOptions):
@@ -207,7 +274,7 @@ class _Costruttore(object):
             raise FamigliaErrore(u"\n".join(self.ris[u"errori"]))
         self.parametri = PA.elenco(schema, self.ris)
         self.report = {u"quote": 0, u"allineamenti": 0, u"simboli": 0, u"flex": u"",
-                       u"pianta": 0, u"aperte": 0, u"visibilita": 0}
+                       u"pianta": 0, u"aperte": 0, u"visibilita": 0, u"formule": []}
         self.fp = {}
         self.rp = {}
         self.estrusioni = []
@@ -273,11 +340,24 @@ class _Costruttore(object):
                                                           p.get(u"istanza", False))
         self._scrivi_valori(self.parametri)
         for p in self.parametri:
-            if p[u"formula"]:
+            if not p[u"formula"]:
+                continue
+            fp = self.fp[p[u"nome"]]
+            try:
                 if p[u"tipo"] == PA.SINO:
-                    fm.SetFormula(self.fp[p[u"nome"]], p[u"formula"])     # es. not(Aperta in 3D)
+                    fm.SetFormula(fp, p[u"formula"])     # es. not(Aperta in 3D)
                 else:
-                    fm.SetFormula(self.fp[p[u"nome"]], PA.rinomina(p[u"formula"], mappa, nomi))
+                    fm.SetFormula(fp, PA.rinomina(p[u"formula"], mappa, nomi))
+            except Exception:
+                # formula rifiutata: almeno il valore giusto, cosi' le quote non vanno a zero
+                self.report[u"formule"].append(p[u"nome"])
+                try:
+                    if p[u"tipo"] == PA.LUNGHEZZA and p[u"valore"] is not None:
+                        fm.Set(fp, ft(p[u"valore"]))
+                    elif p[u"tipo"] == PA.SINO and p[u"valore"] is not None:
+                        fm.Set(fp, int(p[u"valore"]))
+                except Exception:
+                    pass
 
     def _scrivi_valori(self, parametri):
         fm = self.fm
@@ -437,14 +517,23 @@ class _Costruttore(object):
                         curva.Subcategory = stile
                     except Exception:
                         pass
+                _stacca(curva)
                 self.simboli.append((curva, seg))
-                self._blocca_simbolo(curva, seg)
+        # prima tutte le linee, poi le quote: cosi' si sa quali estremi Revit ha unito
+        self.doc.Regenerate()
+        estremi = _Estremi()
+        for curva, seg in self.simboli:
+            self._blocca_simbolo(curva, seg, estremi)
 
-    def _blocca_simbolo(self, curva, seg):
+    def _blocca_simbolo(self, curva, seg, estremi):
         """Quota ogni estremo (x e z) dal suo piano base con il suo parametro."""
         ok = True
         cx0, cz0, cx1, cz1 = seg[u"coord"]
         for indice, punto, cx, cz in ((0, seg[u"p0"], cx0, cz0), (1, seg[u"p1"], cx1, cz1)):
+            if estremi.unito(curva, indice, punto):
+                estremi.segna(curva, punto)
+                continue
+            estremi.segna(curva, punto)
             try:
                 rif_estremo = curva.GeometryCurve.GetEndPointReference(indice)
             except Exception:
@@ -533,6 +622,7 @@ class _Costruttore(object):
             except Exception:
                 pass
         punto = lambda p: DB.XYZ(self.X(p[0]), self.Y(p[1]), self.z0)  # noqa: E731
+        create = []
         for simb in self.ris[u"pianta"]:
             stile = stili.get(SOTTOCATEGORIA_PIANTA[simb[u"stile"]])
             for seg in simb[u"segmenti"]:
@@ -557,16 +647,25 @@ class _Costruttore(object):
                     except Exception:
                         pass
                 _visibilita(curva, G.TUTTI, modello=False)
-                if not self._blocca_pianta(curva, seg):
-                    self.report[u"pianta"] += 1
+                _stacca(curva)
+                create.append((curva, seg))
+        self.doc.Regenerate()
+        estremi = _Estremi()
+        for curva, seg in create:
+            if not self._blocca_pianta(curva, seg, estremi):
+                self.report[u"pianta"] += 1
 
-    def _blocca_pianta(self, curva, seg):
+    def _blocca_pianta(self, curva, seg, estremi):
         """Quota ogni estremo: x da un piano x, y da un piano parallelo al muro (in pianta)."""
         ok = True
         cx0, cy0, cx1, cy1 = seg[u"coord"]
         tutti = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani"])
         tutti_y = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani_y"])
         for indice, punto, cx, cy in ((0, seg[u"p0"], cx0, cy0), (1, seg[u"p1"], cx1, cy1)):
+            if estremi.unito(curva, indice, punto):
+                estremi.segna(curva, punto)
+                continue
+            estremi.segna(curva, punto)
             try:
                 rif = curva.GeometryCurve.GetEndPointReference(indice)
             except Exception:
@@ -643,13 +742,15 @@ class _Costruttore(object):
                         ext.Subcategory = sc
                     except Exception:
                         pass
-                # in pianta valgono i simboli: l'anta aperta si vede in 3D, prospetti e sezioni
-                self._visibile(ext, pz, pianta=False)
                 self.estrusioni_aperte.append((ext, pz))
             except Exception:
                 self.report[u"aperte"] += 1
         self.doc.Regenerate()
         self._allinea_aperte()
+        # in pianta valgono i simboli: l'anta aperta si vede in 3D, prospetti e sezioni
+        # (visibilita' dopo gli allineamenti, che in pianta vogliono le facce visibili)
+        for ext, pz in self.estrusioni_aperte:
+            self._visibile(ext, pz, pianta=False)
 
     def _allinea_aperte(self):
         """Facce delle ante aperte: y ai piani paralleli al muro (in pianta), z ai piani orizzontali."""
@@ -756,17 +857,23 @@ def crea_famiglia(app, modello, schema, percorso_rfa, tipi=None):
         raise FamigliaErrore(u"Non riesco ad aprire il modello famiglia:\n%s" % modello)
     try:
         t = DB.Transaction(famdoc, u"CDV infisso")
+        errori = _Errori()
         opz = t.GetFailureHandlingOptions()
-        opz.SetFailuresPreprocessor(_SoloAvvisi())
+        opz.SetFailuresPreprocessor(errori)
+        opz.SetClearAfterRollback(True)
         t.SetFailureHandlingOptions(opz)
         t.Start()
         try:
             report = _Costruttore(famdoc, schema).esegui(tipi)
-            t.Commit()
+            esito = t.Commit()
         except Exception:
             if t.HasStarted() and not t.HasEnded():
                 t.RollBack()
             raise
+        if esito != DB.TransactionStatus.Committed:
+            raise FamigliaErrore(u"Revit non accetta la famiglia: %s"
+                                 % (u"; ".join(errori.messaggi) or u"motivo sconosciuto"))
+        report[u"revit"] = list(errori.messaggi)
         opzioni = DB.SaveAsOptions()
         opzioni.OverwriteExistingFile = True
         famdoc.SaveAs(percorso_rfa, opzioni)
@@ -804,6 +911,10 @@ def problemi(report):
         righe.append(u"%d linee in pianta non create o non bloccate" % report[u"pianta"])
     if report.get(u"aperte"):
         righe.append(u"%d pezzi delle ante aperte non creati o non bloccati" % report[u"aperte"])
+    if report.get(u"formule"):
+        righe.append(u"formule non accettate da Revit: %s" % u", ".join(report[u"formule"]))
+    if report.get(u"revit"):
+        righe.append(u"Revit ha tolto dei vincoli in conflitto: %s" % u"; ".join(report[u"revit"][:3]))
     if report.get(u"visibilita"):
         righe.append(u"%d pezzi senza visibilità per dettaglio o apertura" % report[u"visibilita"])
     return righe
