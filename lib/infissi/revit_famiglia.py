@@ -42,13 +42,40 @@ def ft(mm):
 
 # --- aiuti generici ------------------------------------------------------------------
 class _SoloAvvisi(DB.IFailuresPreprocessor):
-    """Toglie gli avvisi (non gli errori) mentre si costruisce la famiglia."""
+    """Toglie gli avvisi; con un errore annulla la transazione senza finestre (vedi .errori)."""
+
+    def __init__(self):
+        self.errori = []
 
     def PreprocessFailures(self, accessor):
         for f in accessor.GetFailureMessages():
             if f.GetSeverity() == DB.FailureSeverity.Warning:
                 accessor.DeleteWarning(f)
+            else:
+                self.errori.append(f.GetDescriptionText())
+        if self.errori:
+            return DB.FailureProcessingResult.ProceedWithRollBack
         return DB.FailureProcessingResult.Continue
+
+
+def _in_transazione(doc, nome, azione):
+    """Esegue azione() in una transazione; ritorna gli errori di Revit (vuoto = confermata)."""
+    pre = _SoloAvvisi()
+    t = DB.Transaction(doc, nome)
+    opz = t.GetFailureHandlingOptions()
+    opz.SetFailuresPreprocessor(pre)
+    opz.SetClearAfterRollback(True)
+    t.SetFailureHandlingOptions(opz)
+    t.Start()
+    try:
+        azione()
+    except Exception:
+        if t.HasStarted() and not t.HasEnded():
+            t.RollBack()
+        raise
+    if t.Commit() != DB.TransactionStatus.Committed:
+        return pre.errori or [u"transazione annullata da Revit"]
+    return []
 
 
 class OpzioniCaricamento(DB.IFamilyLoadOptions):
@@ -141,7 +168,8 @@ def _visibilita(elemento, dettaglio, modello=True, pianta=True):
         vis.IsShownInMedium = G.MEDIO in dettaglio
         vis.IsShownInFine = G.ALTO in dettaglio
         if modello:
-            vis.IsShownInPlanRCP = pianta
+            vis.IsShownInTopBottom = pianta      # Pianta/RCP
+            vis.IsShownInPlanRCPCut = pianta     # in pianta se tagliato (finestre e porte)
         elemento.SetVisibility(vis)
         return True
     except Exception:
@@ -161,8 +189,11 @@ def _vista_prospetto(famdoc):
     return candidate[0]
 
 
-def _piani_modello(famdoc, larghezza, altezza):
-    """Piani di bordo del modello: {'sx', 'dx', 'basso', 'alto', 'centro'} (centro puo' mancare)."""
+def _piani_modello(famdoc, larghezza, altezza, vista=None):
+    """Piani di bordo del modello: {'sx', 'dx', 'basso', 'alto', 'centro'} (centro puo' mancare).
+
+    Nei modelli Porta l'altezza parte dal livello e non c'e' un piano in basso: lo crea a quota 0.
+    """
     vert, oriz, front = [], [], []
     for rp in DB.FilteredElementCollector(famdoc).OfClass(DB.ReferencePlane):
         n = rp.Normal
@@ -185,6 +216,17 @@ def _piani_modello(famdoc, larghezza, altezza):
 
     cv = coppia(vert, larghezza, -larghezza / 2.0)
     co = coppia(oriz, altezza, 0.0)
+    if co is None and cv is not None and vista is not None and any(abs(z - altezza) < TOLL for z, _ in oriz):
+        # shortcut: piano libero a quota 0, non bloccato al livello (nessun parametro lo sposta)
+        x0, x1 = cv[1].BubbleEnd.X - ft(300), cv[2].BubbleEnd.X + ft(300)
+        basso = famdoc.FamilyCreate.NewReferencePlane(DB.XYZ(x0, 0, 0), DB.XYZ(x1, 0, 0), DB.XYZ.BasisY, vista)
+        try:
+            basso.Name = u"CDV basso"
+        except Exception:
+            pass
+        famdoc.Regenerate()
+        oriz.append((0.0, basso))
+        co = coppia(oriz, altezza, 0.0)
     if cv is None or co is None:
         raise FamigliaErrore(u"Nel modello famiglia non trovo i piani di riferimento di "
                              u"larghezza e altezza.")
@@ -214,6 +256,8 @@ class _Costruttore(object):
         self.simboli = []
         self.estrusioni_aperte = []
         self.pianta = None
+        self.centro = None
+        self.bloccati = set()   # estremi delle linee simboliche gia' quotati
 
     # coordinate: mm dello schema -> piedi del modello famiglia
     def X(self, mm):
@@ -226,6 +270,44 @@ class _Costruttore(object):
         return DB.XYZ(self.X(x_mm), self.y0, self.Z(z_mm))
 
     def esegui(self, tipi):
+        """Costruisce la famiglia, un passo per transazione (le linee simboliche una per una)."""
+        self._passo(lambda: self._base(tipi))
+        self._simboli()
+        self._pianta_e_aperte(self.centro)
+        self._passo(lambda: self._tipi(tipi))
+        self._passo(self._flex)
+        return self.report
+
+    def _passo(self, azione):
+        errori = _in_transazione(self.doc, u"CDV infisso", azione)
+        if errori:
+            raise FamigliaErrore(u"Revit ha annullato la costruzione: %s" % u"; ".join(errori))
+
+    def _linea_bloccata(self, crea, blocca, seg):
+        """Crea una linea simbolica e ne quota gli estremi, in una transazione sua.
+
+        Revit a volte unisce le linee con un estremo in comune (l'API non lo dice): quotare di
+        nuovo quel punto sovravincola e Revit annulla. Allora riprova senza quotare i punti gia'
+        bloccati, infine senza quote. Ritorna (curva, quotata per intero).
+        """
+        for modo in (u"tutti", u"nuovi", u"nessuno"):
+            esito = []
+
+            def azione():
+                curva = crea()
+                if modo == u"nessuno":
+                    esito.append((curva, False, []))
+                else:
+                    salta = self.bloccati if modo == u"nuovi" else ()
+                    ok, chiavi = blocca(curva, seg, salta)
+                    esito.append((curva, ok, chiavi))
+            if not _in_transazione(self.doc, u"CDV linea", azione):
+                curva, ok, chiavi = esito[0]
+                self.bloccati.update(chiavi)
+                return curva, ok
+        return None, False
+
+    def _base(self, tipi):
         fm = self.fm
         nome0 = tipi[0][0]
         if fm.CurrentType is None:
@@ -239,7 +321,8 @@ class _Costruttore(object):
         self.doc.Regenerate()
 
         self.vista = _vista_prospetto(self.doc)
-        bordi = _piani_modello(self.doc, ft(self.schema[u"larghezza"]), ft(self.schema[u"altezza"]))
+        bordi = _piani_modello(self.doc, ft(self.schema[u"larghezza"]), ft(self.schema[u"altezza"]),
+                               self.vista)
         for k in G.RADICI:
             self.rp[k] = bordi[k]
         self.x0 = bordi[u"sx"].BubbleEnd.X
@@ -251,16 +334,12 @@ class _Costruttore(object):
             self.piano_schizzo = DB.SketchPlane.Create(
                 self.doc, DB.Plane.CreateByNormalAndOrigin(DB.XYZ.BasisY, DB.XYZ.Zero))
 
+        self.centro = bordi[u"centro"]
         self._parametri()
         self._piani()
         self._estrusioni()
         self.doc.Regenerate()
         self._allinea()
-        self._simboli()
-        self._pianta_e_aperte(bordi[u"centro"])
-        self._tipi(tipi)
-        self._flex()
-        return self.report
 
     def _parametri(self):
         fm = self.fm
@@ -327,6 +406,7 @@ class _Costruttore(object):
             except Exception:
                 pass
             self.rp[p[u"id"]] = rp
+            self.doc.Regenerate()   # senza, il piano nuovo non da' riferimenti per le quote
             base = self.rp[p[u"base"]]
             q = livello_quote[p[u"verso"]] + (i % 8) * passo
             pb = [x for x in self.ris[u"piani"] if x[u"id"] == p[u"base"]][0][u"pos"]
@@ -421,30 +501,50 @@ class _Costruttore(object):
                         break
 
     def _simboli(self):
-        stile = None
-        sc = _sottocategoria(self.doc, u"apertura")
-        if sc is not None:
+        if not self.ris[u"simboli"]:
+            return
+        stili = []
+
+        def prepara():
+            sc = _sottocategoria(self.doc, u"apertura")
             try:
-                stile = sc.GetGraphicsStyle(DB.GraphicsStyleType.Projection)
+                stili.append(sc.GetGraphicsStyle(DB.GraphicsStyleType.Projection))
             except Exception:
-                stile = None
+                stili.append(None)
+        self._passo(prepara)
+        stile = stili[0]
         for s in self.ris[u"simboli"]:
             for seg in s[u"segmenti"]:
                 linea = DB.Line.CreateBound(self.punto(*seg[u"p0"]), self.punto(*seg[u"p1"]))
-                curva = self.crea.NewSymbolicCurve(linea, self.piano_schizzo)
-                if stile is not None:
-                    try:
-                        curva.Subcategory = stile
-                    except Exception:
-                        pass
-                self.simboli.append((curva, seg))
-                self._blocca_simbolo(curva, seg)
 
-    def _blocca_simbolo(self, curva, seg):
-        """Quota ogni estremo (x e z) dal suo piano base con il suo parametro."""
+                def crea(linea=linea):
+                    curva = self.crea.NewSymbolicCurve(linea, self.piano_schizzo)
+                    if stile is not None:
+                        try:
+                            curva.Subcategory = stile
+                        except Exception:
+                            pass
+                    return curva
+                curva, ok = self._linea_bloccata(crea, self._blocca_simbolo, seg)
+                if curva is None:
+                    raise FamigliaErrore(u"Revit non accetta una linea di apertura in prospetto")
+                self.simboli.append((curva, seg))
+                if not ok:
+                    self.report[u"simboli"] += 1
+
+    def _blocca_simbolo(self, curva, seg, salta=()):
+        """Quota ogni estremo (x e z) dal suo piano base con il suo parametro.
+
+        Salta gli estremi in `salta`; ritorna (tutte le quote fatte, estremi quotati).
+        """
         ok = True
+        chiavi = []
         cx0, cz0, cx1, cz1 = seg[u"coord"]
         for indice, punto, cx, cz in ((0, seg[u"p0"], cx0, cz0), (1, seg[u"p1"], cx1, cz1)):
+            chiave = (u"prospetto", round(punto[0], 3), round(punto[1], 3))
+            if chiave in salta:
+                continue
+            chiavi.append(chiave)
             try:
                 rif_estremo = curva.GeometryCurve.GetEndPointReference(indice)
             except Exception:
@@ -464,8 +564,7 @@ class _Costruttore(object):
                                                 DB.XYZ(x, self.y0, self.Z(punto[1])))
                 if not self._quota(self.rp[pid].GetReference(), rif_estremo, linea, param):
                     ok = False
-        if not ok:
-            self.report[u"simboli"] += 1
+        return ok, chiavi
 
     # --- pianta e ante aperte --------------------------------------------------------------
     def Y(self, mm):
@@ -482,9 +581,9 @@ class _Costruttore(object):
             return
         self.yc = centro.BubbleEnd.Y
         self.rp[u"centro"] = centro
-        self._piani_y()
+        self._passo(self._piani_y)
         self._simboli_pianta()
-        self._aperte()
+        self._passo(self._aperte)
 
     def _piani_y(self):
         L = ft(self.schema[u"larghezza"])
@@ -502,6 +601,7 @@ class _Costruttore(object):
             except Exception:
                 pass
             self.rp[p[u"id"]] = rp
+            self.doc.Regenerate()   # senza, il piano nuovo non da' riferimenti per le quote
             yb = [q for q in self.ris[u"piani_y"] if q[u"id"] == p[u"base"]][0][u"pos"]
             x = x_quote + (i % 6) * ft(60)
             linea = DB.Line.CreateBound(DB.XYZ(x, self.Y(yb), self.z0), DB.XYZ(x, y, self.z0))
@@ -515,23 +615,28 @@ class _Costruttore(object):
     def _simboli_pianta(self):
         if not self.ris[u"pianta"]:
             return
-        piano = self._piano_orizzontale()
         stili = {}
-        for chiave in (u"pianta_porta", u"pianta_finestra"):
-            sc = _sottocategoria(self.doc, chiave)
-            if sc is None:
-                continue
-            if chiave == u"pianta_finestra":
-                tr = _tratteggio(self.doc)
-                if tr is not None:
-                    try:
-                        sc.SetLinePatternId(tr, DB.GraphicsStyleType.Projection)
-                    except Exception:
-                        pass
-            try:
-                stili[chiave] = sc.GetGraphicsStyle(DB.GraphicsStyleType.Projection)
-            except Exception:
-                pass
+        pronti = []
+
+        def prepara():
+            pronti.append(self._piano_orizzontale())
+            for chiave in (u"pianta_porta", u"pianta_finestra"):
+                sc = _sottocategoria(self.doc, chiave)
+                if sc is None:
+                    continue
+                if chiave == u"pianta_finestra":
+                    tr = _tratteggio(self.doc)
+                    if tr is not None:
+                        try:
+                            sc.SetLinePatternId(tr, DB.GraphicsStyleType.Projection)
+                        except Exception:
+                            pass
+                try:
+                    stili[chiave] = sc.GetGraphicsStyle(DB.GraphicsStyleType.Projection)
+                except Exception:
+                    pass
+        self._passo(prepara)
+        piano = pronti[0]
         punto = lambda p: DB.XYZ(self.X(p[0]), self.Y(p[1]), self.z0)  # noqa: E731
         for simb in self.ris[u"pianta"]:
             stile = stili.get(SOTTOCATEGORIA_PIANTA[simb[u"stile"]])
@@ -547,26 +652,41 @@ class _Costruttore(object):
                                             punto((c[0] + mx * k, c[1] + my * k)))
                     else:
                         geo = DB.Line.CreateBound(punto(seg[u"p0"]), punto(seg[u"p1"]))
-                    curva = self.crea.NewSymbolicCurve(geo, piano)
                 except Exception:
                     self.report[u"pianta"] += 1
                     continue
-                if stile is not None:
-                    try:
-                        curva.Subcategory = stile
-                    except Exception:
-                        pass
-                _visibilita(curva, G.TUTTI, modello=False)
-                if not self._blocca_pianta(curva, seg):
+
+                def crea(geo=geo, stile=stile):
+                    curva = self.crea.NewSymbolicCurve(geo, piano)
+                    if stile is not None:
+                        try:
+                            curva.Subcategory = stile
+                        except Exception:
+                            pass
+                    _visibilita(curva, G.TUTTI, modello=False)
+                    return curva
+                try:
+                    ok = self._linea_bloccata(crea, self._blocca_pianta, seg)[1]
+                except Exception:
+                    ok = False
+                if not ok:
                     self.report[u"pianta"] += 1
 
-    def _blocca_pianta(self, curva, seg):
-        """Quota ogni estremo: x da un piano x, y da un piano parallelo al muro (in pianta)."""
+    def _blocca_pianta(self, curva, seg, salta=()):
+        """Quota ogni estremo: x da un piano x, y da un piano parallelo al muro (in pianta).
+
+        Salta gli estremi in `salta`; ritorna (tutte le quote fatte, estremi quotati).
+        """
         ok = True
+        chiavi = []
         cx0, cy0, cx1, cy1 = seg[u"coord"]
         tutti = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani"])
         tutti_y = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani_y"])
         for indice, punto, cx, cy in ((0, seg[u"p0"], cx0, cy0), (1, seg[u"p1"], cx1, cy1)):
+            chiave = (u"pianta", round(punto[0], 3), round(punto[1], 3))
+            if chiave in salta:
+                continue
+            chiavi.append(chiave)
             try:
                 rif = curva.GeometryCurve.GetEndPointReference(indice)
             except Exception:
@@ -583,7 +703,7 @@ class _Costruttore(object):
                     linea = DB.Line.CreateBound(DB.XYZ(x, yb, self.z0), DB.XYZ(x, self.Y(punto[1]), self.z0))
                 if not self._quota(self.rp[pid].GetReference(), rif, linea, param, self.pianta):
                     ok = False
-        return ok
+        return ok, chiavi
 
     def _aperte(self):
         """Ante aperte a 90 gradi: estrusioni sul piano delle cerniere, verso il vano."""
@@ -755,18 +875,7 @@ def crea_famiglia(app, modello, schema, percorso_rfa, tipi=None):
     if famdoc is None:
         raise FamigliaErrore(u"Non riesco ad aprire il modello famiglia:\n%s" % modello)
     try:
-        t = DB.Transaction(famdoc, u"CDV infisso")
-        opz = t.GetFailureHandlingOptions()
-        opz.SetFailuresPreprocessor(_SoloAvvisi())
-        t.SetFailureHandlingOptions(opz)
-        t.Start()
-        try:
-            report = _Costruttore(famdoc, schema).esegui(tipi)
-            t.Commit()
-        except Exception:
-            if t.HasStarted() and not t.HasEnded():
-                t.RollBack()
-            raise
+        report = _Costruttore(famdoc, schema).esegui(tipi)
         opzioni = DB.SaveAsOptions()
         opzioni.OverwriteExistingFile = True
         famdoc.SaveAs(percorso_rfa, opzioni)
