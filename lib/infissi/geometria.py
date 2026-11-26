@@ -41,12 +41,25 @@ PROFONDITA = {
     u"vetro_anta": (u"Vetro anta inizio", u"Vetro anta fine"),
     u"vetro_a": (u"Vetro A inizio", u"Vetro A fine"),
     u"vetro_b": (u"Vetro B inizio", u"Vetro B fine"),
-    u"maniglia": (u"Maniglia inizio", u"Maniglia fine"),
 }
+# maniglie: placca sul profilo dell'anta, collo, leva; "int"/"est" = lato interno/esterno dell'anta
+PARTI_MANIGLIA = ((u"placca", u"placca"), (u"collo", u"collo"), (u"leva", u"leva"))
+for _lato, _nome in ((u"int", u"interna"), (u"est", u"esterna")):
+    for _parte, _np in PARTI_MANIGLIA:
+        PROFONDITA[u"man_%s_%s" % (_parte, _lato)] = (u"Maniglia %s %s inizio" % (_np, _nome),
+                                                      u"Maniglia %s %s fine" % (_np, _nome))
+# maniglione antipanico: due supporti e la barra, sul lato da cui si spinge (opposto all'apertura)
+PROFONDITA[u"panico_supporto"] = (u"Antipanico supporti inizio", u"Antipanico supporti fine")
+PROFONDITA[u"panico_barra"] = (u"Antipanico barra inizio", u"Antipanico barra fine")
 
 # lato interno della profondita' (+1 = verso "Anta fine"): ci vanno maniglie, archi e ante
 # aperte. Se nel modello famiglia di Revit l'interno e' dall'altra parte, si cambia qui.
 INTERNO = -1
+# Le profondita' dei pezzi (formule "... inizio/fine") sono offset lungo la normale del piano di
+# schizzo dell'asse del telaio, che nei modelli (piano Centro Fronte/Retro) e' -Y: li' l'interno
+# va col segno INTERNO_PROF. revit_famiglia tiene la normale dell'asse sempre cosi'.
+ASSE_SCHIZZO = -1
+INTERNO_PROF = INTERNO * ASSE_SCHIZZO
 
 # livelli di dettaglio di Revit (Basso/Medio/Alto)
 BASSO, MEDIO, ALTO = u"basso", u"medio", u"alto"
@@ -273,12 +286,14 @@ def _costruisci(schema, L, H, valori, ris):
     ris[u"asse"] = asse
     ris[u"asse_y"] = piani_y.pos(asse)
     spost, prof_a = valori[profilo(u"anta_spost")], valori[profilo(u"anta_prof")]
-    if INTERNO > 0:
+    # faccia interna dell'anta: in profondita' e' spost + prof/2 dal lato INTERNO_PROF; il piano
+    # y sta a quella distanza dall'asse verso INTERNO
+    if INTERNO_PROF > 0:
         filo, f_filo = spost + prof_a / 2.0, u"%s + %s / 2" % (profilo(u"anta_spost"), profilo(u"anta_prof"))
     else:
         filo, f_filo = prof_a / 2.0 - spost, u"%s / 2 - %s" % (profilo(u"anta_prof"), profilo(u"anta_spost"))
     valori[FILO_ANTA] = filo
-    stato = {u"scorrevoli": 0, u"maniglie": bool(schema.get(u"maniglie", False)),
+    stato = {u"scorrevoli": 0, u"categoria": schema.get(u"categoria", S.FINESTRE),
              u"piani_y": piani_y, u"f_filo": f_filo, u"filo": None, u"asse": asse,
              u"simbolo_finestre": schema.get(u"simbolo_pianta", u"nessuno")}
     bordi = {u"sx": (u"sx", u"telaio"), u"dx": (u"dx", u"telaio"),
@@ -358,7 +373,7 @@ def _cella(nodo, percorso, bordi, piani, valori, ris, stato):
     riemp = S.riempimento_valido(anta, nodo.get(u"riempimento", S.VETRO))
     c = {u"percorso": percorso, u"anta": anta, u"regione": regione, u"luce": luce,
          u"anta_interna": None, u"vetro": luce, u"zoccolo": None, u"livello": u"",
-         u"riempimento": riemp}
+         u"riempimento": riemp, u"maniglia": S.maniglia_di(nodo, stato[u"categoria"])}
     if S.apribile(anta):
         a = valori[profilo(u"anta")]
         nome = profilo(u"anta")
@@ -390,7 +405,7 @@ def _cella(nodo, percorso, bordi, piani, valori, ris, stato):
     ris[u"celle"].append(c)
     if S.apribile(anta):
         _simbolo(c, piani, valori, ris)
-        if stato[u"maniglie"]:
+        if c[u"maniglia"] != S.NESSUNA:
             _maniglia(c, piani, valori, ris)
     # i pezzi della cella si vedono da Medio in su (a Basso c'e' il vetro unico), la maniglia ad Alto
     propri = [pz for pz in ris[u"pezzi"] if pz[u"cella"] == percorso and pz[u"tipo"] != u"montante"]
@@ -710,52 +725,114 @@ def lato_maniglia(anta):
     return u"dx" if anta.endswith(u"_sx") else u"sx"
 
 
+# misure derivate delle maniglie (formule: seguono anta e maniglia senza altri parametri da toccare)
+MEZZA_ANTA = u"Mezza anta"
+MAN_SPESSORE = u"Maniglia mezzo spessore"
+MAN_PLACCA_L = u"Maniglia mezza placca"
+MAN_PLACCA_H = u"Maniglia mezza altezza placca"
+PANICO_BARRA = u"Antipanico mezza barra"
+
+
+def _misura(ris, valori, nome, formula, valore):
+    _derivato(ris, None, nome, formula, valore)
+    valori[nome] = valore
+    return valore
+
+
 def _maniglia(c, piani, valori, ris):
-    """Blocchetto sul profilo dell'anta, lato maniglia; segue le misure con una quota derivata."""
+    """Maniglia stilizzata (placca, collo, leva) o maniglione antipanico; segue le misure.
+
+    Finestre: placca a meta' del profilo dell'anta sul lato maniglia, leva che scende
+    (martellina). Porte: a quota da terra, leva orizzontale verso le cerniere. Vasistas: sul
+    traverso alto, al centro. Lato interno, o tutti e due (c["maniglia"] == DUE_LATI).
+    Antipanico: supporti sui due profili verticali dell'anta e barra in mezzo, sul lato da cui
+    si spinge (opposto a quello verso cui apre l'anta).
+    """
     per = c[u"percorso"]
     sx, dx, basso, alto = c[u"luce"]
     isx, idx, ib, ia = c[u"anta_interna"]
     fp = lambda pid: formula_posizione(piani.per_id, pid)  # noqa: E731
-    lung = valori[profilo(u"maniglia_l")]
-    nome_q = nome_quota_maniglia(per)
+    pa, pl = profilo(u"anta"), profilo(u"maniglia_l")
+    a, lung = valori[pa], valori[pl]
     lato = lato_maniglia(c[u"anta"])
-    if lato == u"alto":
-        # vasistas: centrata in larghezza, nel traverso alto dell'anta
-        ml = (piani.pos(dx) - piani.pos(sx)) / 2.0
-        nome_ml = nome_mezza_larghezza(per)
-        _derivato(ris, piani, nome_ml, u"(%s) / 2" % _differenza(fp(dx), fp(sx)), ml)
-        valori[nome_ml] = ml
-        q = ml - lung / 2.0
-        _derivato(ris, piani, nome_q, u"%s - %s / 2" % (nome_ml, profilo(u"maniglia_l")), q)
-        valori[nome_q] = q
-        x0 = piani.aggiungi(sx, nome_q, 1, q)
-        x1 = piani.aggiungi(x0, profilo(u"maniglia_l"), 1, lung)
-        esterni = (x0, x1, ia, alto)
-        spazio = piani.pos(dx) - piani.pos(sx)
+    porta = S.porta(c[u"anta"])
+    t = _misura(ris, valori, MAN_SPESSORE, u"%s / 10" % pa, a / 10.0)
+    pw = _misura(ris, valori, MAN_PLACCA_L, u"%s / 5" % pa, a / 5.0)
+    ph = _misura(ris, valori, MAN_PLACCA_H, u"%s / 3" % pl, lung / 3.0)
+    err = []
+
+    def quota_porta():
+        """Piano orizzontale all'altezza della maniglia delle porte (da terra)."""
+        nome_q = nome_quota_maniglia(per)
+        q = valori[profilo(u"maniglia_porta")] - piani.pos(basso)
+        _misura(ris, valori, nome_q, _differenza(profilo(u"maniglia_porta"), fp(basso)), q)
+        return piani.aggiungi(basso, nome_q, 1, q)
+
+    def pezzo(x, z, prof):
+        ris[u"pezzi"].append(_pezzo(u"maniglia", (x[0], x[1], z[0], z[1]), None, prof, per))
+
+    def intorno(pid, nome, v):
+        return (piani.aggiungi(pid, nome, -1, v), piani.aggiungi(pid, nome, 1, v))
+
+    if c[u"maniglia"] == S.ANTIPANICO:
+        zc = quota_porta()
+        tb = _misura(ris, valori, PANICO_BARRA, u"%s / 4" % pa, a / 4.0)
+        s0, s1 = intorno(isx, PANICO_BARRA, tb), intorno(idx, PANICO_BARRA, tb)
+        zs, zb = intorno(zc, MAN_PLACCA_H, ph), intorno(zc, PANICO_BARRA, tb)
+        pezzo(s0, zs, u"panico_supporto")
+        pezzo(s1, zs, u"panico_supporto")
+        pezzo((s0[1], s1[0]), zb, u"panico_barra")
+        if piani.pos(s1[0]) - piani.pos(s0[1]) < 4 * tb:
+            err.append(u"il maniglione è più largo dell'anta")
+        if piani.pos(zs[0]) < piani.pos(ib) or piani.pos(zs[1]) > piani.pos(ia):
+            err.append(u"il maniglione non sta in altezza (cambia la quota da terra)")
     else:
-        y0 = piani.pos(basso)
-        if S.porta(c[u"anta"]):
-            # porte: a quota fissa da terra
-            mp = valori[profilo(u"maniglia_porta")]
-            q = mp - y0
-            _derivato(ris, piani, nome_q, _differenza(profilo(u"maniglia_porta"), fp(basso)), q)
+        mezza = _misura(ris, valori, MEZZA_ANTA, u"%s / 2" % pa, a / 2.0)
+        if lato == u"alto":
+            # vasistas: al centro del traverso alto, leva orizzontale
+            ml = (piani.pos(dx) - piani.pos(sx)) / 2.0
+            nome_ml = nome_mezza_larghezza(per)
+            _misura(ris, valori, nome_ml, u"(%s) / 2" % _differenza(fp(dx), fp(sx)), ml)
+            xc = piani.aggiungi(sx, nome_ml, 1, ml)
+            zc = piani.aggiungi(alto, MEZZA_ANTA, -1, mezza)
+            verso_leva = 1
         else:
-            # finestre: a meta' altezza della luce
-            mh = (piani.pos(alto) - y0) / 2.0
-            nome_mh = nome_mezza_altezza(per)
-            _derivato(ris, piani, nome_mh, u"(%s) / 2" % _differenza(fp(alto), fp(basso)), mh)
-            valori[nome_mh] = mh
-            q = mh - lung / 2.0
-            _derivato(ris, piani, nome_q, u"%s - %s / 2" % (nome_mh, profilo(u"maniglia_l")), q)
-        valori[nome_q] = q
-        b = piani.aggiungi(basso, nome_q, 1, q)
-        a = piani.aggiungi(b, profilo(u"maniglia_l"), 1, lung)
-        esterni = (idx, dx, b, a) if lato == u"dx" else (sx, isx, b, a)
-        spazio = piani.pos(alto) - y0
-    if q < 0 or q + lung > spazio:
-        ris[u"errori"].append(u"Zona %s: la maniglia non sta nell'anta (cambia le misure della maniglia)."
-                              % nome_zona(per))
-    ris[u"pezzi"].append(_pezzo(u"maniglia", esterni, None, u"maniglia", per))
+            xc = piani.aggiungi(dx, MEZZA_ANTA, -1, mezza) if lato == u"dx" else \
+                piani.aggiungi(sx, MEZZA_ANTA, 1, mezza)
+            if porta:
+                zc = quota_porta()
+            else:
+                mh = (piani.pos(alto) - piani.pos(basso)) / 2.0
+                nome_mh = nome_mezza_altezza(per)
+                _misura(ris, valori, nome_mh, u"(%s) / 2" % _differenza(fp(alto), fp(basso)), mh)
+                zc = piani.aggiungi(basso, nome_mh, 1, mh)
+            verso_leva = (-1 if lato == u"dx" else 1) if porta else 0     # 0 = leva che scende
+        if lato == u"alto":     # vasistas: sul traverso la placca sta coricata, come la leva
+            placca = (intorno(xc, MAN_PLACCA_H, ph), intorno(zc, MAN_PLACCA_L, pw))
+        else:
+            placca = (intorno(xc, MAN_PLACCA_L, pw), intorno(zc, MAN_PLACCA_H, ph))
+        collo = (intorno(xc, MAN_SPESSORE, t), intorno(zc, MAN_SPESSORE, t))
+        if verso_leva == 0:
+            leva = (collo[0], (piani.aggiungi(zc, pl, -1, lung), collo[1][1]))
+            if piani.pos(leva[1][0]) < piani.pos(basso):
+                err.append(u"la leva esce dall'anta in basso")
+        elif verso_leva < 0:
+            leva = ((piani.aggiungi(xc, pl, -1, lung), collo[0][1]), collo[1])
+            if piani.pos(leva[0][0]) < piani.pos(sx):
+                err.append(u"la leva esce dall'anta")
+        else:
+            leva = ((collo[0][0], piani.aggiungi(xc, pl, 1, lung)), collo[1])
+            if piani.pos(leva[0][1]) > piani.pos(dx):
+                err.append(u"la leva esce dall'anta")
+        if piani.pos(placca[1][0]) < piani.pos(basso) or piani.pos(placca[1][1]) > piani.pos(alto):
+            err.append(u"la placca esce dall'anta")
+        lati = (u"int", u"est") if c[u"maniglia"] == S.DUE_LATI else (u"int",)
+        for lato_y in lati:
+            pezzo(placca[0], placca[1], u"man_placca_" + lato_y)
+            pezzo(collo[0], collo[1], u"man_collo_" + lato_y)
+            pezzo(leva[0], leva[1], u"man_leva_" + lato_y)
+    if err:
+        ris[u"errori"].append(u"Zona %s: %s (cambia le misure della maniglia)." % (nome_zona(per), err[0]))
 
 
 # --- controlli sulle misure ----------------------------------------------------------

@@ -140,11 +140,12 @@ def pianta(schema, ris, dettaglio=G.ALTO, quota_taglio=None):
         out[u"rettangoli"].append((x0, -meta, x1, meta, u"muro"))
     ys.extend((-meta, meta))
     px = dict((q[u"id"], q[u"pos"]) for q in ris[u"piani"])
-    asse = ris.get(u"asse_y", 0.0)        # il telaio sta qui (le profondita' sono dal suo asse)
+    # il telaio sta sull'asse; le profondita' sono dall'asse, con l'interno dal lato INTERNO_PROF
+    asse = ris.get(u"asse_y", 0.0) * s
     for pz in pezzi_prospetto(ris, dettaglio):
         if pz[u"profondita"] not in prof:
             continue
-        a, b = ((v + asse) * s for v in prof[pz[u"profondita"]])
+        a, b = (asse + v * G.INTERNO_PROF for v in prof[pz[u"profondita"]])
         for x0, x1 in _tagli_x(ris, pz, quota):
             out[u"rettangoli"].append((x0, min(a, b), x1, max(a, b), pz[u"tipo"]))
             ys.extend((a, b))

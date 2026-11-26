@@ -74,7 +74,8 @@ def da_route(app, query):
                              varianti=uno(u"varianti") != u"0",
                              salta=(uno(u"salta") or u"").split(u","),
                              contorno=uno(u"contorno") == u"1",
-                             posizione=uno(u"posizione") or u"filo_esterno")}
+                             posizione=uno(u"posizione") or u"filo_esterno",
+                             immagini=uno(u"immagini") == u"1")}
 
 
 def con_tutto_il_contorno(schema, posizione=u"filo_esterno"):
@@ -122,9 +123,11 @@ def prova_finestra(nomi=None):
                     vista.IsChecked = True
                     for i in range(win.cmbDettaglio.Items.Count):
                         win.cmbDettaglio.SelectedIndex = i
+                # ogni maniglia possibile sulla prima zona (passo Ante)
+                win.vai_al_passo(2)
+                for i in range(win.cmbManiglia.Items.Count):
+                    win.cmbManiglia.SelectedIndex = i
                 for _volta in (1, 2):
-                    win.chkManiglie.IsChecked = not win.chkManiglie.IsChecked
-                    win.su_maniglie(None, None)
                     win.chkSoglia.IsChecked = not win.chkSoglia.IsChecked
                     win.su_soglia(None, None)
                 win.vai_al_passo(4)
@@ -293,7 +296,48 @@ def foto_finestra(nome, modifica=False, contorno=False):
     return out
 
 
-def prova(app, nomi=None, varianti=True, salta=(), contorno=False, posizione=u"filo_esterno"):
+def _immagini_3d(famdoc, percorso):
+    """PNG della famiglia in 3D (dall'interno e dall'esterno, livello di dettaglio Alto)."""
+    from Autodesk.Revit import DB
+    from System.Collections.Generic import List
+    vista = [v for v in DB.FilteredElementCollector(famdoc).OfClass(DB.View3D) if not v.IsTemplate][0]
+    out = []
+    t = DB.Transaction(famdoc, u"CDV immagini")
+    t.Start()
+    try:
+        vista.DetailLevel = DB.ViewDetailLevel.Fine
+        vista.DisplayStyle = DB.DisplayStyle.ShadingWithEdges
+        from infissi import geometria as G
+        # da fuori si guarda verso l'interno (G.INTERNO lungo y), da dentro al contrario
+        for nome, direzione in ((u"esterno", DB.XYZ(-0.8, G.INTERNO, -0.5)),
+                                (u"interno", DB.XYZ(0.8, -G.INTERNO, -0.5))):
+            # guarda verso il centro della finestra dal lato scelto
+            occhio = DB.XYZ(0, 0, 4) - direzione.Normalize().Multiply(20)
+            su = direzione.CrossProduct(DB.XYZ.BasisZ).CrossProduct(direzione).Normalize()
+            if su.Z < 0:
+                su = su.Negate()
+            vista.SetOrientation(DB.ViewOrientation3D(occhio, su, direzione.Normalize()))
+            famdoc.Regenerate()
+            opz = DB.ImageExportOptions()
+            opz.ExportRange = DB.ExportRange.SetOfViews
+            ids = List[DB.ElementId]()
+            ids.Add(vista.Id)
+            opz.SetViewsAndSheets(ids)
+            opz.ZoomType = DB.ZoomFitType.FitToPage
+            opz.PixelSize = 1200
+            opz.ImageResolution = DB.ImageResolution.DPI_150
+            opz.HLRandWFViewsFileType = DB.ImageFileType.PNG
+            opz.ShadowViewsFileType = DB.ImageFileType.PNG
+            opz.FilePath = os.path.splitext(percorso)[0] + u" 3D " + nome
+            famdoc.ExportImage(opz)
+            out.append(opz.FilePath)
+    finally:
+        t.RollBack()
+    return out
+
+
+def prova(app, nomi=None, varianti=True, salta=(), contorno=False, posizione=u"filo_esterno",
+          immagini=False):
     """[{nome, variante, esito, problemi, report|errore}] per ogni preset (e variante)."""
     _ricarica()
     from infissi import catalogo as C
@@ -314,7 +358,8 @@ def prova(app, nomi=None, varianti=True, salta=(), contorno=False, posizione=u"f
             prove = [(u"contorno " + posizione, con_tutto_il_contorno(base, posizione))]
         elif varianti:
             s = S.copia(base)
-            s[u"maniglie"] = True
+            for _p, c in S.celle(s[u"radice"]):
+                c[u"maniglia"] = S.maniglie_valide(c[u"anta"])[-1]   # la piu' completa
             s[u"simbolo_pianta"] = u"continuo"
             prove.append((u"maniglie+pianta", s))
         for variante, schema in prove:
@@ -328,6 +373,8 @@ def prova(app, nomi=None, varianti=True, salta=(), contorno=False, posizione=u"f
             percorso = os.path.join(cartella, u"%s %s.rfa" % (base[u"nome"], variante))
             try:
                 famdoc, report = RF.crea_famiglia(app, modello, schema, percorso)
+                if immagini:
+                    voce[u"immagini"] = _immagini_3d(famdoc, percorso)
                 famdoc.Close(False)
                 problemi = RF.problemi(report)
                 voce.update(esito=u"da controllare" if problemi else u"ok", problemi=problemi,

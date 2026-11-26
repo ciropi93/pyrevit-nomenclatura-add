@@ -402,7 +402,7 @@ def test_schemi_vecchi_restano_come_erano():
                "profili": {"zoccolo": 200},
                "radice": {"tipo": "cella", "anta": "porta_sx"}}
     s = S.normalizza(vecchio)
-    assert s["soglia"] is True and s["maniglie"] is False
+    assert s["soglia"] is True and s["radice"]["maniglia"] == S.NESSUNA    # prima: senza maniglie
     assert s["radice"]["riempimento"] == S.ZOCCOLO
     assert "_riempimento_mancante" not in s["radice"]
     senza_zoccolo = S.normalizza(dict(vecchio, profili={"zoccolo": 0}))
@@ -415,7 +415,8 @@ def test_nuovi_schemi_porte_senza_soglia():
     assert _preimpostato("Portafinestra 1 anta")["soglia"] is False
     assert _preimpostato("2 ante")["soglia"] is True
     assert _preimpostato("Scorrevole 2 ante")["soglia"] is True     # binario in basso
-    assert _preimpostato("2 ante")["maniglie"] is True
+    s = _preimpostato("2 ante")
+    assert [S.maniglia_di(c, s["categoria"]) for _p, c in S.celle(s["radice"])] == [S.INTERNA, S.INTERNA]
 
 
 def test_chiusura_conservata_e_zoccolo_solo_porte():
@@ -459,6 +460,11 @@ def test_pannello_al_posto_del_vetro():
     assert "Materiale pannello" not in [p["nome"] for p in PA.elenco(due_ante())]
 
 
+def _parti_maniglia(ris):
+    """{profondita: (x0, y0, x1, y1)} dei pezzi della maniglia."""
+    return dict((p["profondita"], rett(ris, p["esterni"])) for p in ris["pezzi"] if p["tipo"] == "maniglia")
+
+
 @pytest.mark.parametrize("anta,lato", [("battente_sx", "dx"), ("anta_ribalta_dx", "sx"),
                                        ("scorrevole_sx", "dx"), ("porta_dx", "sx"),
                                        ("vasistas", "alto")])
@@ -466,21 +472,57 @@ def test_maniglia_sul_lato_giusto(anta, lato):
     s = S.nuovo(S.cella(anta), 900, 2400 if S.porta(anta) else 1400)
     ris = G.calcola(s)
     assert ris["errori"] == []
-    man = [p for p in ris["pezzi"] if p["tipo"] == "maniglia"]
-    assert len(man) == 1
-    mx0, my0, mx1, my1 = rett(ris, man[0]["esterni"])
+    parti = _parti_maniglia(ris)
+    assert set(parti) == {"man_placca_int", "man_collo_int", "man_leva_int"}   # finestre: solo dentro
+    px0, py0, px1, py1 = parti["man_placca_int"]
+    cx, cy = (px0 + px1) / 2, (py0 + py1) / 2
     lx0, ly0, lx1, ly1 = rett(ris, ris["celle"][0]["luce"])
+    a = s["profili"]["anta"]
     if lato == "dx":
-        assert mx1 == lx1
+        assert abs(cx - (lx1 - a / 2)) < EPS        # a meta' del profilo dell'anta
     elif lato == "sx":
-        assert mx0 == lx0
+        assert abs(cx - (lx0 + a / 2)) < EPS
     else:
-        assert my1 == ly1 and abs((mx0 + mx1) / 2 - (lx0 + lx1) / 2) < EPS
+        assert abs(cy - (ly1 - a / 2)) < EPS and abs(cx - (lx0 + lx1) / 2) < EPS
+    vx0, vy0, vx1, vy1 = parti["man_leva_int"]
     if S.porta(anta):
-        assert my0 == s["profili"]["maniglia_porta"]           # quota da terra
+        assert abs(cy - s["profili"]["maniglia_porta"]) < EPS          # quota da terra
+        assert vx1 - vx0 > vy1 - vy0 and (vx0 < cx if lato == "dx" else vx1 > cx)   # verso le cerniere
     elif lato != "alto":
-        assert abs((my0 + my1) / 2 - (ly0 + ly1) / 2) < EPS     # a meta' altezza
-    assert "Maniglia inizio" in [p["nome"] for p in PA.elenco(s, ris)]
+        assert abs(cy - (ly0 + ly1) / 2) < EPS                         # a meta' altezza
+        assert vy1 - vy0 > vx1 - vx0 and vy0 < cy                      # la leva scende
+    assert "Maniglia leva interna inizio" in [p["nome"] for p in PA.elenco(s, ris)]
+
+
+def test_maniglia_per_anta_e_predefinite():
+    porta = S.nuovo(S.cella("porta_sx"), 900, 2100, categoria=S.PORTE)
+    portafinestra = S.nuovo(S.cella("porta_sx"), 900, 2400)
+    assert S.maniglia_di(porta["radice"], S.PORTE) == S.DUE_LATI
+    assert S.maniglia_di(portafinestra["radice"], S.FINESTRE) == S.INTERNA
+    lati = set(k.rsplit("_", 1)[1] for k in _parti_maniglia(G.calcola(porta)))
+    assert lati == {"int", "est"}
+    # l'antipanico solo sulle ante-porta; cambiando anta la scelta non valida torna predefinita
+    p = S.imposta_maniglia(porta, (), S.ANTIPANICO)
+    assert set(_parti_maniglia(G.calcola(p))) == {"panico_supporto", "panico_barra"}
+    with pytest.raises(S.SchemaErrore):
+        S.imposta_maniglia(S.nuovo(S.cella("battente_sx"), 800, 1400), (), S.ANTIPANICO)
+    f = S.imposta_anta(p, (), "battente_sx")
+    assert "maniglia" not in f["radice"] and S.maniglia_di(f["radice"], S.PORTE) == S.INTERNA
+    # dividere e rileggere dal JSON conserva la scelta
+    d = S.dividi(p, (), "v", 450)
+    assert [c["maniglia"] for _p, c in S.celle(d["radice"])] == [S.ANTIPANICO, S.ANTIPANICO]
+    assert S.from_json(S.to_json(d)) == d
+
+
+def test_antipanico_dal_lato_che_si_spinge():
+    s = S.imposta_maniglia(S.nuovo(S.cella("porta_sx"), 1000, 2100, categoria=S.PORTE), (), S.ANTIPANICO)
+    ris = G.calcola(s)
+    assert ris["errori"] == []
+    i, f = G.PROFONDITA["panico_barra"]
+    v = ris["valori"]
+    barra = (PA.valuta(PA.FORMULE_PROFONDITA[i], v), PA.valuta(PA.FORMULE_PROFONDITA[f], v))
+    # l'anta apre verso l'interno: il maniglione sta dall'altra parte (profondita': G.INTERNO_PROF)
+    assert all(y * G.INTERNO_PROF < 0 for y in barra)
 
 
 def test_niente_maniglie_su_fissi_o_se_spente():

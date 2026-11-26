@@ -71,6 +71,9 @@
                             <TextBlock Text="CHIUSURA" Style="{StaticResource Etichetta}" Margin="0,10,0,4"/>
                             <ComboBox x:Name="cmbChiusura"
                                       ToolTip="Vetrata, vetrata con pannello in basso (solo ante-porta) o cieca"/>
+                            <TextBlock Text="MANIGLIA" Style="{StaticResource Etichetta}" Margin="0,10,0,4"/>
+                            <ComboBox x:Name="cmbManiglia"
+                                      ToolTip="Per ogni anta. Il maniglione antipanico va sul lato da cui si spinge: nel progetto gira la porta perché apra verso la via d'uscita."/>
                             <TextBlock Text="DIVIDI LA ZONA" Style="{StaticResource Etichetta}" Margin="0,10,0,4"/>
                             <WrapPanel>
                                 <Button x:Name="btnDividiV" Content="In colonne"/>
@@ -122,8 +125,6 @@
                             <TextBlock Text="OPZIONI" Style="{StaticResource Etichetta}" Margin="0,0,0,4"/>
                             <CheckBox x:Name="chkSoglia" Content="Soglia in basso"
                                       ToolTip="Spenta: niente traverso in basso, il telaio è a U e non si inciampa (porte)"/>
-                            <CheckBox x:Name="chkManiglie" Content="Maniglie" Margin="0,4,0,0"
-                                      ToolTip="Sul lato opposto alle cerniere, sul lato interno"/>
                             <TextBlock Text="SIMBOLO IN PIANTA (FINESTRE)" Style="{StaticResource Etichetta}" Margin="0,10,0,4"
                                        ToolTip="Le porte hanno sempre anta aperta e arco. Guardalo con il tasto Pianta sopra il disegno."/>
                             <ComboBox x:Name="cmbPianta"/>

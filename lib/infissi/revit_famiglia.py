@@ -268,7 +268,8 @@ def _piani_modello(famdoc, larghezza, altezza):
                              u"larghezza e altezza (cerco %.0f x %.0f mm).\nVerticali: %s\n"
                              u"Orizzontali: %s" % (larghezza / MM, altezza / MM,
                                                     elenco(vert), elenco(oriz)))
-    out = {u"sx": cv[1], u"dx": cv[2], u"basso": co[1], u"alto": co[2], u"centro": None}
+    sx, dx = (cv[1], cv[2]) if G.INTERNO > 0 else (cv[2], cv[1])     # vedi _Costruttore.X
+    out = {u"sx": sx, u"dx": dx, u"basso": co[1], u"alto": co[2], u"centro": None}
     for y, rp in front:
         if abs(y) < TOLL:
             out[u"centro"] = rp
@@ -345,7 +346,8 @@ class _Costruttore(object):
 
     # coordinate: mm dello schema -> piedi del modello famiglia
     def X(self, mm):
-        return self.x0 + ft(mm)
+        # visto da fuori (lato -INTERNO) la destra e' verso INTERNO * X: x dello schema -> X
+        return self.x0 + G.INTERNO * ft(mm)
 
     def Z(self, mm):
         return self.z0 + ft(mm)
@@ -397,7 +399,7 @@ class _Costruttore(object):
         if self.piano_asse is not None:
             return DB.SketchPlane.Create(self.doc, self.piano_asse.Id)
         return DB.SketchPlane.Create(
-            self.doc, DB.Plane.CreateByNormalAndOrigin(DB.XYZ.BasisY, DB.XYZ.Zero))
+            self.doc, DB.Plane.CreateByNormalAndOrigin(DB.XYZ(0, G.ASSE_SCHIZZO, 0), DB.XYZ.Zero))
 
     def _togli_dal_modello(self):
         """Toglie i solidi del modello famiglia (la mostra del modello Porta: le mostre le fa il
@@ -428,6 +430,12 @@ class _Costruttore(object):
                 raise FamigliaErrore(u"Non riesco a mettere il telaio nella posizione scelta: nel modello "
                                      u"famiglia mancano la pianta o i piani Esterno/Interno del muro.")
             self.piano_asse = self.rp[asse]
+        # le profondita' sono offset lungo la normale dell'asse: deve essere G.ASSE_SCHIZZO
+        if self.piano_asse is not None and self.piano_asse.Normal.Y * G.ASSE_SCHIZZO < 0:
+            if asse == u"centro":
+                raise FamigliaErrore(u"Nel modello famiglia il piano Centro (Fronte/Retro) è girato al "
+                                     u"contrario del solito: maniglie e ante finirebbero dal lato sbagliato.")
+            self.piano_asse.Flip()
         self.y0 = self.yc + ft(self.ris[u"asse_y"])
         self.piano_schizzo = self._nuovo_piano_schizzo()
 
@@ -491,10 +499,10 @@ class _Costruttore(object):
             return False
 
     def _piani(self):
-        L, H = ft(self.schema[u"larghezza"]), ft(self.schema[u"altezza"])
+        H = ft(self.schema[u"altezza"])
         sporgenza = ft(300)
         livello_quote = {u"v": self.Z(self.schema[u"altezza"]) + ft(400),
-                         u"o": self.X(self.schema[u"larghezza"]) + ft(400)}
+                         u"o": self.X(self.schema[u"larghezza"] + 400)}
         passo = ft(60)
         for p in self.ris[u"piani"]:
             if p[u"base"] is None:
@@ -505,8 +513,8 @@ class _Costruttore(object):
                 b = DB.XYZ(x, self.y0, self.z0 - sporgenza)
             else:
                 z = self.Z(p[u"pos"])
-                a = DB.XYZ(self.x0 - sporgenza, self.y0, z)
-                b = DB.XYZ(self.x0 + L + sporgenza, self.y0, z)
+                a = DB.XYZ(self.X(-300), self.y0, z)
+                b = DB.XYZ(self.X(self.schema[u"larghezza"] + 300), self.y0, z)
             rp = self.crea.NewReferencePlane(a, b, DB.XYZ.BasisY, self.vista)
             try:
                 rp.Name = u"CDV %s" % p[u"id"]
@@ -681,9 +689,7 @@ class _Costruttore(object):
         self._aperte()
 
     def _piani_y(self):
-        L = ft(self.schema[u"larghezza"])
-        sporg = ft(300)
-        x_quote = self.X(self.schema[u"larghezza"]) + ft(400)
+        x_quote = self.X(self.schema[u"larghezza"] + 400)
         for p in self.ris[u"piani_y"]:
             if p[u"base"] is None:
                 continue
@@ -691,8 +697,8 @@ class _Costruttore(object):
                 raise FamigliaErrore(u"Nel modello famiglia non trovo il piano %s sulla faccia del muro."
                                      % p[u"base"].capitalize())
             y = self.Y(p[u"pos"])
-            rp = self.crea.NewReferencePlane(DB.XYZ(self.x0 - sporg, y, self.z0),
-                                             DB.XYZ(self.x0 + L + sporg, y, self.z0),
+            rp = self.crea.NewReferencePlane(DB.XYZ(self.X(-300), y, self.z0),
+                                             DB.XYZ(self.X(self.schema[u"larghezza"] + 300), y, self.z0),
                                              DB.XYZ.BasisZ, self.pianta)
             try:
                 rp.Name = u"CDV %s" % p[u"id"]
@@ -706,7 +712,7 @@ class _Costruttore(object):
             y = self.Y(p[u"pos"])
             rp = self.rp[p[u"id"]]
             yb = [q for q in self.ris[u"piani_y"] if q[u"id"] == p[u"base"]][0][u"pos"]
-            x = x_quote + (i % 6) * ft(60)
+            x = x_quote + G.INTERNO * (i % 6) * ft(60)
             linea = DB.Line.CreateBound(DB.XYZ(x, self.Y(yb), self.z0), DB.XYZ(x, y, self.z0))
             self._quota(self.rp[p[u"base"]].GetReference(), rp.GetReference(), linea, p[u"param"],
                         self.pianta)
@@ -821,7 +827,7 @@ class _Costruttore(object):
                 if pz[u"y_int"]:
                     profilo.Append(anello(pz[u"y_int"], pz[u"z_int"]))
                 # spessore nel verso del vano, misurato lungo la normale del piano di schizzo
-                normale = 1 if sp.GetPlane().Normal.X > 0 else -1
+                normale = 1 if sp.GetPlane().Normal.X * G.INTERNO > 0 else -1   # in x dello schema
                 tipo = u"vetro" if pz[u"spessore"] == u"vetro" else u"anta"
                 n_inizio, n_fine = G.SPESSORI_APERTI[tipo][pz[u"verso"] * normale]
                 inizio = valori[n_inizio] if n_inizio else 0.0
@@ -1006,11 +1012,15 @@ class _Costruttore(object):
             self.doc.Regenerate()
             x0 = self.rp[u"sx"].BubbleEnd.X
             z0 = self.rp[u"basso"].BubbleEnd.Z
+
+            def X2(a, b):
+                return sorted((x0 + G.INTERNO * ft(a), x0 + G.INTERNO * ft(b)))
             pezzi_fuori = 0
             for (ext, _pz), pz2 in zip(self.estrusioni, ris2[u"pezzi"]):
                 r = G.rettangolo(ris2, pz2[u"esterni"])
                 bb = ext.get_BoundingBox(None)
-                if bb is None or max(abs(bb.Min.X - (x0 + ft(r[0]))), abs(bb.Max.X - (x0 + ft(r[2]))),
+                rx = X2(r[0], r[2])
+                if bb is None or max(abs(bb.Min.X - rx[0]), abs(bb.Max.X - rx[1]),
                                      abs(bb.Min.Z - (z0 + ft(r[1]))),
                                      abs(bb.Max.Z - (z0 + ft(r[3])))) > TOLL * 2:
                     pezzi_fuori += 1
@@ -1020,7 +1030,7 @@ class _Costruttore(object):
                 c = curva.GeometryCurve
                 for i, p in ((0, seg2[u"p0"]), (1, seg2[u"p1"])):
                     q = c.GetEndPoint(i)
-                    if abs(q.X - (x0 + ft(p[0]))) > TOLL * 2 or abs(q.Z - (z0 + ft(p[1]))) > TOLL * 2:
+                    if abs(q.X - (x0 + G.INTERNO * ft(p[0]))) > TOLL * 2 or abs(q.Z - (z0 + ft(p[1]))) > TOLL * 2:
                         simboli_fuori += 1
                         self.report[u"linee_fuori"].append(u"%s-%s estremo %d" % (
                             _seg[u"p0"], _seg[u"p1"], i))
@@ -1031,7 +1041,8 @@ class _Costruttore(object):
                 bb = ext.get_BoundingBox(None)
                 x = sorted(pos2[k] for k in e2[u"x"])
                 z = sorted(pos2[k] for k in e2[u"z"])
-                if bb is None or max(abs(bb.Min.X - (x0 + ft(x[0]))), abs(bb.Max.X - (x0 + ft(x[1]))),
+                rx = X2(x[0], x[1])
+                if bb is None or max(abs(bb.Min.X - rx[0]), abs(bb.Max.X - rx[1]),
                                      abs(bb.Min.Z - (z0 + ft(z[0]))), abs(bb.Max.Z - (z0 + ft(z[1])))) > TOLL * 2:
                     pezzi_fuori += 1
                     self.report[u"linee_fuori"].append(e[u"nome"])

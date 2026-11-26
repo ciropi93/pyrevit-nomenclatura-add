@@ -28,9 +28,10 @@ def test_i_gruppi_coprono_tutti_i_profili_una_volta():
 
 def test_maniglie_solo_se_ci_sono():
     s = preset("2 ante")
-    s["maniglie"] = False
+    for _p, c in S.celle(s["radice"]):
+        c["maniglia"] = S.NESSUNA
     assert "maniglia_l" not in chiavi_profili(AN.profili_per_gruppo(s))
-    s["maniglie"] = True
+    s = S.imposta_maniglia(s, (0,), S.INTERNA)
     assert "maniglia_l" in chiavi_profili(AN.profili_per_gruppo(s))
 
 
