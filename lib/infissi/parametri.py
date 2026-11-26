@@ -185,6 +185,9 @@ def elenco(schema, ris=None):
     for k, etichetta, _v, _m in S.PROFILI:
         if etichetta in usati:
             out.append(_parametro(etichetta, LUNGHEZZA, COSTRUZIONE, valori[etichetta]))
+    for k, etichetta, _v, _m in S.MISURE_CONTORNO:
+        if etichetta in usati:
+            out.append(_parametro(etichetta, LUNGHEZZA, COSTRUZIONE, valori[etichetta]))
     if G.MONTANTE_MEZZO in usati:
         out.append(_parametro(G.MONTANTE_MEZZO, LUNGHEZZA, COSTRUZIONE,
                               valori[G.MONTANTE_MEZZO], FORMULA_MONTANTE_MEZZO))
@@ -204,6 +207,14 @@ def elenco(schema, ris=None):
     out.append(_parametro(MATERIALE_VETRO, MATERIALE, MATERIALI))
     if any(pz[u"tipo"] == u"pannello" for pz in ris[u"pezzi"]):
         out.append(_parametro(MATERIALE_PANNELLO, MATERIALE, MATERIALI))
+    # contorno: un Si'/No per elemento (si spegne dal progetto) e i materiali
+    visti = set()
+    for e in ris.get(u"contorno", []):
+        for nome, tipo, gruppo, valore in ((e[u"visibile"], SINO, COSTRUZIONE, 1),
+                                           (e[u"materiale"], MATERIALE, MATERIALI, None)):
+            if nome and nome not in visti:
+                visti.add(nome)
+                out.append(_parametro(nome, tipo, gruppo, valore))
     if ris[u"pezzi_aperti"] or any(pz[u"stato"] for pz in ris[u"pezzi"]):
         # di istanza: ogni finestra/porta del progetto si mostra aperta o chiusa da sola
         out.append(_parametro(G.APERTA, SINO, GRAFICA, 0, istanza=True))
@@ -233,6 +244,9 @@ def schema_da_valori(schema, valori):
     for k, etichetta, _v, _m in S.PROFILI:
         if etichetta in valori:
             s[u"profili"][k] = float(valori[etichetta])
+    for k, etichetta, _v, _m in S.MISURE_CONTORNO:
+        if etichetta in valori:
+            s[u"contorno"][u"misure"][k] = float(valori[etichetta])
     for percorso, div in S.divisioni(s[u"radice"]):
         for i in range(len(div[u"figli"]) - 1):
             nome = G.nome_misura(div[u"verso"], tuple(percorso) + (i,))

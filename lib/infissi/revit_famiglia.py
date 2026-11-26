@@ -24,6 +24,10 @@ NOMI_SOTTOCATEGORIE = {
     u"pianta_porta": ((u"Apertura in pianta", u"Rotazione in pianta", u"Plan Swing"),
                       u"Apertura in pianta"),
     u"pianta_finestra": ((u"Apertura in pianta finestre",), u"Apertura in pianta finestre"),
+    u"mostre": ((u"Mostre", u"Trim"), u"Mostre"),
+    u"davanzali": ((u"Davanzali", u"Sill"), u"Davanzali"),
+    u"imbotte": ((u"Imbotte",), u"Imbotte"),
+    u"mazzetta": ((u"Mazzetta",), u"Mazzetta"),
 }
 # sottocategoria delle linee in pianta per stile (vedi G: ris["pianta"][..]["stile"])
 SOTTOCATEGORIA_PIANTA = {u"porta": u"pianta_porta", u"finestra_continuo": u"pianta_porta",
@@ -271,6 +275,38 @@ def _piani_modello(famdoc, larghezza, altezza):
     return out
 
 
+def _spessore_muro(famdoc):
+    """Spessore (mm) del muro ospite del modello famiglia; None se non c'e' un muro."""
+    for w in DB.FilteredElementCollector(famdoc).OfClass(DB.Wall):
+        return w.Width / MM
+    return None
+
+
+def _facce_muro(famdoc, spessore_mm):
+    """Piani del modello sulle facce del muro: {"esterno": rp, "interno": rp} (quelli che ci sono).
+    Sono i piani Esterno/Interno del modello, legati alle facce: seguono lo spessore del muro."""
+    out = {}
+    if not spessore_mm:
+        return out
+    meta = ft(spessore_mm) / 2.0
+    for rp in DB.FilteredElementCollector(famdoc).OfClass(DB.ReferencePlane):
+        if abs(rp.Normal.Y) < 0.99:
+            continue
+        y = rp.BubbleEnd.Y
+        for nome, pos in ((u"esterno", -G.INTERNO * meta), (u"interno", G.INTERNO * meta)):
+            if abs(y - pos) < TOLL and nome not in out:
+                out[nome] = rp
+    return out
+
+
+def _vista_lato(famdoc):
+    """Un prospetto laterale (guarda lungo x): li' le facce parallele al muro sono linee."""
+    for v in DB.FilteredElementCollector(famdoc).OfClass(DB.View):
+        if not v.IsTemplate and v.ViewType == DB.ViewType.Elevation and abs(v.ViewDirection.X) > 0.99:
+            return v
+    return None
+
+
 # --- costruzione ------------------------------------------------------------------------
 class _Costruttore(object):
     def __init__(self, famdoc, schema):
@@ -278,18 +314,22 @@ class _Costruttore(object):
         self.crea = famdoc.FamilyCreate
         self.fm = famdoc.FamilyManager
         self.schema = schema
-        self.ris = G.calcola(schema)
+        # le facce del muro sono quelle del modello famiglia: si calcola con il suo spessore
+        self.spessore_muro = _spessore_muro(famdoc)
+        self.ris = G.calcola(schema, self.spessore_muro)
         if self.ris[u"errori"]:
             raise FamigliaErrore(u"\n".join(self.ris[u"errori"]))
         self.parametri = PA.elenco(schema, self.ris)
         self.report = {u"quote": 0, u"allineamenti": 0, u"simboli": 0, u"flex": u"",
                        u"pianta": 0, u"aperte": 0, u"visibilita": 0, u"formule": [],
-                       u"motivi_quote": [], u"motivi_visibilita": [], u"linee_fuori": []}
+                       u"motivi_quote": [], u"motivi_visibilita": [], u"linee_fuori": [],
+                       u"contorno": 0, u"motivi_contorno": []}
         self.fp = {}
         self.rp = {}
         self.estrusioni = []
         self.simboli = []
         self.estrusioni_aperte = []
+        self.contorno = []
         self.pianta = None
         self.descrizioni = {}       # id elemento -> cosa e' (per spiegare gli errori di Revit)
 
@@ -327,6 +367,7 @@ class _Costruttore(object):
         self.doc.Regenerate()
 
         self.vista = _vista_prospetto(self.doc)
+        self.vista_lato = _vista_lato(self.doc)
         bordi = _piani_modello(self.doc, ft(self.schema[u"larghezza"]), ft(self.schema[u"altezza"]))
         for k in G.RADICI:
             self.rp[k] = bordi[k]
@@ -334,25 +375,61 @@ class _Costruttore(object):
         self.z0 = bordi[u"basso"].BubbleEnd.Z
         self.y0 = 0.0
         self.centro = bordi[u"centro"]
-        self.piano_schizzo = self._nuovo_piano_schizzo()
+        self.piano_asse = self.centro
 
+        self._togli_dal_modello()
         self._parametri()
         self._piani()
+        self._prepara_y()
         self._estrusioni()
         self.doc.Regenerate()
         self._allinea()
         self._simboli()
-        self._pianta_e_aperte(bordi[u"centro"])
+        self._pianta_e_aperte()
+        self._contorno()
         self._tipi(tipi)
         self._flex()
         return self.report
 
     def _nuovo_piano_schizzo(self):
-        """Piano di schizzo del prospetto (sul piano "centro" del modello, se c'e')."""
-        if self.centro is not None:
-            return DB.SketchPlane.Create(self.doc, self.centro.Id)
+        """Piano di schizzo del prospetto: sull'asse del telaio (di base il piano "centro" del
+        modello, cioe' l'asse del muro)."""
+        if self.piano_asse is not None:
+            return DB.SketchPlane.Create(self.doc, self.piano_asse.Id)
         return DB.SketchPlane.Create(
             self.doc, DB.Plane.CreateByNormalAndOrigin(DB.XYZ.BasisY, DB.XYZ.Zero))
+
+    def _togli_dal_modello(self):
+        """Toglie i solidi del modello famiglia (la mostra del modello Porta: le mostre le fa il
+        contorno). Il foro nel muro resta quello del modello."""
+        ids = []
+        for cls in (DB.Extrusion, DB.Sweep, DB.Blend, DB.Revolution, DB.SweptBlend):
+            ids.extend(e.Id for e in DB.FilteredElementCollector(self.doc).OfClass(cls))
+        for eid in ids:
+            try:
+                self.doc.Delete(eid)
+            except Exception:
+                pass
+        if ids:
+            self.doc.Regenerate()
+
+    def _prepara_y(self):
+        """Pianta del modello, piani paralleli al muro (asse del telaio, facce...) e piano di
+        schizzo sull'asse del telaio: tutto il serramento si costruisce da li'."""
+        self.pianta = _vista_pianta(self.doc)
+        self.yc = self.centro.BubbleEnd.Y if self.centro is not None else 0.0
+        self.rp[u"centro"] = self.centro
+        self.rp.update(_facce_muro(self.doc, self.spessore_muro))
+        if self.pianta is not None and self.centro is not None:
+            self._piani_y()
+        asse = self.ris[u"asse"]
+        if asse != u"centro":
+            if asse not in self.rp:
+                raise FamigliaErrore(u"Non riesco a mettere il telaio nella posizione scelta: nel modello "
+                                     u"famiglia mancano la pianta o i piani Esterno/Interno del muro.")
+            self.piano_asse = self.rp[asse]
+        self.y0 = self.yc + ft(self.ris[u"asse_y"])
+        self.piano_schizzo = self._nuovo_piano_schizzo()
 
     def _parametri(self):
         fm = self.fm
@@ -592,18 +669,14 @@ class _Costruttore(object):
     def Y(self, mm):
         return self.yc + ft(mm)
 
-    def _pianta_e_aperte(self, centro):
-        """Piani paralleli al muro, simboli in pianta e ante aperte (dove serve)."""
+    def _pianta_e_aperte(self):
+        """Simboli in pianta e ante aperte (dove serve); i piani paralleli al muro ci sono gia'."""
         if not self.ris[u"pianta"] and not self.ris[u"pezzi_aperti"]:
             return
-        self.pianta = _vista_pianta(self.doc)
-        if self.pianta is None or centro is None:
+        if self.pianta is None or self.centro is None:
             self.report[u"pianta"] += len(self.ris[u"pianta"])
             self.report[u"aperte"] += len(self.ris[u"pezzi_aperti"])
             return
-        self.yc = centro.BubbleEnd.Y
-        self.rp[u"centro"] = centro
-        self._piani_y()
         self._simboli_pianta()
         self._aperte()
 
@@ -614,6 +687,9 @@ class _Costruttore(object):
         for p in self.ris[u"piani_y"]:
             if p[u"base"] is None:
                 continue
+            if p[u"base"] in (u"esterno", u"interno") and p[u"base"] not in self.rp:
+                raise FamigliaErrore(u"Nel modello famiglia non trovo il piano %s sulla faccia del muro."
+                                     % p[u"base"].capitalize())
             y = self.Y(p[u"pos"])
             rp = self.crea.NewReferencePlane(DB.XYZ(self.x0 - sporg, y, self.z0),
                                              DB.XYZ(self.x0 + L + sporg, y, self.z0),
@@ -810,6 +886,101 @@ class _Costruttore(object):
                             self.report[u"aperte"] += 1
                         break
 
+    # --- contorno: mostre, davanzali, soglia, imbotte, foro con la mazzetta ---------------------
+    def _contorno(self):
+        """Ogni elemento e' un'estrusione disegnata in prospetto sul suo piano parallelo al muro;
+        le facce si bloccano ai piani: x/z nel prospetto, y nel prospetto laterale."""
+        elementi = self.ris[u"contorno"]
+        if not elementi:
+            return
+        if self.vista_lato is None or self.centro is None:
+            self.report[u"contorno"] += len(elementi)
+            self.report[u"motivi_contorno"].append(u"manca il prospetto laterale o il piano centro")
+            return
+        for e in elementi:
+            try:
+                ext = self._estrusione_contorno(e)
+                self._descrivi(ext, e[u"nome"])
+                self.contorno.append((ext, e))
+            except Exception as ex:
+                self.report[u"contorno"] += 1
+                self.report[u"motivi_contorno"].append(u"%s: %s" % (e[u"nome"], ex))
+        self.doc.Regenerate()
+        for ext, e in self.contorno:
+            self._allinea_contorno(ext, e)
+
+    def _estrusione_contorno(self, e):
+        pos = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani"])
+        pos_y = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani_y"])
+        x0, x1 = sorted(pos[k] for k in e[u"x"])
+        z0, z1 = sorted(pos[k] for k in e[u"z"])
+        ya, yb = pos_y[e[u"y"][0]], pos_y[e[u"y"][1]]
+        sp = DB.SketchPlane.Create(self.doc, self.rp[e[u"y"][0]].Id)
+        yw = self.Y(ya)
+        pts = [DB.XYZ(self.X(x0), yw, self.Z(z0)), DB.XYZ(self.X(x1), yw, self.Z(z0)),
+               DB.XYZ(self.X(x1), yw, self.Z(z1)), DB.XYZ(self.X(x0), yw, self.Z(z1))]
+        ca = DB.CurveArray()
+        for i in range(4):
+            ca.Append(DB.Line.CreateBound(pts[i], pts[(i + 1) % 4]))
+        profilo = DB.CurveArrArray()
+        profilo.Append(ca)
+        # l'estrusione va lungo la normale del piano di schizzo: da ya a yb
+        off = ft(yb - ya) * (1 if sp.GetPlane().Normal.Y > 0 else -1)
+        ext = self.crea.NewExtrusion(True, profilo, sp, abs(off) or ft(1))
+        ext.StartOffset = min(0.0, off)
+        ext.EndOffset = max(0.0, off)
+        for nome, bip in ((e[u"visibile"], DB.BuiltInParameter.IS_VISIBLE_PARAM),
+                          (e[u"materiale"], DB.BuiltInParameter.MATERIAL_ID_PARAM)):
+            if nome and nome in self.fp:
+                try:
+                    self.fm.AssociateElementParameterToFamilyParameter(ext.get_Parameter(bip), self.fp[nome])
+                except Exception as ex:
+                    self.report[u"motivi_contorno"].append(u"%s, %s: %s" % (e[u"nome"], nome, ex))
+        sc = _sottocategoria(self.doc, {u"mostra": u"mostre", u"imbotte": u"imbotte", u"mazzetta": u"mazzetta"}
+                             .get(e[u"tipo"], u"davanzali"))
+        if sc is not None:
+            try:
+                ext.Subcategory = sc
+            except Exception:
+                pass
+        _visibilita(ext, G.TUTTI)
+        return ext
+
+    def _allinea_contorno(self, ext, e):
+        """Blocca le facce dell'elemento ai suoi piani: x e z nel prospetto, y nel laterale."""
+        opt = DB.Options()
+        opt.ComputeReferences = True
+        opt.IncludeNonVisibleObjects = True
+        piani = dict((p[u"id"], p) for p in self.ris[u"piani"])
+        piani_y = dict((p[u"id"], p) for p in self.ris[u"piani_y"])
+        candidati = {u"x": [piani[k] for k in e[u"x"]], u"z": [piani[k] for k in e[u"z"]],
+                     u"y": [piani_y[k] for k in e[u"y"]]}
+        bloccati = 0
+        for faccia in _facce(ext, opt):
+            n = faccia.FaceNormal
+            if abs(n.X) > 0.99:
+                asse, pos, conv, vista = u"x", faccia.Origin.X, self.X, self.vista
+            elif abs(n.Z) > 0.99:
+                asse, pos, conv, vista = u"z", faccia.Origin.Z, self.Z, self.vista
+            elif abs(n.Y) > 0.99:
+                asse, pos, conv, vista = u"y", faccia.Origin.Y, self.Y, self.vista_lato
+            else:
+                continue
+            for p in candidati[asse]:
+                if abs(conv(p[u"pos"]) - pos) < TOLL:
+                    try:
+                        al = self.crea.NewAlignment(vista, self.rp[p[u"id"]].GetReference(), faccia.Reference)
+                        al.IsLocked = True
+                        bloccati += 1
+                    except Exception as ex:
+                        self.report[u"allineamenti"] += 1
+                        motivo = u"%s (%s): %s" % (e[u"nome"], asse, ex)
+                        if motivo not in self.report[u"motivi_contorno"]:
+                            self.report[u"motivi_contorno"].append(motivo)
+                    break
+        if bloccati < 6:
+            self.report[u"motivi_contorno"].append(u"%s: %d facce bloccate su 6" % (e[u"nome"], bloccati))
+
     def _tipi(self, tipi):
         fm = self.fm
         primo = fm.CurrentType
@@ -826,7 +997,7 @@ class _Costruttore(object):
         s2 = S.copia(self.schema)
         s2[u"larghezza"] += FLEX_MM
         s2[u"altezza"] += FLEX_MM
-        ris2 = G.calcola(s2)
+        ris2 = G.calcola(s2, self.spessore_muro)
         st = DB.SubTransaction(self.doc)
         st.Start()
         try:
@@ -854,6 +1025,16 @@ class _Costruttore(object):
                         self.report[u"linee_fuori"].append(u"%s-%s estremo %d" % (
                             _seg[u"p0"], _seg[u"p1"], i))
                         break
+            # contorno: x e z come da geometria
+            pos2 = dict((p[u"id"], p[u"pos"]) for p in ris2[u"piani"])
+            for (ext, e), e2 in zip(self.contorno, ris2[u"contorno"]):
+                bb = ext.get_BoundingBox(None)
+                x = sorted(pos2[k] for k in e2[u"x"])
+                z = sorted(pos2[k] for k in e2[u"z"])
+                if bb is None or max(abs(bb.Min.X - (x0 + ft(x[0]))), abs(bb.Max.X - (x0 + ft(x[1]))),
+                                     abs(bb.Min.Z - (z0 + ft(z[0]))), abs(bb.Max.Z - (z0 + ft(z[1])))) > TOLL * 2:
+                    pezzi_fuori += 1
+                    self.report[u"linee_fuori"].append(e[u"nome"])
             self.report[u"pezzi_fuori"] = pezzi_fuori
             self.report[u"simboli_fuori"] = simboli_fuori
         except Exception as ex:
@@ -955,6 +1136,8 @@ def problemi(report):
         righe.append(u"Revit ha tolto dei vincoli in conflitto: %s" % u"; ".join(report[u"revit"][:3]))
     if report.get(u"visibilita"):
         righe.append(u"%d pezzi senza visibilità per dettaglio o apertura" % report[u"visibilita"])
+    if report.get(u"contorno"):
+        righe.append(u"%d elementi del contorno non creati" % report[u"contorno"])
     return righe
 
 
@@ -973,7 +1156,7 @@ def schema_del_tipo(tipo):
             if q is not None and q.HasValue:
                 valori[chiave] = q.AsDouble() / MM
                 break
-    nomi = [e for _k, e, _v, _m in S.PROFILI]
+    nomi = [e for _k, e, _v, _m in S.PROFILI] + [e for _k, e, _v, _m in S.MISURE_CONTORNO]
     for _perc, div in S.divisioni(schema[u"radice"]):
         for i in range(len(div[u"figli"]) - 1):
             nomi.append(G.nome_misura(div[u"verso"], tuple(_perc) + (i,)))

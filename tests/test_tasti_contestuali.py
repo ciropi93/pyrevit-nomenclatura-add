@@ -80,9 +80,16 @@ def test_ogni_comando_ha_la_sua_icona():
     for n in (1, 3):
         for gruppi in (TC.comandi_per_selezione(n, sezione_con_sfondo=True),
                        TC.comandi_per_selezione(n, in_tavola=False, sezione_con_sfondo=True),
-                       TC.comandi_per_selezione(0, in_tavola=False, n_muri=n)):
+                       TC.comandi_per_selezione(0, in_tavola=False, n_muri=n),
+                       TC.comandi_per_selezione(0, in_tavola=False, n_infissi=1)):
             for c in _comandi(gruppi):
                 assert TC.ICONE.get(c), c
+
+
+def test_modifica_infisso_solo_con_un_infisso():
+    assert _comandi(TC.comandi_per_selezione(0, in_tavola=False, n_infissi=1)) == [TC.INFISSO_MODIFICA]
+    assert TC.INFISSO_MODIFICA not in _comandi(TC.comandi_per_selezione(0, in_tavola=False, n_infissi=2))
+    assert TC.INFISSO_MODIFICA not in _comandi(TC.comandi_per_selezione(0, in_tavola=False))
 
 
 FINESTRA = (100, 50, 900, 650)          # area della vista sullo schermo (pixel)

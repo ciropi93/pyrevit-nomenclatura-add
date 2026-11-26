@@ -10,6 +10,13 @@ SEZIONE_APRI = u"sezione_apri"
 SEZIONE_SINCRONIZZA = u"sezione_sincronizza"
 MURO_INVERTI = u"muro_inverti_centro"
 IMMAGINE_RITAGLIA = u"immagine_ritaglia"
+INFISSO_MODIFICA = u"infisso_modifica"
+
+# Un solo infisso creato con il Configuratore (il suo tipo ha lo schema CDV salvato)
+_INFISSO = [
+    (INFISSO_MODIFICA, u"Modifica infisso",
+     u"Riapre il Configuratore su questo infisso e aggiorna la sua famiglia nel progetto"),
+]
 
 # Una sola immagine raster selezionata
 _IMMAGINE = [
@@ -99,7 +106,8 @@ def viste_distinte(id_viste, sfondo_a_madre):
 
 
 def comandi_per_selezione(n_viste, in_tavola=True, sezione_con_sfondo=False,
-                          sezione_senza_sfondo=False, n_muri=0, n_oggetti=0, n_immagini=0):
+                          sezione_senza_sfondo=False, n_muri=0, n_oggetti=0, n_immagini=0,
+                          n_infissi=0):
     """Gruppi di tasti da mostrare: lista di (titolo_gruppo, [(comando, etichetta, suggerimento)]).
 
     sezione_senza_sfondo: la vista selezionata e' una sezione/prospetto su cui
@@ -107,8 +115,12 @@ def comandi_per_selezione(n_viste, in_tavola=True, sezione_con_sfondo=False,
     n_muri: muri selezionati (la selezione e' fatta solo di muri).
     n_oggetti: oggetti del modello o di dettaglio selezionati (per allinea/distribuisci).
     n_immagini: immagini raster selezionate (la selezione e' fatta solo di immagini).
+    n_infissi: infissi creati con il Configuratore selezionati (la selezione e' fatta solo di
+    loro); Modifica infisso lavora su uno solo.
     """
     gruppi = []
+    if n_infissi == 1:
+        gruppi.append((u"Infisso", list(_INFISSO)))
     if n_immagini == 1:
         gruppi.append((u"Immagine", list(_IMMAGINE)))
     if n_muri >= 1:
@@ -172,6 +184,9 @@ ICONE = {
                    u"M15,11.5 L12,8.5 V10.5 H10 V12.5 H12 V14.5 Z"),
     # le due squadrette del ritaglio, come in Word
     IMMAGINE_RITAGLIA: u"F1 M3.5,0.5 H5.5 V10.5 H15.5 V12.5 H3.5 Z M0.5,3.5 H12.5 V15.5 H10.5 V5.5 H0.5 Z",
+    # finestra a due vetri (pari/dispari: i vetri sono buchi) e una matita
+    INFISSO_MODIFICA: (u"M0.5,1 H9.5 V15 H0.5 Z M2,2.5 V7.25 H8 V2.5 Z M2,8.75 V13.5 H8 V8.75 Z "
+                       u"M14.2,5.2 L15.8,6.8 L11.6,11 L10,11.6 L10.4,10 Z"),
 }
 
 

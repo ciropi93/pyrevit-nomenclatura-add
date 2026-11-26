@@ -1,122 +1,146 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Configuratore infissi"
-        Height="720" Width="1120" MinHeight="560" MinWidth="900"
+        Height="740" Width="1120" MinHeight="580" MinWidth="900"
         WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" FontSize="12" Background="#F5F7FA">
 
     <Grid Margin="16">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="340"/>
             <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="300"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- intestazione -->
-        <Border Grid.ColumnSpan="3" Style="{StaticResource Intestazione}">
+        <Border Grid.ColumnSpan="2" Style="{StaticResource Intestazione}">
             <StackPanel>
                 <TextBlock x:Name="lblTitolo" Text="Configuratore infissi" FontWeight="Bold" FontSize="15" Foreground="#FFFFFF"/>
-                <TextBlock Text="Scegli uno schema, clicca le zone del disegno per cambiarle, poi imposta le misure"
+                <TextBlock x:Name="lblSottotitolo" Text="Cinque passi: schema, ante, misure, dettagli, muro e contorno. Il disegno si aggiorna mentre scegli."
                            FontSize="12" Foreground="#DCE9F5" Margin="0,2,0,0"/>
             </StackPanel>
         </Border>
 
-        <!-- schemi -->
-        <DockPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,0">
-            <TextBlock DockPanel.Dock="Top" Text="SCHEMI" Style="{StaticResource Etichetta}" Margin="0,0,0,4"/>
-            <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-                <Button x:Name="btnSalvaSchema" Content="Salva schema"/>
-                <Button x:Name="btnEliminaSchema" Content="Elimina"
-                        ToolTip="Si eliminano solo gli schemi salvati da te (quelli con ★)"/>
-            </WrapPanel>
-            <ListBox x:Name="lstSchemi"/>
-        </DockPanel>
+        <!-- passi -->
+        <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="btnPasso1" Content="1  Schema" Padding="14,6" Margin="0,0,6,0"/>
+            <Button x:Name="btnPasso2" Content="2  Ante" Padding="14,6" Margin="0,0,6,0"/>
+            <Button x:Name="btnPasso3" Content="3  Misure" Padding="14,6" Margin="0,0,6,0"/>
+            <Button x:Name="btnPasso4" Content="4  Dettagli" Padding="14,6" Margin="0,0,6,0"/>
+            <Button x:Name="btnPasso5" Content="5  Muro e contorno" Padding="14,6"/>
+        </StackPanel>
 
-        <!-- disegno e zone -->
-        <DockPanel Grid.Row="1" Grid.Column="1">
-            <TextBlock DockPanel.Dock="Top" x:Name="txtAiuto" Style="{StaticResource Nota}" Margin="0,0,0,6"
-                       Text="Prospetto visto da fuori. Clicca una zona per sceglierla, poi cambia l'anta o dividila."/>
-            <Border DockPanel.Dock="Bottom" Style="{StaticResource Scheda}" Margin="0,8,0,0">
-                <StackPanel>
-                    <Grid Margin="0,0,0,6">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="80"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition/>
-                            <RowDefinition/>
-                        </Grid.RowDefinitions>
-                        <TextBlock Text="ANTA" Style="{StaticResource Etichetta}" Margin="0" VerticalAlignment="Center"/>
-                        <ComboBox Grid.Column="1" x:Name="cmbAnta" MinWidth="240"/>
-                        <TextBlock Grid.Row="1" Text="CHIUSURA" Style="{StaticResource Etichetta}" Margin="0,6,0,0" VerticalAlignment="Center"/>
-                        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="cmbChiusura" MinWidth="240" Margin="0,6,0,0"
-                                  ToolTip="Vetrata, vetrata con pannello in basso (solo ante-porta) o cieca"/>
-                    </Grid>
-                    <WrapPanel>
-                        <Button x:Name="btnDividiV" Content="Dividi in colonne"/>
-                        <Button x:Name="btnDividiO" Content="Dividi in righe"/>
-                        <Button x:Name="btnTogli" Content="Togli divisione"/>
-                        <CheckBox x:Name="chkMontante" Content="Montante tra le parti" VerticalAlignment="Center"
-                                  Margin="8,0,0,0"
-                                  ToolTip="Senza montante le ante si chiudono una sull'altra (es. finestra a 2 ante)."/>
-                    </WrapPanel>
-                </StackPanel>
-            </Border>
-            <Border Background="#FFFFFF" BorderBrush="#DDE3E8" BorderThickness="1" CornerRadius="6">
-                <Canvas x:Name="cnvAnteprima" ClipToBounds="True" Background="#FFFFFF" Cursor="Hand"/>
-            </Border>
-        </DockPanel>
+        <!-- contenuto del passo -->
+        <Grid Grid.Row="2" Grid.Column="0" Margin="0,0,12,0">
 
-        <!-- dati -->
-        <ScrollViewer Grid.Row="1" Grid.Column="2" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-                <Border Style="{StaticResource Scheda}">
+            <!-- 1 schema -->
+            <DockPanel x:Name="pnlPasso1">
+                <Border DockPanel.Dock="Top" Style="{StaticResource Scheda}" Margin="0,0,0,8">
                     <StackPanel>
                         <TextBlock Text="CATEGORIA" Style="{StaticResource Etichetta}" Margin="0,0,0,4"/>
                         <StackPanel Orientation="Horizontal">
                             <RadioButton x:Name="rbFinestre" Content="Finestre" Margin="0,0,16,0" GroupName="cat"/>
                             <RadioButton x:Name="rbPorte" Content="Porte" GroupName="cat"/>
                         </StackPanel>
-                        <CheckBox x:Name="chkSoglia" Content="Soglia in basso" Margin="0,8,0,0"
-                                  ToolTip="Spenta: niente traverso in basso, il telaio è a U e non si inciampa (porte)"/>
-                        <CheckBox x:Name="chkManiglie" Content="Maniglie"
-                                  ToolTip="Sul lato opposto alle cerniere, sul lato interno"/>
-                        <TextBlock Text="IN PIANTA (FINESTRE)" Style="{StaticResource Etichetta}" Margin="0,10,0,4"
-                                   ToolTip="Le porte hanno sempre anta aperta e arco"/>
-                        <ComboBox x:Name="cmbPianta"/>
-                        <TextBlock Text="NOME DELLA FAMIGLIA" Style="{StaticResource Etichetta}" Margin="0,10,0,4"/>
-                        <TextBox x:Name="txtNome"/>
-                        <TextBlock Text="TELAIO, MISURE ESTERNE (MM)" Style="{StaticResource Etichetta}" Margin="0,10,0,4"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="90"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition/>
-                                <RowDefinition/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Larghezza" VerticalAlignment="Center"/>
-                            <TextBox x:Name="txtLarghezza" Grid.Column="1" Margin="0,0,0,4"/>
-                            <TextBlock Text="Altezza" Grid.Row="1" VerticalAlignment="Center"/>
-                            <TextBox x:Name="txtAltezza" Grid.Row="1" Grid.Column="1" Margin="0,0,0,4"/>
-                        </Grid>
-                        <TextBlock Text="MISURE DELLE ZONE (MM)" Style="{StaticResource Etichetta}" Margin="0,10,0,4"
-                                   ToolTip="Dal bordo esterno o dall'asse precedente all'asse seguente"/>
-                        <StackPanel x:Name="pnlMisure"/>
                     </StackPanel>
                 </Border>
+                <TextBlock DockPanel.Dock="Top" Text="PARTI DA UNO SCHEMA" Style="{StaticResource Etichetta}" Margin="0,0,0,4"/>
+                <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                    <Button x:Name="btnSalvaSchema" Content="Salva schema"
+                            ToolTip="Salva lo schema attuale (con le modifiche) tra i tuoi, con ★"/>
+                    <Button x:Name="btnEliminaSchema" Content="Elimina"
+                            ToolTip="Si eliminano solo gli schemi salvati da te (quelli con ★)"/>
+                </WrapPanel>
+                <ListBox x:Name="lstSchemi"/>
+            </DockPanel>
 
-                <Expander x:Name="expOpzioni" Header="Opzioni avanzate" IsExpanded="False">
-                    <Border Style="{StaticResource Scheda}" Margin="0,6,0,0">
+            <!-- 2 ante -->
+            <ScrollViewer x:Name="pnlPasso2" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Nota}" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="Clicca una zona nel disegno: qui scegli come si apre e com'è fatta, oppure la dividi."/>
+                    <Border Style="{StaticResource Scheda}">
                         <StackPanel>
-                            <TextBlock Text="PROFILI (MM)" Style="{StaticResource Etichetta}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="txtZona" FontWeight="Bold" Margin="0,0,0,8" Text="Nessuna zona scelta"/>
+                            <TextBlock Text="ANTA" Style="{StaticResource Etichetta}" Margin="0,0,0,4"/>
+                            <ComboBox x:Name="cmbAnta"/>
+                            <TextBlock Text="CHIUSURA" Style="{StaticResource Etichetta}" Margin="0,10,0,4"/>
+                            <ComboBox x:Name="cmbChiusura"
+                                      ToolTip="Vetrata, vetrata con pannello in basso (solo ante-porta) o cieca"/>
+                            <TextBlock Text="DIVIDI LA ZONA" Style="{StaticResource Etichetta}" Margin="0,10,0,4"/>
+                            <WrapPanel>
+                                <Button x:Name="btnDividiV" Content="In colonne"/>
+                                <Button x:Name="btnDividiO" Content="In righe"/>
+                                <Button x:Name="btnTogli" Content="Togli divisione"/>
+                            </WrapPanel>
+                            <CheckBox x:Name="chkMontante" Content="Montante tra le parti" Margin="0,8,0,0"
+                                      ToolTip="Senza montante le ante si chiudono una sull'altra (es. finestra a 2 ante)."/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- 3 misure -->
+            <ScrollViewer x:Name="pnlPasso3" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Nota}" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="Le stesse misure sono quotate sul disegno: quella del campo in uso si colora di blu."/>
+                    <Border Style="{StaticResource Scheda}">
+                        <StackPanel>
+                            <TextBlock Text="MISURE ESTERNE DEL TELAIO (MM)" Style="{StaticResource Etichetta}" Margin="0,0,0,4"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="90"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition/>
+                                    <RowDefinition/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="Larghezza" VerticalAlignment="Center"/>
+                                <TextBox x:Name="txtLarghezza" Grid.Column="1" Margin="0,0,0,4"/>
+                                <TextBlock Text="Altezza" Grid.Row="1" VerticalAlignment="Center"/>
+                                <TextBox x:Name="txtAltezza" Grid.Row="1" Grid.Column="1" Margin="0,0,0,4"/>
+                            </Grid>
+                            <TextBlock Text="MISURE DELLE ZONE (MM)" Style="{StaticResource Etichetta}" Margin="0,10,0,4"
+                                       ToolTip="Dal bordo esterno o dall'asse precedente all'asse seguente"/>
+                            <StackPanel x:Name="pnlMisure"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- 4 dettagli -->
+            <ScrollViewer x:Name="pnlPasso4" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                <StackPanel>
+                    <Border Style="{StaticResource Scheda}">
+                        <StackPanel>
+                            <TextBlock Text="OPZIONI" Style="{StaticResource Etichetta}" Margin="0,0,0,4"/>
+                            <CheckBox x:Name="chkSoglia" Content="Soglia in basso"
+                                      ToolTip="Spenta: niente traverso in basso, il telaio è a U e non si inciampa (porte)"/>
+                            <CheckBox x:Name="chkManiglie" Content="Maniglie" Margin="0,4,0,0"
+                                      ToolTip="Sul lato opposto alle cerniere, sul lato interno"/>
+                            <TextBlock Text="SIMBOLO IN PIANTA (FINESTRE)" Style="{StaticResource Etichetta}" Margin="0,10,0,4"
+                                       ToolTip="Le porte hanno sempre anta aperta e arco. Guardalo con il tasto Pianta sopra il disegno."/>
+                            <ComboBox x:Name="cmbPianta"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Scheda}" Margin="0,8,0,0">
+                        <StackPanel>
+                            <TextBlock Text="PROFILI (MM)" Style="{StaticResource Etichetta}" Margin="0,0,0,2"/>
+                            <TextBlock Style="{StaticResource Nota}" TextWrapping="Wrap" Margin="0,0,0,6"
+                                       Text="Solo quelli che servono a questo infisso. Vanno bene così per la maggior parte dei casi."/>
                             <StackPanel x:Name="pnlProfili"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Scheda}" Margin="0,8,0,0">
+                        <StackPanel>
+                            <TextBlock Text="NOME DELLA FAMIGLIA" Style="{StaticResource Etichetta}" Margin="0,0,0,4"/>
+                            <TextBox x:Name="txtNome"/>
                             <TextBlock Text="CARTELLA DELLE FAMIGLIE" Style="{StaticResource Etichetta}" Margin="0,10,0,4"/>
                             <DockPanel>
                                 <Button x:Name="btnCartella" DockPanel.Dock="Right" Content="..." Margin="6,0,0,0" Padding="8,2"/>
@@ -124,14 +148,55 @@
                             </DockPanel>
                         </StackPanel>
                     </Border>
-                </Expander>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- 5 muro e contorno (dentro la stessa griglia dei passi) -->
+        <ScrollViewer x:Name="pnlPasso5" Grid.Row="2" Grid.Column="0" Margin="0,0,12,0"
+                      VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock Style="{StaticResource Nota}" TextWrapping="Wrap" Margin="0,0,0,8"
+                           Text="Come sta l'infisso nel muro. Ogni elemento acceso diventa un Sì/No nella famiglia: lo spegni e lo regoli anche dal progetto."/>
+                <Border Style="{StaticResource Scheda}">
+                    <StackPanel>
+                        <TextBlock Text="POSIZIONE NEL MURO" Style="{StaticResource Etichetta}" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="cmbPosizione"/>
+                        <StackPanel x:Name="pnlPosizione" Margin="0,6,0,0"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Scheda}" Margin="0,8,0,0">
+                    <StackPanel x:Name="pnlContorno"/>
+                </Border>
             </StackPanel>
         </ScrollViewer>
 
+        <!-- disegno -->
+        <DockPanel Grid.Row="2" Grid.Column="1">
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="DETTAGLIO" Style="{StaticResource Etichetta}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <ComboBox x:Name="cmbDettaglio" Width="90"
+                              ToolTip="Livello di dettaglio della vista di Revit: Basso, Medio, Alto"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <RadioButton x:Name="rbProspetto" Content="Prospetto" GroupName="vista" Margin="0,0,14,0" IsChecked="True"/>
+                    <RadioButton x:Name="rbPianta" Content="Pianta" GroupName="vista"/>
+                </StackPanel>
+            </DockPanel>
+            <TextBlock DockPanel.Dock="Bottom" x:Name="txtAiuto" Style="{StaticResource Nota}" Margin="0,6,0,0" TextWrapping="Wrap"
+                       Text="Prospetto visto da fuori."/>
+            <Border Background="#FFFFFF" BorderBrush="#DDE3E8" BorderThickness="1" CornerRadius="6">
+                <Canvas x:Name="cnvAnteprima" ClipToBounds="True" Background="#FFFFFF" Cursor="Hand"/>
+            </Border>
+        </DockPanel>
+
         <!-- piede -->
-        <DockPanel Grid.Row="2" Grid.ColumnSpan="3" Margin="0,12,0,0">
+        <DockPanel Grid.Row="3" Grid.ColumnSpan="2" Margin="0,12,0,0">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
-                <Button x:Name="btnAnnulla" Content="Annulla" Width="90" Height="32" Margin="0,0,8,0" IsCancel="True"/>
+                <Button x:Name="btnAnnulla" Content="Annulla" Width="90" Height="32" Margin="0,0,16,0" IsCancel="True"/>
+                <Button x:Name="btnIndietro" Content="&lt; Indietro" Width="90" Height="32" Margin="0,0,8,0"/>
+                <Button x:Name="btnAvanti" Content="Avanti &gt;" Width="90" Height="32" Margin="0,0,8,0"/>
                 <Button x:Name="btnCrea" Content="Crea famiglia e carica" Height="32" Style="{StaticResource Primario}"/>
             </StackPanel>
             <StackPanel VerticalAlignment="Center">
