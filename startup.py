@@ -18,3 +18,25 @@ except Exception as ex:
         logger.get_logger(__name__).warning(u"Tasti in sovraimpressione non attivi: %s" % ex)
     except Exception:
         pass
+
+
+# Prova dei preset degli infissi in Revit, per lo sviluppo: risponde solo se in pyRevit
+# (Settings -> Routes) il server e' acceso. http://localhost:48884/cdv-tools/infissi/prova/
+try:
+    from pyrevit import routes
+
+    _api = routes.API("cdv-tools")
+
+    @_api.route("/infissi/prova/", methods=["GET"])
+    def _prova_infissi(request, uiapp):
+        from infissi import prova_revit
+        params = getattr(request, "params", None) or {}
+        nome = params.get("nome") if hasattr(params, "get") else None
+        try:
+            dati = prova_revit.prova(uiapp.Application, nomi=[nome] if nome else None)
+            return routes.make_response(data={"preset": dati})
+        except Exception:
+            import traceback
+            return routes.make_response(data={"errore": traceback.format_exc()}, status=500)
+except Exception:
+    pass

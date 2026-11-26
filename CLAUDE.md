@@ -3,6 +3,7 @@
 Un solo tab `CDV Tools.tab` (la radice del repo è l'estensione) con i pannelli Viste, Grafica, Campiture,
 Tavole, Modellazione e Infissi. Utente: scrive in italiano; risposte brevi e semplici.
 Il pannello **Infissi** ha la logica in `lib/infissi/` (API Revit solo in `revit_famiglia.py` e `ui.py`, test in `tests/test_infissi.py`).
+Prova in Revit di tutti i preset: `lib/infissi/prova_revit.py`, via pyRevit Routes (server acceso in pyRevit → Settings → Routes) su `http://localhost:48884/cdv-tools/infissi/prova/` (`?nome=` per un preset solo).
 
 ## Regole di lavoro
 - Codice compatibile **IronPython 2.7** (motore predefinito di pyRevit): niente f-string, niente `print()` con keyword, stringhe `u"..."`.
