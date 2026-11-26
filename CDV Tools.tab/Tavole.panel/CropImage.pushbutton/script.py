@@ -225,13 +225,13 @@ def _applica(doc, inst, orig, bmp, larghezza, altezza, centro, rett):
     nuovo_centro = centro + vista.RightDirection.Multiply(dx) + vista.UpDirection.Multiply(dy)
     intera = rett == (0, 0, bmp.Width, bmp.Height)
     percorso = None
-    nome = DB.Element.Name.GetValue(orig)
+    nome = DB.Element.Name.__get__(orig)
     if not intera:
         x, y, w, h = rett
         ritaglio = bmp.Clone(DRect(x, y, w, h), bmp.PixelFormat)
         base = os.path.splitext(os.path.basename(orig.Path or u""))[0] or u"immagine"
         # i tipi immagine si chiamano come il file (con estensione)
-        nomi = [os.path.splitext(DB.Element.Name.GetValue(t))[0] for t in DB.FilteredElementCollector(doc).OfClass(DB.ImageType)]
+        nomi = [os.path.splitext(DB.Element.Name.__get__(t))[0] for t in DB.FilteredElementCollector(doc).OfClass(DB.ImageType)]
         nome = RI.nome_univoco(base, nomi)
         # il file temporaneo basta: con ImageTypeSource.Import l'immagine viene incorporata
         percorso = os.path.join(tempfile.gettempdir(), nome + u".png")
