@@ -13,6 +13,7 @@ from infissi import schema as S
 LUNGHEZZA = u"lunghezza"
 TESTO = u"testo"
 MATERIALE = u"materiale"
+SINO = u"si_no"
 
 # gruppi (revit_famiglia li traduce nei gruppi di Revit)
 DIMENSIONI = u"dimensioni"
@@ -25,9 +26,8 @@ MATERIALE_TELAIO = u"Materiale telaio"
 MATERIALE_VETRO = u"Materiale vetro"
 MATERIALE_PANNELLO = u"Materiale pannello"
 
-# lato interno della profondita' (+1 = verso "Anta fine"): ci va la maniglia.
-# Se nel modello famiglia di Revit l'interno e' dall'altra parte, basta cambiare segno qui.
-INTERNO = 1
+# lato interno: lo decide geometria.py (maniglie, archi in pianta e ante aperte insieme)
+INTERNO = G.INTERNO
 APERTURA = u"Apertura"
 SCHEMA = u"Schema CDV"
 
@@ -60,14 +60,25 @@ else:
     FORMULE_PROFONDITA[u"Maniglia fine"] = u"%s - %s / 2" % (P(u"anta_spost"), P(u"anta_prof"))
 FORMULA_MONTANTE_MEZZO = u"%s / 2" % P(u"montante")
 
+# spessori delle ante aperte (vedi G.SPESSORI_APERTI): pos/neg = verso il vano a destra/sinistra
+FORMULE_APERTE = {
+    u"Anta aperta pos": u"%s" % P(u"anta_prof"),
+    u"Anta aperta neg": u"-%s" % P(u"anta_prof"),
+    u"Vetro aperto inizio pos": u"%s / 2 - %s / 2" % (P(u"anta_prof"), P(u"vetro")),
+    u"Vetro aperto fine pos": u"%s / 2 + %s / 2" % (P(u"anta_prof"), P(u"vetro")),
+    u"Vetro aperto inizio neg": u"-%s / 2 - %s / 2" % (P(u"anta_prof"), P(u"vetro")),
+    u"Vetro aperto fine neg": u"-%s / 2 + %s / 2" % (P(u"anta_prof"), P(u"vetro")),
+}
+FORMULA_CHIUSA = u"not(%s)" % G.APERTA
+
 
 class FormulaErrore(ValueError):
     pass
 
 
-def _parametro(nome, tipo, gruppo, valore=None, formula=None, integrato=False):
+def _parametro(nome, tipo, gruppo, valore=None, formula=None, integrato=False, istanza=False):
     return {u"nome": nome, u"tipo": tipo, u"gruppo": gruppo, u"valore": valore,
-            u"formula": formula, u"integrato": integrato}
+            u"formula": formula, u"integrato": integrato, u"istanza": istanza}
 
 
 # --- formule ---------------------------------------------------------------------------
@@ -144,13 +155,18 @@ def elenco(schema, ris=None):
     for pz in ris[u"pezzi"]:
         profondita.update(G.PROFONDITA[pz[u"profondita"]])
     usati.update(profondita)
-    for s in ris[u"simboli"]:
+    usati.update(p[u"param"] for p in ris[u"piani_y"] if p[u"param"])
+    for s in ris[u"simboli"] + ris[u"pianta"]:
         for seg in s[u"segmenti"]:
             for c in seg[u"coord"]:
                 if c[1]:
                     usati.add(c[1])
+    for pz in ris[u"pezzi_aperti"]:
+        for coppia in G.SPESSORI_APERTI[u"vetro" if pz[u"spessore"] == u"vetro" else u"anta"].values():
+            usati.update(n for n in coppia if n)
     derivati = dict((d[u"nome"], d) for d in ris[u"derivati"])
     formule = dict(FORMULE_PROFONDITA)
+    formule.update(FORMULE_APERTE)
     formule[G.MONTANTE_MEZZO] = FORMULA_MONTANTE_MEZZO
     for d in ris[u"derivati"]:
         formule[d[u"nome"]] = d[u"formula"]
@@ -176,6 +192,10 @@ def elenco(schema, ris=None):
         if nome in usati:
             v = valuta(FORMULE_PROFONDITA[nome], valori)
             out.append(_parametro(nome, LUNGHEZZA, COSTRUZIONE, v, FORMULE_PROFONDITA[nome]))
+    for nome in sorted(FORMULE_APERTE):
+        if nome in usati:
+            out.append(_parametro(nome, LUNGHEZZA, COSTRUZIONE, valuta(FORMULE_APERTE[nome], valori),
+                                  FORMULE_APERTE[nome]))
     for d in ris[u"derivati"]:
         if d[u"nome"] in usati:
             out.append(_parametro(d[u"nome"], LUNGHEZZA, GRAFICA, derivati[d[u"nome"]][u"valore"],
@@ -184,6 +204,10 @@ def elenco(schema, ris=None):
     out.append(_parametro(MATERIALE_VETRO, MATERIALE, MATERIALI))
     if any(pz[u"tipo"] == u"pannello" for pz in ris[u"pezzi"]):
         out.append(_parametro(MATERIALE_PANNELLO, MATERIALE, MATERIALI))
+    if ris[u"pezzi_aperti"] or any(pz[u"stato"] for pz in ris[u"pezzi"]):
+        # di istanza: ogni finestra/porta del progetto si mostra aperta o chiusa da sola
+        out.append(_parametro(G.APERTA, SINO, GRAFICA, 0, istanza=True))
+        out.append(_parametro(G.CHIUSA, SINO, GRAFICA, None, FORMULA_CHIUSA, istanza=True))
     out.append(_parametro(APERTURA, TESTO, DATI, S.descrizione(schema)))
     out.append(_parametro(SCHEMA, TESTO, DATI, S.to_json(schema)))
     return out

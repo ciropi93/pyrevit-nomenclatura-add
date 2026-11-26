@@ -100,6 +100,14 @@ selezione a riposo.
   sono solidi 3D sul lato interno e seguono le misure;
 - quando scrivi in un campo (larghezza, misura di una zona, un profilo) il disegno **illumina in
   blu la parte che cambia**, con la quota.
+- **In pianta**: porte e battenti hanno anta aperta a 90° e arco di apertura verso l'interno
+  (sottocategoria *Apertura in pianta*); per le finestre scegli nel configuratore: nessuno, arco
+  tratteggiato (*Apertura in pianta finestre*) o arco come le porte;
+- **Livello di dettaglio**: Basso = telaio e un vetro unico; Medio = telaio, montanti, ante, vetri,
+  zoccoli e pannelli; Alto = in più le maniglie;
+- **Aperta in 3D** (parametro di istanza Sì/No, di base No): battenti, porte e anta-ribalta si
+  vedono aperti a 90° verso l'interno, gli scorrevoli spostati sull'anta vicina; vale per 3D,
+  prospetti e sezioni (la pianta usa sempre i simboli). I vasistas restano chiusi.
 
 **Crea famiglia e carica** parte dal modello famiglia di Revit (*Finestra metrica* / *Porta
 metrica*; se non lo trova lo chiede una volta), salva la `.rfa` nella cartella scelta e la carica

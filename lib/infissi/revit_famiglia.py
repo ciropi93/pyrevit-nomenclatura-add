@@ -21,7 +21,13 @@ NOMI_SOTTOCATEGORIE = {
     u"vetro": ((u"Vetro", u"Glass"), u"Vetro"),
     u"apertura": ((u"Apertura in prospetto", u"Rotazione in prospetto", u"Elevation Swing"),
                   u"Apertura in prospetto"),
+    u"pianta_porta": ((u"Apertura in pianta", u"Rotazione in pianta", u"Plan Swing"),
+                      u"Apertura in pianta"),
+    u"pianta_finestra": ((u"Apertura in pianta finestre",), u"Apertura in pianta finestre"),
 }
+# sottocategoria delle linee in pianta per stile (vedi G: ris["pianta"][..]["stile"])
+SOTTOCATEGORIA_PIANTA = {u"porta": u"pianta_porta", u"finestra_continuo": u"pianta_porta",
+                         u"finestra_tratteggio": u"pianta_finestra"}
 _BIP_LARGHEZZA = (u"WINDOW_WIDTH", u"DOOR_WIDTH", u"FAMILY_WIDTH_PARAM", u"GENERIC_WIDTH")
 _BIP_ALTEZZA = (u"WINDOW_HEIGHT", u"DOOR_HEIGHT", u"FAMILY_HEIGHT_PARAM", u"GENERIC_HEIGHT")
 
@@ -76,24 +82,25 @@ def _param_integrato(fm, nomi_bip, nomi_testo):
     raise FamigliaErrore(u"Nel modello famiglia manca il parametro %s." % nomi_testo[0])
 
 
-def _aggiungi_parametro(fm, nome, tipo, gruppo):
+def _aggiungi_parametro(fm, nome, tipo, gruppo, istanza=False):
     esistente = fm.get_Parameter(nome)
     if esistente is not None:
         return esistente
     try:
         spec = {PA.LUNGHEZZA: DB.SpecTypeId.Length, PA.TESTO: DB.SpecTypeId.String.Text,
-                PA.MATERIALE: DB.SpecTypeId.Reference.Material}[tipo]
+                PA.MATERIALE: DB.SpecTypeId.Reference.Material,
+                PA.SINO: DB.SpecTypeId.Boolean.YesNo}[tipo]
         grp = {PA.DIMENSIONI: DB.GroupTypeId.Geometry, PA.COSTRUZIONE: DB.GroupTypeId.Construction,
                PA.GRAFICA: DB.GroupTypeId.Graphics, PA.MATERIALI: DB.GroupTypeId.Materials,
                PA.DATI: DB.GroupTypeId.Data}[gruppo]
     except AttributeError:      # Revit 2021 e precedenti
         spec = {PA.LUNGHEZZA: DB.ParameterType.Length, PA.TESTO: DB.ParameterType.Text,
-                PA.MATERIALE: DB.ParameterType.Material}[tipo]
+                PA.MATERIALE: DB.ParameterType.Material, PA.SINO: DB.ParameterType.YesNo}[tipo]
         G_ = DB.BuiltInParameterGroup
         grp = {PA.DIMENSIONI: G_.PG_GEOMETRY, PA.COSTRUZIONE: G_.PG_CONSTRUCTION,
                PA.GRAFICA: G_.PG_GRAPHICS, PA.MATERIALI: G_.PG_MATERIALS,
                PA.DATI: G_.PG_DATA}[gruppo]
-    return fm.AddParameter(nome, grp, spec, False)
+    return fm.AddParameter(nome, grp, spec, bool(istanza))
 
 
 def _sottocategoria(famdoc, chiave):
@@ -106,6 +113,39 @@ def _sottocategoria(famdoc, chiave):
         return famdoc.Settings.Categories.NewSubcategory(cat, nuovo)
     except Exception:
         return None
+
+
+def _vista_pianta(famdoc):
+    """La pianta del livello di riferimento del modello famiglia (None se manca)."""
+    for v in DB.FilteredElementCollector(famdoc).OfClass(DB.ViewPlan):
+        if not v.IsTemplate and v.ViewType == DB.ViewType.FloorPlan:
+            return v
+    return None
+
+
+def _tratteggio(famdoc):
+    """Un motivo di linea tratteggiato del modello famiglia (None se non ce n'e')."""
+    for lp in DB.FilteredElementCollector(famdoc).OfClass(DB.LinePatternElement):
+        n = (lp.Name or u"").lower()
+        if any(k in n for k in (u"dash", u"tratt", u"nascost", u"hidden")):
+            return lp.Id
+    return None
+
+
+def _visibilita(elemento, dettaglio, modello=True, pianta=True):
+    """Livelli di dettaglio (e pianta si'/no) in cui l'elemento della famiglia si vede."""
+    try:
+        tipo = DB.FamilyElementVisibilityType.Model if modello else DB.FamilyElementVisibilityType.ViewSpecific
+        vis = DB.FamilyElementVisibility(tipo)
+        vis.IsShownInCoarse = G.BASSO in dettaglio
+        vis.IsShownInMedium = G.MEDIO in dettaglio
+        vis.IsShownInFine = G.ALTO in dettaglio
+        if modello:
+            vis.IsShownInPlanRCP = pianta
+        elemento.SetVisibility(vis)
+        return True
+    except Exception:
+        return False
 
 
 def _vista_prospetto(famdoc):
@@ -166,11 +206,14 @@ class _Costruttore(object):
         if self.ris[u"errori"]:
             raise FamigliaErrore(u"\n".join(self.ris[u"errori"]))
         self.parametri = PA.elenco(schema, self.ris)
-        self.report = {u"quote": 0, u"allineamenti": 0, u"simboli": 0, u"flex": u""}
+        self.report = {u"quote": 0, u"allineamenti": 0, u"simboli": 0, u"flex": u"",
+                       u"pianta": 0, u"aperte": 0, u"visibilita": 0}
         self.fp = {}
         self.rp = {}
         self.estrusioni = []
         self.simboli = []
+        self.estrusioni_aperte = []
+        self.pianta = None
 
     # coordinate: mm dello schema -> piedi del modello famiglia
     def X(self, mm):
@@ -214,6 +257,7 @@ class _Costruttore(object):
         self.doc.Regenerate()
         self._allinea()
         self._simboli()
+        self._pianta_e_aperte(bordi[u"centro"])
         self._tipi(tipi)
         self._flex()
         return self.report
@@ -225,11 +269,15 @@ class _Costruttore(object):
         nomi = [p[u"nome"] for p in self.parametri]
         for p in self.parametri:
             if not p[u"integrato"]:
-                self.fp[p[u"nome"]] = _aggiungi_parametro(fm, p[u"nome"], p[u"tipo"], p[u"gruppo"])
+                self.fp[p[u"nome"]] = _aggiungi_parametro(fm, p[u"nome"], p[u"tipo"], p[u"gruppo"],
+                                                          p.get(u"istanza", False))
         self._scrivi_valori(self.parametri)
         for p in self.parametri:
             if p[u"formula"]:
-                fm.SetFormula(self.fp[p[u"nome"]], PA.rinomina(p[u"formula"], mappa, nomi))
+                if p[u"tipo"] == PA.SINO:
+                    fm.SetFormula(self.fp[p[u"nome"]], p[u"formula"])     # es. not(Aperta in 3D)
+                else:
+                    fm.SetFormula(self.fp[p[u"nome"]], PA.rinomina(p[u"formula"], mappa, nomi))
 
     def _scrivi_valori(self, parametri):
         fm = self.fm
@@ -241,13 +289,15 @@ class _Costruttore(object):
                 fm.Set(fp, ft(p[u"valore"]))
             elif p[u"tipo"] == PA.TESTO:
                 fm.Set(fp, p[u"valore"])
+            elif p[u"tipo"] == PA.SINO:
+                fm.Set(fp, int(p[u"valore"]))
 
-    def _quota(self, rif_a, rif_b, linea, param):
+    def _quota(self, rif_a, rif_b, linea, param, vista=None):
         try:
             ra = DB.ReferenceArray()
             ra.Append(rif_a)
             ra.Append(rif_b)
-            dim = self.crea.NewDimension(self.vista, linea, ra)
+            dim = self.crea.NewDimension(vista or self.vista, linea, ra)
             dim.FamilyLabel = self.fp[param]
             return True
         except Exception:
@@ -330,7 +380,20 @@ class _Costruttore(object):
                     ext.Subcategory = sc
                 except Exception:
                     pass
+            self._visibile(ext, pz)
             self.estrusioni.append((ext, pz))
+
+    def _visibile(self, ext, pz, pianta=True):
+        """Livelli di dettaglio e (ante) aperta/chiusa dal parametro di istanza."""
+        if not _visibilita(ext, pz.get(u"dettaglio", G.TUTTI), pianta=pianta):
+            self.report[u"visibilita"] += 1
+        nome = {u"chiusa": G.CHIUSA, u"aperta": G.APERTA}.get(pz.get(u"stato"))
+        if nome and nome in self.fp:
+            try:
+                self.fm.AssociateElementParameterToFamilyParameter(
+                    ext.get_Parameter(DB.BuiltInParameter.IS_VISIBLE_PARAM), self.fp[nome])
+            except Exception:
+                self.report[u"visibilita"] += 1
 
     def _allinea(self):
         opt = DB.Options()
@@ -403,6 +466,218 @@ class _Costruttore(object):
                     ok = False
         if not ok:
             self.report[u"simboli"] += 1
+
+    # --- pianta e ante aperte --------------------------------------------------------------
+    def Y(self, mm):
+        return self.yc + ft(mm)
+
+    def _pianta_e_aperte(self, centro):
+        """Piani paralleli al muro, simboli in pianta e ante aperte (dove serve)."""
+        if not self.ris[u"pianta"] and not self.ris[u"pezzi_aperti"]:
+            return
+        self.pianta = _vista_pianta(self.doc)
+        if self.pianta is None or centro is None:
+            self.report[u"pianta"] += len(self.ris[u"pianta"])
+            self.report[u"aperte"] += len(self.ris[u"pezzi_aperti"])
+            return
+        self.yc = centro.BubbleEnd.Y
+        self.rp[u"centro"] = centro
+        self._piani_y()
+        self._simboli_pianta()
+        self._aperte()
+
+    def _piani_y(self):
+        L = ft(self.schema[u"larghezza"])
+        sporg = ft(300)
+        x_quote = self.X(self.schema[u"larghezza"]) + ft(400)
+        for i, p in enumerate(self.ris[u"piani_y"]):
+            if p[u"base"] is None:
+                continue
+            y = self.Y(p[u"pos"])
+            rp = self.crea.NewReferencePlane(DB.XYZ(self.x0 - sporg, y, self.z0),
+                                             DB.XYZ(self.x0 + L + sporg, y, self.z0),
+                                             DB.XYZ.BasisZ, self.pianta)
+            try:
+                rp.Name = u"CDV %s" % p[u"id"]
+            except Exception:
+                pass
+            self.rp[p[u"id"]] = rp
+            yb = [q for q in self.ris[u"piani_y"] if q[u"id"] == p[u"base"]][0][u"pos"]
+            x = x_quote + (i % 6) * ft(60)
+            linea = DB.Line.CreateBound(DB.XYZ(x, self.Y(yb), self.z0), DB.XYZ(x, y, self.z0))
+            self._quota(self.rp[p[u"base"]].GetReference(), rp.GetReference(), linea, p[u"param"],
+                        self.pianta)
+
+    def _piano_orizzontale(self):
+        return DB.SketchPlane.Create(self.doc, DB.Plane.CreateByNormalAndOrigin(
+            DB.XYZ.BasisZ, DB.XYZ(0, 0, self.z0)))
+
+    def _simboli_pianta(self):
+        if not self.ris[u"pianta"]:
+            return
+        piano = self._piano_orizzontale()
+        stili = {}
+        for chiave in (u"pianta_porta", u"pianta_finestra"):
+            sc = _sottocategoria(self.doc, chiave)
+            if sc is None:
+                continue
+            if chiave == u"pianta_finestra":
+                tr = _tratteggio(self.doc)
+                if tr is not None:
+                    try:
+                        sc.SetLinePatternId(tr, DB.GraphicsStyleType.Projection)
+                    except Exception:
+                        pass
+            try:
+                stili[chiave] = sc.GetGraphicsStyle(DB.GraphicsStyleType.Projection)
+            except Exception:
+                pass
+        punto = lambda p: DB.XYZ(self.X(p[0]), self.Y(p[1]), self.z0)  # noqa: E731
+        for simb in self.ris[u"pianta"]:
+            stile = stili.get(SOTTOCATEGORIA_PIANTA[simb[u"stile"]])
+            for seg in simb[u"segmenti"]:
+                try:
+                    if seg[u"tipo"] == u"arco":
+                        c = seg[u"centro"]
+                        r = ((seg[u"p0"][0] - c[0]) ** 2 + (seg[u"p0"][1] - c[1]) ** 2) ** 0.5
+                        mx = (seg[u"p0"][0] + seg[u"p1"][0]) / 2.0 - c[0]
+                        my = (seg[u"p0"][1] + seg[u"p1"][1]) / 2.0 - c[1]
+                        k = r / max((mx * mx + my * my) ** 0.5, 1e-9)
+                        geo = DB.Arc.Create(punto(seg[u"p0"]), punto(seg[u"p1"]),
+                                            punto((c[0] + mx * k, c[1] + my * k)))
+                    else:
+                        geo = DB.Line.CreateBound(punto(seg[u"p0"]), punto(seg[u"p1"]))
+                    curva = self.crea.NewSymbolicCurve(geo, piano)
+                except Exception:
+                    self.report[u"pianta"] += 1
+                    continue
+                if stile is not None:
+                    try:
+                        curva.Subcategory = stile
+                    except Exception:
+                        pass
+                _visibilita(curva, G.TUTTI, modello=False)
+                if not self._blocca_pianta(curva, seg):
+                    self.report[u"pianta"] += 1
+
+    def _blocca_pianta(self, curva, seg):
+        """Quota ogni estremo: x da un piano x, y da un piano parallelo al muro (in pianta)."""
+        ok = True
+        cx0, cy0, cx1, cy1 = seg[u"coord"]
+        tutti = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani"])
+        tutti_y = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani_y"])
+        for indice, punto, cx, cy in ((0, seg[u"p0"], cx0, cy0), (1, seg[u"p1"], cx1, cy1)):
+            try:
+                rif = curva.GeometryCurve.GetEndPointReference(indice)
+            except Exception:
+                rif = None
+            if rif is None:
+                ok = False
+                continue
+            for (pid, param, _segno), verso in ((cx, u"x"), (cy, u"y")):
+                if verso == u"x":
+                    xb, y = self.X(tutti[pid]), self.Y(punto[1])
+                    linea = DB.Line.CreateBound(DB.XYZ(xb, y, self.z0), DB.XYZ(self.X(punto[0]), y, self.z0))
+                else:
+                    x, yb = self.X(punto[0]), self.Y(tutti_y[pid])
+                    linea = DB.Line.CreateBound(DB.XYZ(x, yb, self.z0), DB.XYZ(x, self.Y(punto[1]), self.z0))
+                if not self._quota(self.rp[pid].GetReference(), rif, linea, param, self.pianta):
+                    ok = False
+        return ok
+
+    def _aperte(self):
+        """Ante aperte a 90 gradi: estrusioni sul piano delle cerniere, verso il vano."""
+        valori = dict((p[u"nome"], p[u"valore"]) for p in self.parametri if p[u"tipo"] == PA.LUNGHEZZA)
+        pos = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani"])
+        pos_y = dict((p[u"id"], p[u"pos"]) for p in self.ris[u"piani_y"])
+        sc_telaio = _sottocategoria(self.doc, u"telaio")
+        sc_vetro = _sottocategoria(self.doc, u"vetro")
+        piani_schizzo = {}
+        for pz in self.ris[u"pezzi_aperti"]:
+            try:
+                rp = self.rp[pz[u"piano_x"]]
+                if pz[u"piano_x"] not in piani_schizzo:
+                    piani_schizzo[pz[u"piano_x"]] = DB.SketchPlane.Create(self.doc, rp.Id)
+                sp = piani_schizzo[pz[u"piano_x"]]
+                x = self.X(pos[pz[u"piano_x"]])
+
+                def anello(y_ids, z_ids):
+                    y0, y1 = sorted(pos_y[i] for i in y_ids)
+                    z0, z1 = sorted(pos[i] for i in z_ids)
+                    pts = [DB.XYZ(x, self.Y(y0), self.Z(z0)), DB.XYZ(x, self.Y(y1), self.Z(z0)),
+                           DB.XYZ(x, self.Y(y1), self.Z(z1)), DB.XYZ(x, self.Y(y0), self.Z(z1))]
+                    ca = DB.CurveArray()
+                    for i in range(4):
+                        ca.Append(DB.Line.CreateBound(pts[i], pts[(i + 1) % 4]))
+                    return ca
+
+                profilo = DB.CurveArrArray()
+                profilo.Append(anello(pz[u"y"], pz[u"z"]))
+                if pz[u"y_int"]:
+                    profilo.Append(anello(pz[u"y_int"], pz[u"z_int"]))
+                # spessore nel verso del vano, misurato lungo la normale del piano di schizzo
+                normale = 1 if sp.GetPlane().Normal.X > 0 else -1
+                tipo = u"vetro" if pz[u"spessore"] == u"vetro" else u"anta"
+                n_inizio, n_fine = G.SPESSORI_APERTI[tipo][pz[u"verso"] * normale]
+                inizio = valori[n_inizio] if n_inizio else 0.0
+                fine = valori[n_fine]
+                ext = self.crea.NewExtrusion(True, profilo, sp, ft(abs(fine - inizio)) or ft(1))
+                ext.StartOffset = ft(inizio)
+                ext.EndOffset = ft(fine)
+                for bip, nome in ((DB.BuiltInParameter.EXTRUSION_START_PARAM, n_inizio),
+                                  (DB.BuiltInParameter.EXTRUSION_END_PARAM, n_fine)):
+                    if nome:
+                        self.fm.AssociateElementParameterToFamilyParameter(ext.get_Parameter(bip),
+                                                                           self.fp[nome])
+                mat = {u"vetro": PA.MATERIALE_VETRO,
+                       u"pannello": PA.MATERIALE_PANNELLO}.get(pz[u"tipo"], PA.MATERIALE_TELAIO)
+                if mat in self.fp:
+                    try:
+                        self.fm.AssociateElementParameterToFamilyParameter(
+                            ext.get_Parameter(DB.BuiltInParameter.MATERIAL_ID_PARAM), self.fp[mat])
+                    except Exception:
+                        pass
+                sc = sc_vetro if pz[u"tipo"] == u"vetro" else sc_telaio
+                if sc is not None:
+                    try:
+                        ext.Subcategory = sc
+                    except Exception:
+                        pass
+                # in pianta valgono i simboli: l'anta aperta si vede in 3D, prospetti e sezioni
+                self._visibile(ext, pz, pianta=False)
+                self.estrusioni_aperte.append((ext, pz))
+            except Exception:
+                self.report[u"aperte"] += 1
+        self.doc.Regenerate()
+        self._allinea_aperte()
+
+    def _allinea_aperte(self):
+        """Facce delle ante aperte: y ai piani paralleli al muro (in pianta), z ai piani orizzontali."""
+        opt = DB.Options()
+        opt.ComputeReferences = True
+        opt.IncludeNonVisibleObjects = True
+        for ext, pz in self.estrusioni_aperte:
+            ids_y = list(pz[u"y"]) + list(pz[u"y_int"] or ())
+            ids_z = list(pz[u"z"]) + list(pz[u"z_int"] or ())
+            piani_y = [p for p in self.ris[u"piani_y"] if p[u"id"] in ids_y]
+            piani_z = [p for p in self.ris[u"piani"] if p[u"id"] in ids_z]
+            for faccia in _facce(ext, opt):
+                n = faccia.FaceNormal
+                if abs(n.Y) > 0.99:
+                    pos, candidati, conv, vista = faccia.Origin.Y, piani_y, self.Y, self.pianta
+                elif abs(n.Z) > 0.99:
+                    pos, candidati, conv, vista = faccia.Origin.Z, piani_z, self.Z, self.vista
+                else:
+                    continue
+                for p in candidati:
+                    if abs(conv(p[u"pos"]) - pos) < TOLL:
+                        try:
+                            al = self.crea.NewAlignment(vista, self.rp[p[u"id"]].GetReference(),
+                                                        faccia.Reference)
+                            al.IsLocked = True
+                        except Exception:
+                            self.report[u"aperte"] += 1
+                        break
 
     def _tipi(self, tipi):
         fm = self.fm
@@ -525,6 +800,12 @@ def problemi(report):
                      % report[u"simboli_fuori"])
     if report.get(u"flex"):
         righe.append(u"prova flessione non riuscita: %s" % report[u"flex"])
+    if report.get(u"pianta"):
+        righe.append(u"%d linee in pianta non create o non bloccate" % report[u"pianta"])
+    if report.get(u"aperte"):
+        righe.append(u"%d pezzi delle ante aperte non creati o non bloccati" % report[u"aperte"])
+    if report.get(u"visibilita"):
+        righe.append(u"%d pezzi senza visibilità per dettaglio o apertura" % report[u"visibilita"])
     return righe
 
 

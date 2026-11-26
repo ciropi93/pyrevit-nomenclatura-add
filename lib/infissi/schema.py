@@ -10,6 +10,7 @@ Lo schema e' un dizionario (si salva cosi' com'e' in JSON):
 
      "soglia": True,       # traverso in basso; False = telaio a U (porte: non si inciampa)
      "maniglie": True,     # maniglie sulle ante apribili
+     "simbolo_pianta": "tratteggio",   # finestre in pianta: nessuno | tratteggio | continuo
 
 Un nodo e' una cella o una divisione:
 
@@ -70,6 +71,16 @@ PANNELLO = u"pannello"
 RIEMPIMENTI = ((VETRO, u"Vetrata"), (ZOCCOLO, u"Vetrata con zoccolo"), (PANNELLO, u"Cieca"))
 NOMI_RIEMPIMENTI = dict(RIEMPIMENTI)
 
+# simbolo di apertura in pianta delle finestre (le porte hanno sempre l'arco continuo)
+SIMBOLI_PIANTA = ((u"nessuno", u"Nessuno"), (u"tratteggio", u"Arco tratteggiato"),
+                  (u"continuo", u"Arco come le porte"))
+NOMI_SIMBOLI_PIANTA = dict(SIMBOLI_PIANTA)
+
+
+def ruota(anta):
+    """Ante che si aprono ruotando su cerniere verticali: in pianta arco, in 3D aperte a 90 gradi."""
+    return anta.startswith(u"battente") or anta.startswith(u"anta_ribalta") or porta(anta)
+
 
 def riempimento_valido(anta, riempimento):
     """Lo zoccolo ha senso solo sulle ante-porta: altrove diventa vetro."""
@@ -118,7 +129,7 @@ def ha_ante_porta(radice):
 
 
 def nuovo(radice, larghezza, altezza, nome=u"", categoria=FINESTRE, profili=None,
-          soglia=None, maniglie=True):
+          soglia=None, maniglie=True, simbolo_pianta=u"tratteggio"):
     """soglia None = senza soglia se ci sono ante-porta (non si inciampa), altrimenti con."""
     p = dict(PROFILI_PREDEFINITI)
     p.update(profili or {})
@@ -126,7 +137,8 @@ def nuovo(radice, larghezza, altezza, nome=u"", categoria=FINESTRE, profili=None
         soglia = not ha_ante_porta(radice)
     return {u"versione": VERSIONE, u"nome": nome, u"categoria": categoria,
             u"larghezza": float(larghezza), u"altezza": float(altezza),
-            u"profili": p, u"radice": radice, u"soglia": bool(soglia), u"maniglie": bool(maniglie)}
+            u"profili": p, u"radice": radice, u"soglia": bool(soglia), u"maniglie": bool(maniglie),
+            u"simbolo_pianta": simbolo_pianta if simbolo_pianta in NOMI_SIMBOLI_PIANTA else u"nessuno"}
 
 
 def copia(schema):
@@ -159,7 +171,8 @@ def normalizza(dati):
     s = nuovo(_nodo(dati[u"radice"]), dati.get(u"larghezza", 0), dati.get(u"altezza", 0),
               nome=dati.get(u"nome", u"") or u"",
               categoria=dati.get(u"categoria", FINESTRE), profili=profili,
-              soglia=dati.get(u"soglia", True), maniglie=dati.get(u"maniglie", False))
+              soglia=dati.get(u"soglia", True), maniglie=dati.get(u"maniglie", False),
+              simbolo_pianta=dati.get(u"simbolo_pianta", u"nessuno"))
     # chiusura mancante: come prima, lo zoccolo c'era sulle porte se il profilo era > 0
     zoccolo_prima = profili.get(u"zoccolo", 0.0) > 0
     for _p, c in celle(s[u"radice"]):

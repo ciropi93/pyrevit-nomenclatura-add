@@ -76,6 +76,7 @@ class Configuratore(forms.WPFWindow):
         self.btnEliminaSchema.IsEnabled = False   # si attiva sugli schemi salvati da te
         self.cmbAnta.ItemsSource = [e for _k, e in S.ANTE]
         self.cmbChiusura.ItemsSource = [e for _k, e in S.RIEMPIMENTI]
+        self.cmbPianta.ItemsSource = [e for _k, e in S.SIMBOLI_PIANTA]
 
         self.schema = S.copia(schema) if schema else S.copia(self.voci[0][1])
         self.txtNome.Text = nome_famiglia or S.nome_famiglia(self.schema)
@@ -96,6 +97,7 @@ class Configuratore(forms.WPFWindow):
         self.cmbChiusura.SelectionChanged += self.su_chiusura
         self.chkSoglia.Click += self.su_soglia
         self.chkManiglie.Click += self.su_maniglie
+        self.cmbPianta.SelectionChanged += self.su_pianta
         for box, chiave in ((self.txtLarghezza, (u"larghezza",)), (self.txtAltezza, (u"altezza",))):
             self._aggancia_evidenza(box, chiave)
         self.btnDividiV.Click += lambda s, a: self.dividi(u"v")
@@ -201,6 +203,8 @@ class Configuratore(forms.WPFWindow):
             self.txtAltezza.Text = u"%g" % self.schema[u"altezza"]
             self.chkSoglia.IsChecked = bool(self.schema.get(u"soglia", True))
             self.chkManiglie.IsChecked = bool(self.schema.get(u"maniglie", False))
+            self.cmbPianta.SelectedIndex = [k for k, _e in S.SIMBOLI_PIANTA].index(
+                self.schema.get(u"simbolo_pianta", u"nessuno"))
             self.riempi_profili()
             self.riempi_misure()
         finally:
@@ -357,6 +361,10 @@ class Configuratore(forms.WPFWindow):
         if not self._carico:
             self.schema[u"maniglie"] = bool(self.chkManiglie.IsChecked)
             self.ridisegna()
+
+    def su_pianta(self, sender, args):
+        if not self._carico and self.cmbPianta.SelectedIndex >= 0:
+            self.schema[u"simbolo_pianta"] = S.SIMBOLI_PIANTA[self.cmbPianta.SelectedIndex][0]
 
     def dividi(self, verso):
         if self.sel is None or not self.ris or not self.ris[u"celle"]:

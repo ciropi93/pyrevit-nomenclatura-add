@@ -14,6 +14,15 @@ sinistra del telaio (x a destra, y in alto):
   e' (piano, parametro, segno), cosi' in Revit la si quota e la si etichetta.
 - derivati: parametri con formula usati dai simboli (meta' luce, punte delle frecce).
 - errori: misure che non stanno.
+
+Pianta e 3D (y = profondita' dall'asse del muro, verso l'interno se INTERNO = 1):
+- piani_y: piani paralleli al muro, dal piano "centro" del modello famiglia;
+- pianta: simboli di apertura in pianta (anta aperta a 90 gradi e arco), quotabili come i
+  simboli del prospetto ma con la y su un piano_y;
+- pezzi_aperti: le ante a battente aperte a 90 gradi verso l'interno (si vedono con il
+  parametro di istanza "Aperta in 3D"); gli scorrevoli aperti stanno in `pezzi` (spostati).
+Ogni pezzo ha `dettaglio` (livelli Basso/Medio/Alto in cui si vede) e `stato`
+(None = sempre, "chiusa" = solo con l'anta chiusa, "aperta" = solo con l'anta aperta).
 """
 from infissi import schema as S
 
@@ -33,6 +42,30 @@ PROFONDITA = {
     u"vetro_a": (u"Vetro A inizio", u"Vetro A fine"),
     u"vetro_b": (u"Vetro B inizio", u"Vetro B fine"),
     u"maniglia": (u"Maniglia inizio", u"Maniglia fine"),
+}
+
+# lato interno della profondita' (+1 = verso "Anta fine"): ci vanno maniglie, archi e ante
+# aperte. Se nel modello famiglia di Revit l'interno e' dall'altra parte, si cambia qui.
+INTERNO = 1
+
+# livelli di dettaglio di Revit (Basso/Medio/Alto)
+BASSO, MEDIO, ALTO = u"basso", u"medio", u"alto"
+TUTTI = (BASSO, MEDIO, ALTO)
+MEDIO_ALTO = (MEDIO, ALTO)
+SOLO_ALTO = (ALTO,)
+SOLO_BASSO = (BASSO,)
+
+# stato dell'anta nel 3D (parametri di istanza Si'/No)
+APERTA = u"Aperta in 3D"
+CHIUSA = u"Chiusa in 3D"
+FILO_ANTA = u"Filo anta interno"
+
+# spessore delle ante aperte (estrusioni sul piano delle cerniere, verso il vano):
+# {verso: (parametro inizio, parametro fine)}; None = 0
+SPESSORI_APERTI = {
+    u"anta": {1: (None, u"Anta aperta pos"), -1: (None, u"Anta aperta neg")},
+    u"vetro": {1: (u"Vetro aperto inizio pos", u"Vetro aperto fine pos"),
+               -1: (u"Vetro aperto inizio neg", u"Vetro aperto fine neg")},
 }
 
 LUCE_MIN_FISSO = 50.0       # mm di vetro libero minimo in una cella fissa
@@ -70,6 +103,10 @@ def nome_quota_maniglia(percorso):
     return u"Maniglia quota %s" % nome_zona(percorso)
 
 
+def nome_larghezza_anta(percorso):
+    return u"Larghezza anta %s" % nome_zona(percorso)
+
+
 class _Piani(object):
     def __init__(self, larghezza, altezza):
         self.lista = []
@@ -101,11 +138,32 @@ class _Piani(object):
         return self.per_id[pid][u"pos"]
 
 
+class _PianiY(_Piani):
+    """Piani paralleli al muro (normale y): radice "centro", l'asse del muro."""
+    def __init__(self):
+        self.lista = []
+        self._per_chiave = {}
+        self.per_id = {}
+        self._registra({u"id": u"centro", u"verso": u"y", u"pos": 0.0,
+                        u"base": None, u"param": None, u"segno": 0})
+
+    def aggiungi(self, base, param, segno, valore):
+        chiave = (base, param, segno)
+        if chiave in self._per_chiave:
+            return self._per_chiave[chiave]
+        b = self.per_id[base]
+        pid = u"Y%d" % len(self.lista)
+        self._registra({u"id": pid, u"verso": u"y", u"pos": b[u"pos"] + segno * valore,
+                        u"base": base, u"param": param, u"segno": segno})
+        self._per_chiave[chiave] = pid
+        return pid
+
+
 def formula_posizione(piani_per_id, pid):
     """Posizione di un piano come formula Revit (u"" = zero)."""
     p = piani_per_id[pid]
     if p[u"base"] is None:
-        return {u"sx": u"", u"basso": u"", u"dx": LARGHEZZA, u"alto": ALTEZZA}[pid]
+        return {u"sx": u"", u"basso": u"", u"dx": LARGHEZZA, u"alto": ALTEZZA, u"centro": u""}[pid]
     base = formula_posizione(piani_per_id, p[u"base"])
     op = u" + " if p[u"segno"] > 0 else u" - "
     if not base:
@@ -129,7 +187,8 @@ def calcola(schema):
         valori[nome] = float(prof[k])
 
     ris = {u"piani": None, u"pezzi": [], u"celle": [], u"simboli": [], u"derivati": [],
-           u"errori": [], u"misure": [], u"valori": valori}
+           u"errori": [], u"misure": [], u"valori": valori,
+           u"piani_y": [], u"pianta": [], u"pezzi_aperti": []}
     err = ris[u"errori"]
     if L <= 0 or H <= 0:
         err.append(u"Larghezza e altezza devono essere maggiori di zero.")
@@ -147,6 +206,7 @@ def calcola(schema):
         if not err:
             raise
         ris[u"piani"], ris[u"pezzi"], ris[u"celle"], ris[u"simboli"] = [], [], [], []
+        ris[u"piani_y"], ris[u"pianta"], ris[u"pezzi_aperti"] = [], [], []
     return ris
 
 
@@ -174,19 +234,35 @@ def _costruisci(schema, L, H, valori, ris):
             ris[u"pezzi"].append(_pezzo(u"telaio", esterni, None, u"telaio", None))
         bordo_basso = (u"basso", u"terra")        # ante e vetri arrivano quasi a terra
 
-    stato = {u"scorrevoli": 0, u"maniglie": bool(schema.get(u"maniglie", False))}
+    # filo interno dell'anta: da qui partono archi in pianta e ante aperte
+    piani_y = _PianiY()
+    ris[u"piani_y"] = piani_y.lista
+    spost, prof_a = valori[profilo(u"anta_spost")], valori[profilo(u"anta_prof")]
+    if INTERNO > 0:
+        filo, f_filo = spost + prof_a / 2.0, u"%s + %s / 2" % (profilo(u"anta_spost"), profilo(u"anta_prof"))
+    else:
+        filo, f_filo = prof_a / 2.0 - spost, u"%s / 2 - %s" % (profilo(u"anta_prof"), profilo(u"anta_spost"))
+    valori[FILO_ANTA] = filo
+    stato = {u"scorrevoli": 0, u"maniglie": bool(schema.get(u"maniglie", False)),
+             u"piani_y": piani_y, u"f_filo": f_filo, u"filo": None,
+             u"simbolo_finestre": schema.get(u"simbolo_pianta", u"nessuno")}
     bordi = {u"sx": (u"sx", u"telaio"), u"dx": (u"dx", u"telaio"),
              u"basso": bordo_basso, u"alto": (u"alto", u"telaio")}
     _visita(schema[u"radice"], (), bordi, piani, valori, ris, stato)
+
+    # livello Basso: un vetro solo dentro il telaio, al posto di montanti, ante e vetri
+    unico = tuple(_faccia(bordi[lato], lato, piani, valori) for lato in RADICI)
+    ris[u"pezzi"].append(_pezzo(u"vetro", unico, None, u"vetro", None, dettaglio=SOLO_BASSO))
 
     for c in ris[u"celle"]:
         _controlla_cella(c, piani, valori, err)
 
 
-def _pezzo(tipo, esterni, interni, profondita, percorso):
+def _pezzo(tipo, esterni, interni, profondita, percorso, dettaglio=TUTTI, stato=None):
     return {u"tipo": tipo, u"esterni": tuple(esterni),
             u"interni": tuple(interni) if interni else None,
-            u"profondita": profondita, u"cella": percorso}
+            u"profondita": profondita, u"cella": percorso,
+            u"dettaglio": tuple(dettaglio), u"stato": stato}
 
 
 _DENTRO = {u"sx": 1, u"basso": 1, u"dx": -1, u"alto": -1}
@@ -228,7 +304,8 @@ def _visita(nodo, percorso, bordi, piani, valori, ris, stato):
                 t0 = _faccia(bordi[trasv[0]], trasv[0], piani, valori)
                 t1 = _faccia(bordi[trasv[1]], trasv[1], piani, valori)
                 esterni = (a, b, t0, t1) if verso == u"v" else (t0, t1, a, b)
-                ris[u"pezzi"].append(_pezzo(u"montante", esterni, None, u"telaio", p_figlio))
+                ris[u"pezzi"].append(_pezzo(u"montante", esterni, None, u"telaio", p_figlio,
+                                            dettaglio=MEDIO_ALTO))
         else:
             successivo = bordi[fine]
         b_figlio = dict(bordi)
@@ -279,6 +356,18 @@ def _cella(nodo, percorso, bordi, piani, valori, ris, stato):
         _simbolo(c, piani, valori, ris)
         if stato[u"maniglie"]:
             _maniglia(c, piani, valori, ris)
+    # i pezzi della cella si vedono da Medio in su (a Basso c'e' il vetro unico), la maniglia ad Alto
+    propri = [pz for pz in ris[u"pezzi"] if pz[u"cella"] == percorso and pz[u"tipo"] != u"montante"]
+    for pz in propri:
+        pz[u"dettaglio"] = SOLO_ALTO if pz[u"tipo"] == u"maniglia" else MEDIO_ALTO
+    aperta = False
+    if S.ruota(anta):
+        aperta = _aperta_ruota(c, piani, valori, ris, stato)
+    elif S.scorrevole(anta):
+        aperta = _aperta_scorre(c, propri, piani, valori, ris)
+    if aperta:
+        for pz in propri:
+            pz[u"stato"] = u"chiusa"
 
 
 # --- simboli di apertura -------------------------------------------------------------
@@ -288,7 +377,7 @@ def _su_piano(piani, pid):
     return (p[u"base"], p[u"param"], p[u"segno"])
 
 
-def _derivato(ris, piani, nome, formula, valore):
+def _derivato(ris, _piani, nome, formula, valore):
     for d in ris[u"derivati"]:
         if d[u"nome"] == nome:
             return
@@ -359,6 +448,104 @@ def _simbolo(c, piani, valori, ris):
         seg(X[verso], my, xb, (y0 + mh + fa, (basso, nome_fa, 1)))
         seg(X[verso], my, xb, (y0 + mh - fa, (basso, nome_fb, 1)))
     ris[u"simboli"].append({u"cella": per, u"segmenti": segmenti})
+
+
+# --- ante aperte e simboli in pianta -----------------------------------------------------
+def _su_piano_y(piani_y, pid):
+    p = piani_y.per_id[pid]
+    return (p[u"base"], p[u"param"], p[u"segno"])
+
+
+def _larghezza_anta(c, piani, valori, ris):
+    sx, dx = c[u"luce"][0], c[u"luce"][1]
+    nome = nome_larghezza_anta(c[u"percorso"])
+    w = piani.pos(dx) - piani.pos(sx)
+    fp = lambda pid: formula_posizione(piani.per_id, pid)  # noqa: E731
+    _derivato(ris, piani, nome, _differenza(fp(dx), fp(sx)), w)
+    valori[nome] = w
+    return nome, w
+
+
+def _filo(stato, valori, ris):
+    """Piano y del filo interno dell'anta (creato una volta sola)."""
+    if stato[u"filo"] is None:
+        _derivato(ris, None, FILO_ANTA, stato[u"f_filo"], valori[FILO_ANTA])
+        stato[u"filo"] = stato[u"piani_y"].aggiungi(u"centro", FILO_ANTA, INTERNO, valori[FILO_ANTA])
+    return stato[u"filo"]
+
+
+def _aperta_ruota(c, piani, valori, ris, stato):
+    """Anta a battente aperta a 90 gradi verso l'interno + anta e arco in pianta."""
+    per = c[u"percorso"]
+    py = stato[u"piani_y"]
+    sx, dx, basso, alto = c[u"luce"]
+    isx, idx, ib, ia = c[u"anta_interna"]
+    cerniere_sx = c[u"anta"].endswith(u"_sx")
+    x_h, x_l = (sx, dx) if cerniere_sx else (dx, sx)
+    verso = 1 if cerniere_sx else -1            # lo spessore dell'anta aperta va verso il vano
+    nome_w, w = _larghezza_anta(c, piani, valori, ris)
+    a = valori[profilo(u"anta")]
+    yf = _filo(stato, valori, ris)
+    yw = py.aggiungi(yf, nome_w, INTERNO, w)
+    yi0 = py.aggiungi(yf, profilo(u"anta"), INTERNO, a)
+    yi1 = py.aggiungi(yw, profilo(u"anta"), -INTERNO, a)
+
+    def pezzo(tipo, y, z, y_int=None, z_int=None, spessore=u"anta"):
+        ris[u"pezzi_aperti"].append({
+            u"tipo": tipo, u"cella": per, u"piano_x": x_h, u"verso": verso,
+            u"y": y, u"z": z, u"y_int": y_int, u"z_int": z_int, u"spessore": spessore,
+            u"dettaglio": MEDIO_ALTO, u"stato": u"aperta"})
+
+    pezzo(u"anta", (yf, yw), (basso, alto), (yi0, yi1), (ib, ia))
+    riemp = c[u"riempimento"]
+    if c[u"zoccolo"] is not None:
+        pezzo(u"zoccolo", (yi0, yi1), (ib, c[u"zoccolo"][3]))
+    z_vetro = (c[u"vetro"][2], c[u"vetro"][3])
+    if riemp == S.PANNELLO:
+        pezzo(u"pannello", (yi0, yi1), z_vetro)
+    else:
+        pezzo(u"vetro", (yi0, yi1), z_vetro, spessore=u"vetro")
+
+    # pianta: anta aperta e arco (porte sempre; finestre secondo la scelta)
+    if S.porta(c[u"anta"]):
+        stile = u"porta"
+    elif stato[u"simbolo_finestre"] in (u"tratteggio", u"continuo"):
+        stile = u"finestra_" + stato[u"simbolo_finestre"]
+    else:
+        stile = None
+    if stile:
+        XH, XL = (piani.pos(x_h), _su_piano(piani, x_h)), (piani.pos(x_l), _su_piano(piani, x_l))
+        YF, YW = (py.pos(yf), _su_piano_y(py, yf)), (py.pos(yw), _su_piano_y(py, yw))
+        ris[u"pianta"].append({u"cella": per, u"stile": stile, u"segmenti": [
+            {u"tipo": u"linea", u"p0": (XH[0], YF[0]), u"p1": (XH[0], YW[0]),
+             u"coord": (XH[1], YF[1], XH[1], YW[1])},
+            {u"tipo": u"arco", u"p0": (XL[0], YF[0]), u"p1": (XH[0], YW[0]),
+             u"centro": (XH[0], YF[0]), u"coord": (XL[1], YF[1], XH[1], YW[1])},
+        ]})
+    return True
+
+
+def _aperta_scorre(c, propri, piani, valori, ris):
+    """Anta scorrevole aperta: gli stessi pezzi spostati di una larghezza verso l'apertura."""
+    nome_w, w = _larghezza_anta(c, piani, valori, ris)
+    segno = -1 if c[u"anta"].endswith(u"_sx") else 1
+    spostati = {}
+
+    def sposta(pid):
+        if pid not in spostati:
+            spostati[pid] = piani.aggiungi(pid, nome_w, segno, w)
+        return spostati[pid]
+
+    for pz in list(propri):
+        if pz[u"tipo"] == u"maniglia":
+            continue
+        e = pz[u"esterni"]
+        nuovo = _pezzo(pz[u"tipo"], (sposta(e[0]), sposta(e[1]), e[2], e[3]),
+                       (sposta(pz[u"interni"][0]), sposta(pz[u"interni"][1]),
+                        pz[u"interni"][2], pz[u"interni"][3]) if pz[u"interni"] else None,
+                       pz[u"profondita"], c[u"percorso"], dettaglio=MEDIO_ALTO, stato=u"aperta")
+        ris[u"pezzi"].append(nuovo)
+    return True
 
 
 # --- maniglie ---------------------------------------------------------------------------

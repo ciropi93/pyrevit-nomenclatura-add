@@ -104,6 +104,11 @@ def test_preimpostati_validi(schema):
     assert PA.elenco(schema, ris)
 
 
+def chiusi(ris):
+    """I pezzi della vista normale: livello Medio, ante chiuse."""
+    return [p for p in ris["pezzi"] if G.MEDIO in p["dettaglio"] and p["stato"] != "aperta"]
+
+
 def strisce(est, inn):
     """Una cornice divisa in quattro rettangoli (sotto, sopra, sinistra, destra)."""
     return [(est[0], est[1], est[2], inn[1]), (est[0], inn[3], est[2], est[3]),
@@ -120,7 +125,7 @@ def test_pezzi_riempiono_il_vano_senza_sovrapporsi(schema):
     ris = G.calcola(schema)
     celle = dict((c["percorso"], c) for c in ris["celle"])
     pezzi = []
-    for pz in ris["pezzi"]:
+    for pz in chiusi(ris):
         if pz["tipo"] == "maniglia":
             continue        # sta sopra il profilo dell'anta, sul lato interno
         if pz["tipo"] in ("vetro", "zoccolo", "pannello") and pz["cella"] is not None \
@@ -149,7 +154,7 @@ def test_dentro_anta_vetro_e_zoccolo_riempiono(schema):
     for c in ris["celle"]:
         if c["anta_interna"] is None:
             continue
-        dentro = [rett(ris, p["esterni"]) for p in ris["pezzi"]
+        dentro = [rett(ris, p["esterni"]) for p in chiusi(ris)
                   if p["cella"] == c["percorso"] and p["tipo"] in ("vetro", "zoccolo", "pannello")]
         assert abs(sum(area_rett(r) for r in dentro) - area_rett(rett(ris, c["anta_interna"]))) < 1e-3
 
@@ -219,7 +224,7 @@ def test_scorrevoli_su_due_binari():
     s = [x for x in C.preimpostati() if x["nome"] == "Scorrevole 2 ante"][0]
     ris = G.calcola(s)
     assert [c["livello"] for c in ris["celle"]] == ["a", "b"]
-    prof = sorted(p["profondita"] for p in ris["pezzi"] if p["tipo"] == "anta")
+    prof = sorted(p["profondita"] for p in chiusi(ris) if p["tipo"] == "anta")
     assert prof == ["anta_a", "anta_b"]
 
 
@@ -448,7 +453,7 @@ def test_pannello_al_posto_del_vetro():
                 1400, 2400)
     ris = G.calcola(s)
     assert ris["errori"] == []
-    tipi = [p["tipo"] for p in ris["pezzi"]]
+    tipi = [p["tipo"] for p in chiusi(ris)]
     assert "vetro" not in tipi and tipi.count("pannello") == 2
     assert "Materiale pannello" in [p["nome"] for p in PA.elenco(s, ris)]
     assert "Materiale pannello" not in [p["nome"] for p in PA.elenco(due_ante())]
@@ -503,3 +508,100 @@ def test_evidenzia():
     assert ev["rettangoli"] == [(0.0, 0.0, 1800.0, s["profili"]["soglia"])]
     assert len(G.evidenzia(ris, s, ("profilo", "montante"))["rettangoli"]) >= 2
     assert G.evidenzia(ris, s, None)["rettangoli"] == []
+
+
+# --- pianta, ante aperte, livelli di dettaglio --------------------------------------------
+def _pos(ris):
+    """{id piano: pos} di piani x/z e piani y insieme."""
+    d = dict((p["id"], p["pos"]) for p in ris["piani"])
+    d.update((p["id"], p["pos"]) for p in ris["piani_y"])
+    return d
+
+
+@pytest.mark.parametrize("schema", C.preimpostati(), ids=lambda s: s["nome"])
+def test_simboli_in_pianta_quotabili(schema):
+    ris = G.calcola(schema)
+    pos, valori = _pos(ris), ris["valori"]
+    for p in ris["piani_y"]:
+        if p["base"] is not None:
+            assert abs(pos[p["base"]] + p["segno"] * valori[p["param"]] - p["pos"]) < EPS
+            assert abs(PA.valuta(G.formula_posizione(dict((q["id"], q) for q in ris["piani_y"]), p["id"]),
+                                 valori) - p["pos"]) < EPS
+    for simb in ris["pianta"]:
+        for seg in simb["segmenti"]:
+            cx0, cy0, cx1, cy1 = seg["coord"]
+            for (pid, param, segno), atteso in ((cx0, seg["p0"][0]), (cy0, seg["p0"][1]),
+                                                (cx1, seg["p1"][0]), (cy1, seg["p1"][1])):
+                assert pid is not None and param
+                assert abs(pos[pid] + segno * valori[param] - atteso) < EPS
+
+
+def test_porta_in_pianta_anta_e_arco():
+    s = S.nuovo(S.cella("porta_sx"), 900, 2400)
+    ris = G.calcola(s)
+    assert len(ris["pianta"]) == 1 and ris["pianta"][0]["stile"] == "porta"
+    linea, arco = ris["pianta"][0]["segmenti"]
+    luce = rett(ris, ris["celle"][0]["luce"])
+    w = luce[2] - luce[0]
+    filo = ris["valori"][G.FILO_ANTA] * G.INTERNO
+    assert linea["p0"] == (luce[0], filo) and linea["p1"] == (luce[0], filo + G.INTERNO * w)
+    cx, cy = arco["centro"]
+    for p in (arco["p0"], arco["p1"]):                      # l'arco ha raggio = larghezza anta
+        assert abs(((p[0] - cx) ** 2 + (p[1] - cy) ** 2) ** 0.5 - w) < EPS
+
+
+def test_finestre_in_pianta_a_scelta():
+    for scelta, stile in (("nessuno", None), ("tratteggio", "finestra_tratteggio"),
+                          ("continuo", "finestra_continuo")):
+        ris = G.calcola(S.nuovo(S.cella("battente_sx"), 800, 1400, simbolo_pianta=scelta))
+        assert [p["stile"] for p in ris["pianta"]] == ([stile] if stile else [])
+    # i fissi e i vasistas non hanno simbolo in pianta
+    assert not G.calcola(S.nuovo(S.cella("vasistas"), 800, 600))["pianta"]
+    # gli schemi di prima restano senza simbolo
+    vecchio = S.normalizza({"larghezza": 800, "altezza": 1400, "radice": {"tipo": "cella", "anta": "battente_sx"}})
+    assert vecchio["simbolo_pianta"] == "nessuno"
+
+
+def test_anta_aperta_a_novanta_gradi():
+    s = S.nuovo(S.cella("battente_dx"), 800, 1400)
+    ris = G.calcola(s)
+    pos = _pos(ris)
+    anta = [p for p in ris["pezzi_aperti"] if p["tipo"] == "anta"][0]
+    luce = rett(ris, ris["celle"][0]["luce"])
+    assert pos[anta["piano_x"]] == luce[2] and anta["verso"] == -1       # cerniere a destra
+    y0, y1 = pos[anta["y"][0]], pos[anta["y"][1]]
+    assert abs(abs(y1 - y0) - (luce[2] - luce[0])) < EPS                   # sporge quanto e' larga
+    assert (y1 - y0) * G.INTERNO > 0                                        # verso l'interno
+    tipi = sorted(p["tipo"] for p in ris["pezzi_aperti"])
+    assert tipi == ["anta", "vetro"]
+    # le ante chiuse si vedono solo da chiuse
+    assert all(p["stato"] == "chiusa" for p in ris["pezzi"] if p["cella"] == ())
+    nomi = dict((p["nome"], p) for p in PA.elenco(s, ris))
+    assert nomi[G.APERTA]["istanza"] and nomi[G.CHIUSA]["formula"] == PA.FORMULA_CHIUSA
+
+
+def test_scorrevole_aperto_spostato():
+    s = S.nuovo(S.cella("scorrevole_sx"), 1000, 2200)
+    ris = G.calcola(s)
+    chiusa = [p for p in ris["pezzi"] if p["tipo"] == "anta" and p["stato"] == "chiusa"][0]
+    aperta = [p for p in ris["pezzi"] if p["tipo"] == "anta" and p["stato"] == "aperta"][0]
+    a, b = rett(ris, chiusa["esterni"]), rett(ris, aperta["esterni"])
+    assert abs((a[0] - b[0]) - (a[2] - a[0])) < EPS                        # verso sinistra
+    assert not ris["pezzi_aperti"] and not ris["pianta"]
+
+
+def test_vasistas_resta_chiuso():
+    ris = G.calcola(S.nuovo(S.cella("vasistas"), 800, 600))
+    assert not ris["pezzi_aperti"]
+    assert all(p["stato"] is None for p in ris["pezzi"])
+    assert G.APERTA not in [p["nome"] for p in PA.elenco(S.nuovo(S.cella("vasistas"), 800, 600))]
+
+
+@pytest.mark.parametrize("schema", C.preimpostati(), ids=lambda s: s["nome"])
+def test_livello_basso_telaio_e_vetro_unico(schema):
+    ris = G.calcola(schema)
+    basso = [p for p in ris["pezzi"] if G.BASSO in p["dettaglio"]]
+    assert set(p["tipo"] for p in basso) == {"telaio", "vetro"}
+    assert len([p for p in basso if p["tipo"] == "vetro"]) == 1
+    # niente maniglie se non ad Alto
+    assert all(p["dettaglio"] == G.SOLO_ALTO for p in ris["pezzi"] if p["tipo"] == "maniglia")
