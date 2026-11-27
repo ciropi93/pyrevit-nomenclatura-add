@@ -22,7 +22,7 @@ from facciate import schema as S
 
 MM = 1.0 / 304.8
 TOLL_MM = 1.0
-NESSUNO = u"(nessuno)"           # tipo di una classe di montanti: niente montante su quelle linee
+NESSUNO = S.NESSUNO              # tipo di una classe di montanti: niente montante su quelle linee
 
 GUID_SCHEMA = u"c2b1d45a-492d-469a-a1cb-317aefbbe9fd"
 NOME_SCHEMA = u"CDVFacciataContinua"
@@ -262,15 +262,25 @@ class _Linee(object):
         self.doc = doc
         self.griglia = griglia
         self.u_orizzontale = True
+        self.confermato = False      # una linea e' gia' venuta nel verso giusto
 
     def aggiungi(self, punto, verticale):
-        u = (not self.u_orizzontale) if verticale else self.u_orizzontale
-        linea = self.griglia.AddGridLine(u, punto, False)
-        if _verticale(linea.FullCurve) != verticale:
-            self.doc.Delete(linea.Id)
+        errore = None
+        for _giro in (0, 1):
+            u = (not self.u_orizzontale) if verticale else self.u_orizzontale
+            try:
+                linea = self.griglia.AddGridLine(u, punto, False)
+            except Exception as ex:
+                linea, errore = None, ex
+            if linea is not None and _verticale(linea.FullCurve) == verticale:
+                self.confermato = True
+                return linea
+            if linea is not None:
+                self.doc.Delete(linea.Id)
+            if self.confermato:
+                break
             self.u_orizzontale = not self.u_orizzontale
-            linea = self.griglia.AddGridLine(not u, punto, False)
-        return linea
+        raise FacciataErrore(u"%s" % (errore or u"verso della linea sbagliato"))
 
 
 def _sblocca(el):
@@ -455,16 +465,21 @@ def _sistema_montanti(doc, griglia, fac, voluto, avvisi):
 
 
 def applica(doc, muri, schema, nome=u"CDV Ritmo facciata"):
-    """Applica lo schema a ogni muro in una transazione sola (si annulla in un passo).
-    {"muri": [{"muro": id, "report" | "errore"}], "avvisi_revit": [...]}; con un errore su un
-    muro gli altri si fanno lo stesso."""
+    """Applica lo stesso schema a ogni muro (vedi applica_coppie)."""
+    return applica_coppie(doc, [(m, schema) for m in muri], nome)
+
+
+def applica_coppie(doc, coppie, nome=u"CDV Ritmo facciata"):
+    """Applica a ogni muro il suo schema [(muro, schema)] in una transazione sola (si annulla in
+    un passo). {"muri": [{"muro": id, "report" | "errore"}], "avvisi_revit": [...]}; con un
+    errore su un muro gli altri si fanno lo stesso."""
     messaggi = []
     out = []
     tipi_m, tipi_p = tipi_montante(doc), tipi_pannello(doc)
     t = transazione(doc, nome, messaggi)
     t.Start()
     try:
-        for muro in muri:
+        for muro, schema in coppie:
             voce = {u"muro": chiave_id(muro.Id)}
             sub = DB.SubTransaction(doc)
             sub.Start()
@@ -481,3 +496,26 @@ def applica(doc, muri, schema, nome=u"CDV Ritmo facciata"):
             t.RollBack()
         raise
     return {u"muri": out, u"avvisi_revit": messaggi}
+
+
+def ha_schema(muro):
+    """True se sul muro c'e' uno schema CDV (senza leggerlo: per la palette)."""
+    s = DB.ExtensibleStorage.Schema.Lookup(Guid(GUID_SCHEMA))
+    if s is None:
+        return False
+    try:
+        ent = muro.GetEntity(s)
+        return ent is not None and ent.IsValid()
+    except Exception:
+        return False
+
+
+def dati_facciata(fac):
+    """Le misure della facciata per la finestra (senza API)."""
+    return {u"lunghezza": fac.lunghezza, u"altezza": fac.altezza,
+            u"quote_livelli": list(fac.quote_livelli)}
+
+
+def nomi_tipi(doc):
+    """{"pannelli": [...], "montanti": [...]} nomi "Famiglia: Tipo" per la finestra."""
+    return {u"pannelli": sorted(tipi_pannello(doc)), u"montanti": sorted(tipi_montante(doc))}

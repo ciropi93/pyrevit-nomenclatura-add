@@ -72,6 +72,7 @@ import finestre_wpf as FW
 import avviso as AV
 import avviso_wpf as AVW
 from infissi.parametri import SCHEMA as PARAMETRO_SCHEMA_INFISSO
+from facciate import revit_facciata as RVF
 
 
 # Stessa chiave della prima versione: al Reload spegne anche il vecchio pannello
@@ -353,8 +354,12 @@ def _gruppi_cdv(doc, elementi, cache=None):
         return TC.comandi_per_selezione(0, in_tavola=False, n_infissi=1), None
     muri = [e for e in elementi if isinstance(e, DB.Wall)]
     if muri and len(muri) == len(elementi):
+        facciate = [m for m in muri if RVF.e_facciata(m)]
+        n_facciate = len(facciate) if len(facciate) == len(muri) else 0
+        n_cdv = len([m for m in facciate if RVF.ha_schema(m)]) if n_facciate else 0
         return TC.comandi_per_selezione(0, in_tavola=False, n_muri=len(muri),
-                                        n_oggetti=n_allinea), None
+                                        n_oggetti=n_allinea, n_facciate=n_facciate,
+                                        n_facciate_cdv=n_cdv), None
     viewports = [e for e in elementi if isinstance(e, DB.Viewport)]
     viewers = [e for e in elementi if _e_viewer(e)]
 
@@ -455,6 +460,17 @@ def _modifica_infisso():
         modulo.main()
     except SystemExit:              # script.exit() quando si annulla la finestra
         pass
+
+
+def _facciata(uidoc, comando, maiuscolo):
+    """Ritmo o Aggiorna facciata sulle curtain wall selezionate (come i pulsanti del pannello)."""
+    if _LIB not in sys.path:        # vedi _ritaglia_immagine
+        sys.path.append(_LIB)
+    from facciate import comandi as CF
+    if comando == TC.FACCIATA_RITMO:
+        CF.ritmo(uidoc)
+    else:
+        CF.aggiorna(uidoc, maiuscolo)
 
 
 def _comandi_disponibili():
@@ -558,6 +574,8 @@ class _GestoreAzione(UI.IExternalEventHandler):
                 _ritaglia_immagine()
             elif comando == TC.INFISSO_MODIFICA:
                 _modifica_infisso()
+            elif comando in (TC.FACCIATA_RITMO, TC.FACCIATA_AGGIORNA):
+                _facciata(uidoc, comando, self.maiuscolo)
             else:
                 # Allineamenti: lavorano sulla selezione corrente della tavola attiva
                 AIT.esegui_da_ribbon(comando)
@@ -1572,7 +1590,7 @@ class TastiOverlay(object):
             self._nascondi_finestra()
             self._nascondi_lettere()
             self._aggiorna_segui()
-        elif comando in (TC.SEZIONE_APRI, TC.IMMAGINE_RITAGLIA, TC.INFISSO_MODIFICA):
+        elif comando in (TC.SEZIONE_APRI, TC.IMMAGINE_RITAGLIA, TC.INFISSO_MODIFICA, TC.FACCIATA_RITMO):
             # Si apre una finestra: i tasti si tolgono di mezzo e tornano dopo
             # (chiave azzerata = la selezione viene riletta al prossimo Idling).
             self.nascondi()

@@ -21,6 +21,7 @@ from facciate import ritmo as R
 
 VERSIONE = 1
 
+NESSUNO = u"(nessuno)"     # tipo di una classe di montanti: niente montante su quelle linee
 CLASSI_PANNELLI = (R.VETRO, u"cieco", u"apribile", u"vuoto")
 CLASSI_MONTANTI = (R.MONTANTE, R.TRAVERSO, R.MARCAPIANO, u"lesena")   # i bordi restano del tipo
 
@@ -192,3 +193,111 @@ def descrizione(schema):
     if (r.get(u"livelli") or {}).get(u"attivo"):
         testo += u" sui livelli"
     return testo
+
+
+# --- modifiche dalla finestra ----------------------------------------------------------
+LETTERE = u"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+CELLA = u"cella"
+COLONNA = u"colonna"
+RIGA = u"riga"
+
+
+def nuovo_id(regola):
+    usati = set(m[u"id"] for m in regola[u"moduli"])
+    for ch in LETTERE:
+        if ch not in usati:
+            return ch
+    n = 1
+    while u"M%d" % n in usati:
+        n += 1
+    return u"M%d" % n
+
+
+def aggiungi_modulo(regola, misura=None):
+    """Nuovo modulo (con la misura dell'ultimo) in fondo alla sequenza; ritorna il suo id."""
+    mid = nuovo_id(regola)
+    if misura is None:
+        misura = regola[u"moduli"][-1][u"misura"] if regola[u"moduli"] else 1000.0
+    regola[u"moduli"].append(modulo(mid, misura))
+    regola[u"sequenza"].append(mid)
+    return mid
+
+
+def togli_modulo(regola, mid):
+    """Toglie il modulo e i suoi posti nella sequenza (l'ultimo modulo resta)."""
+    if len(regola[u"moduli"]) <= 1:
+        raise SchemaErrore(u"Serve almeno un modulo.")
+    regola[u"moduli"] = [m for m in regola[u"moduli"] if m[u"id"] != mid]
+    regola[u"sequenza"] = [i for i in regola[u"sequenza"] if i != mid] or [regola[u"moduli"][0][u"id"]]
+    fine = regola.get(u"finisci_con")
+    if fine is not None and fine >= len(regola[u"sequenza"]):
+        regola[u"finisci_con"] = None
+
+
+def imposta_sequenza(regola, testo):
+    """Sequenza dal testo scritto ("A A B" o "AAB"); i moduli mancanti li segnala errori()."""
+    regola[u"sequenza"] = leggi_sequenza(testo, [m[u"id"] for m in regola[u"moduli"]])
+    fine = regola.get(u"finisci_con")
+    if fine is not None and fine >= len(regola[u"sequenza"]):
+        regola[u"finisci_con"] = None
+
+
+def imposta_classe_cella(schema, c, r, classe, ambito=CELLA):
+    """Classe di una cella del motivo (posizioni c, r), di tutta la sua colonna o riga.
+    Per colonna e riga si tolgono le scelte piu' strette che la coprirebbero."""
+    celle = schema[u"celle"]
+    if ambito == COLONNA:
+        for k in [k for k in celle if k.split(u",")[0] == u"%d" % c]:
+            del celle[k]
+        celle[u"%d,*" % c] = classe
+    elif ambito == RIGA:
+        for k in [k for k in celle if k.split(u",")[1] == u"%d" % r]:
+            del celle[k]
+        celle[u"*,%d" % r] = classe
+        # "c,*" vale piu' di "*,r": sugli incroci con le colonne gia' scelte vince la riga
+        for k in [k for k in celle if k.endswith(u",*") and not k.startswith(u"*")]:
+            celle[u"%s,%d" % (k.split(u",")[0], r)] = classe
+    else:
+        celle[u"%d,%d" % (c, r)] = classe
+    aggiorna_classi(schema)
+
+
+def imposta_classe_linea(schema, direzione, pos, classe):
+    """Classe della linea che chiude la posizione pos del motivo (direzione: colonne o righe)."""
+    linee = schema[u"linee"][direzione]
+    predefinita = R.MONTANTE if direzione == u"colonne" else R.TRAVERSO
+    while len(linee) <= pos:
+        linee.append(predefinita)
+    linee[pos] = classe
+    aggiorna_classi(schema)
+
+
+def unisci(schema, colonne, righe):
+    """Unisce le celle del motivo nelle posizioni colonne=(c0, c1), righe=(r0, r1); le unioni
+    che si sovrappongono si tolgono."""
+    c0, c1 = sorted(colonne)
+    r0, r1 = sorted(righe)
+    tieni = []
+    for u in schema[u"unioni"]:
+        a0, a1 = sorted(u[u"colonne"])
+        b0, b1 = sorted(u[u"righe"])
+        if a1 < c0 or a0 > c1 or b1 < r0 or b0 > r1:
+            tieni.append(u)
+    tieni.append({u"colonne": [c0, c1], u"righe": [r0, r1]})
+    schema[u"unioni"] = tieni
+
+
+def separa(schema, c, r):
+    """Toglie le unioni che contengono la cella del motivo (c, r)."""
+    schema[u"unioni"] = [u for u in schema[u"unioni"]
+                         if not (min(u[u"colonne"]) <= c <= max(u[u"colonne"])
+                                 and min(u[u"righe"]) <= r <= max(u[u"righe"]))]
+
+
+def aggiorna_classi(schema):
+    """Le classi in uso, ognuna col tipo gia' scelto; quelle non piu' usate si tolgono."""
+    pan, mon = classi_usate(schema)
+    vecchie = schema.get(u"classi") or {}
+    schema[u"classi"] = {
+        u"pannelli": dict((k, (vecchie.get(u"pannelli") or {}).get(k, u"")) for k in pan),
+        u"montanti": dict((k, (vecchie.get(u"montanti") or {}).get(k, u"")) for k in mon)}

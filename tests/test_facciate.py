@@ -248,3 +248,108 @@ def test_schemi_utente():
         assert C.schemi_utente(base) == []
     finally:
         shutil.rmtree(base)
+
+
+# --- modifiche dalla finestra -------------------------------------------------------
+def test_aggiungi_e_togli_moduli():
+    r = S.regola([M("A", 1500)], ["A"])
+    assert S.aggiungi_modulo(r) == "B"
+    assert r["sequenza"] == ["A", "B"] and r["moduli"][-1]["misura"] == 1500
+    r["finisci_con"] = 1
+    S.togli_modulo(r, "B")
+    assert r["sequenza"] == ["A"] and r["finisci_con"] is None
+    with pytest.raises(S.SchemaErrore):
+        S.togli_modulo(r, "A")
+
+
+def test_imposta_sequenza():
+    r = S.regola([M("A", 1500), M("B", 600)], ["A"], finisci_con=0)
+    S.imposta_sequenza(r, "ABA")
+    assert r["sequenza"] == ["A", "B", "A"]
+
+
+def test_classe_cella_per_ambito():
+    s = S.nuovo(S.regola([M("A", 1000)], ["A", "A"]), S.regola([M("V", 1000)], ["V", "V"]))
+    S.imposta_classe_cella(s, 0, 1, "cieco")
+    assert s["celle"] == {"0,1": "cieco"}
+    S.imposta_classe_cella(s, 0, 0, "apribile", S.COLONNA)
+    assert s["celle"] == {"0,*": "apribile"}
+    S.imposta_classe_cella(s, 1, 1, "cieco", S.RIGA)
+    assert R.classe_cella(s["celle"], 0, 1) == "cieco"      # vince la riga scelta dopo
+    assert R.classe_cella(s["celle"], 0, 0) == "apribile"
+    assert set(s["classi"]["pannelli"]) == {"vetro", "cieco", "apribile"}
+
+
+def test_classi_non_usate_si_tolgono_e_i_tipi_restano():
+    s = S.nuovo(S.regola([M("A", 1000)], ["A"]), S.regola([M("V", 1000)], ["V"]))
+    S.imposta_classe_cella(s, 0, 0, "cieco")
+    s["classi"]["pannelli"]["cieco"] = "Pannello: Pieno"
+    S.imposta_classe_linea(s, "colonne", 0, "lesena")
+    assert s["linee"]["colonne"] == ["lesena"]
+    assert s["classi"]["pannelli"]["cieco"] == "Pannello: Pieno"
+    S.imposta_classe_cella(s, 0, 0, "vetro")
+    assert "cieco" not in s["classi"]["pannelli"]
+    assert "lesena" in s["classi"]["montanti"]
+
+
+def test_unisci_e_separa():
+    s = S.nuovo(S.regola([M("A", 1000)], ["A", "A", "A"]), S.regola([M("V", 1000)], ["V", "V"]))
+    S.unisci(s, (0, 1), (0, 0))
+    S.unisci(s, (2, 1), (1, 1))
+    assert len(s["unioni"]) == 2
+    S.unisci(s, (1, 2), (0, 1))          # si sovrappone a tutte e due
+    assert s["unioni"] == [{"colonne": [1, 2], "righe": [0, 1]}]
+    S.separa(s, 2, 0)
+    assert s["unioni"] == []
+
+
+# --- anteprima ----------------------------------------------------------------------
+from facciate import anteprima as AN  # noqa: E402
+
+
+def test_colori_diversi_per_classi_nuove():
+    ordine = ["vetro", "x", "y"]
+    assert AN.colore_pannello("vetro", ordine) == AN.COLORI_PANNELLI["vetro"]
+    assert AN.colore_pannello("x", ordine) != AN.colore_pannello("y", ordine)
+
+
+def test_scala_centrata():
+    sc, ox, oy = AN.scala(10000, 5000, 1100, 600, (50, 50, 50, 50))
+    assert abs(sc - 0.1) < EPS and abs(ox - 50) < EPS and abs(oy - 550) < EPS
+
+
+def test_elemento_in_punto():
+    ris = R.calcola(parapetto_continuo(), 8100, 3000)
+    tipo, l = AN.elemento_in_punto(ris, 1355, 2000, 20)
+    assert tipo == "verticale" and abs(l["pos"] - 1350) < EPS
+    tipo, l = AN.elemento_in_punto(ris, 500, 905, 20)
+    assert tipo == "orizzontale" and abs(l["pos"] - 900) < EPS
+    tipo, c = AN.elemento_in_punto(ris, 500, 400, 20)
+    assert tipo == "cella" and c["col"] == [0, 2]
+    assert AN.elemento_in_punto(ris, 9000, 400, 20) is None
+
+
+def test_segmenti_e_linee_che_restano():
+    ris = R.calcola(parapetto_continuo(), 8100, 3000)
+    l0 = ris["linee_v"][0]
+    assert AN.segmenti(ris, "verticale", l0) == [(900, 3000)]   # tolto il pezzo nel parapetto
+    assert AN.linea_esiste(ris, "verticale", l0)
+
+
+def test_descrizioni_e_riquadro():
+    ris = R.calcola(parapetto_continuo(), 8100, 7000, [3500])
+    c = [c for c in ris["celle"] if c["col"] == [0, 2]][0]
+    assert "unite" in AN.descrizione_cella(ris, c)
+    assert AN.posizioni_cella(ris, c) == (0, 0)
+    liv = [l for l in ris["linee_o"] if AN.sul_livello(ris, l)]
+    assert len(liv) == 1 and "livello" in AN.descrizione_linea(ris, "orizzontale", liv[0])
+    vetri = [c for c in ris["celle"] if c["riga"] == [1, 1] and c["col"][0] < 3]
+    assert AN.riquadro_selezione(ris, vetri) == ((0, 2), (1, 1))
+    due_giri = [c for c in ris["celle"] if c["riga"] == [1, 1] and c["col"][0] in (2, 3)]
+    assert AN.riquadro_selezione(ris, due_giri) is None
+
+
+def test_quote_solo_dove_c_e_posto():
+    ris = R.calcola(parapetto_continuo(), 8100, 3000)
+    assert len(AN.quote(ris["colonne"], 0.1)) == 6
+    assert AN.quote(ris["colonne"], 0.01) == []

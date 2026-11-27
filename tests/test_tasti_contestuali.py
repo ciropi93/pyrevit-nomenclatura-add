@@ -168,3 +168,16 @@ def test_ritaglia_solo_con_una_immagine():
     assert _comandi(gruppi) == [TC.IMMAGINE_RITAGLIA]
     assert TC.comandi_per_selezione(0, in_tavola=False, n_immagini=2) == []
     assert TC.IMMAGINE_RITAGLIA in TC.ICONE
+
+
+def test_facciate_ritmo_e_aggiorna():
+    gruppi = TC.comandi_per_selezione(0, in_tavola=False, n_muri=2, n_facciate=2)
+    assert _nomi(gruppi)[0] == u"Facciata"
+    assert TC.FACCIATA_RITMO in _comandi(gruppi)
+    assert TC.FACCIATA_AGGIORNA not in _comandi(gruppi)          # nessuna ha ancora un ritmo
+    gruppi = TC.comandi_per_selezione(0, in_tavola=False, n_muri=2, n_facciate=2, n_facciate_cdv=1)
+    assert TC.FACCIATA_AGGIORNA in _comandi(gruppi)
+    assert TC.MURO_INVERTI in _comandi(gruppi)                   # restano anche i tasti dei muri
+    for c in _comandi(gruppi):
+        assert TC.ICONE.get(c), c
+    assert u"Facciata" not in _nomi(TC.comandi_per_selezione(0, in_tavola=False, n_muri=2))

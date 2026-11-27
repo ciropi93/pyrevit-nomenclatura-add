@@ -11,11 +11,23 @@ SEZIONE_SINCRONIZZA = u"sezione_sincronizza"
 MURO_INVERTI = u"muro_inverti_centro"
 IMMAGINE_RITAGLIA = u"immagine_ritaglia"
 INFISSO_MODIFICA = u"infisso_modifica"
+FACCIATA_RITMO = u"facciata_ritmo"
+FACCIATA_AGGIORNA = u"facciata_aggiorna"
 
 # Un solo infisso creato con il Configuratore (il suo tipo ha lo schema CDV salvato)
 _INFISSO = [
     (INFISSO_MODIFICA, u"Modifica infisso",
      u"Riapre il Configuratore su questo infisso e aggiorna la sua famiglia nel progetto"),
+]
+
+# Curtain wall selezionate (solo loro); Aggiorna se almeno una ha gia' un ritmo CDV
+_FACCIATA = [
+    (FACCIATA_RITMO, u"Ritmo facciata",
+     u"Apre la finestra del ritmo (moduli, sequenza, classi) su queste facciate continue"),
+]
+_FACCIATA_AGGIORNA = [
+    (FACCIATA_AGGIORNA, u"Aggiorna facciata",
+     u"Riapplica il ritmo salvato, dopo aver stirato la facciata o cambiato i livelli (annullabile)"),
 ]
 
 # Una sola immagine raster selezionata
@@ -107,7 +119,7 @@ def viste_distinte(id_viste, sfondo_a_madre):
 
 def comandi_per_selezione(n_viste, in_tavola=True, sezione_con_sfondo=False,
                           sezione_senza_sfondo=False, n_muri=0, n_oggetti=0, n_immagini=0,
-                          n_infissi=0):
+                          n_infissi=0, n_facciate=0, n_facciate_cdv=0):
     """Gruppi di tasti da mostrare: lista di (titolo_gruppo, [(comando, etichetta, suggerimento)]).
 
     sezione_senza_sfondo: la vista selezionata e' una sezione/prospetto su cui
@@ -117,12 +129,16 @@ def comandi_per_selezione(n_viste, in_tavola=True, sezione_con_sfondo=False,
     n_immagini: immagini raster selezionate (la selezione e' fatta solo di immagini).
     n_infissi: infissi creati con il Configuratore selezionati (la selezione e' fatta solo di
     loro); Modifica infisso lavora su uno solo.
+    n_facciate: curtain wall selezionate (la selezione e' fatta solo di loro); n_facciate_cdv:
+    quante hanno gia' un ritmo CDV (Aggiorna facciata).
     """
     gruppi = []
     if n_infissi == 1:
         gruppi.append((u"Infisso", list(_INFISSO)))
     if n_immagini == 1:
         gruppi.append((u"Immagine", list(_IMMAGINE)))
+    if n_facciate >= 1:
+        gruppi.append((u"Facciata", list(_FACCIATA) + (list(_FACCIATA_AGGIORNA) if n_facciate_cdv else [])))
     if n_muri >= 1:
         gruppi.append((u"Muri", list(_MURI)))
     if n_oggetti >= 2:
@@ -187,6 +203,12 @@ ICONE = {
     # finestra a due vetri (pari/dispari: i vetri sono buchi) e una matita
     INFISSO_MODIFICA: (u"M0.5,1 H9.5 V15 H0.5 Z M2,2.5 V7.25 H8 V2.5 Z M2,8.75 V13.5 H8 V8.75 Z "
                        u"M14.2,5.2 L15.8,6.8 L11.6,11 L10,11.6 L10.4,10 Z"),
+    # facciata: telaio con colonne di vetro A A B (pari/dispari: i vetri sono buchi)
+    FACCIATA_RITMO: (u"M0.5,0.5 H15.5 V15.5 H0.5 Z M2,2 V8 H5.5 V2 Z M7,2 V8 H10.5 V2 Z M12,2 V8 H14 V2 Z "
+                     u"M2,9.5 V14 H5.5 V9.5 Z M7,9.5 V14 H10.5 V9.5 Z M12,9.5 V14 H14 V9.5 Z"),
+    # piccola facciata e freccia che gira
+    FACCIATA_AGGIORNA: (u"M0.5,0.5 H10.5 V10.5 H0.5 Z M2,2 V9 H4.75 V2 Z M6.25,2 V9 H9 V2 Z "
+                        u"M15.5,11 A4.5,4.5 0 0 1 11,15.5 V14 A3,3 0 0 0 14,11 H12.5 L14.75,8.5 L16,11 Z"),
 }
 
 

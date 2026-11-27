@@ -1,0 +1,4 @@
+title: "Ritmo\nFacciata"
+tooltip: Seleziona una o più facciate continue (curtain wall) dritte e dai loro un ritmo come in Archicad - moduli con nome (A, B...), una sequenza che si ripete (es. A A B), divisione migliore, misura fissa o numero di ripetizioni, righe che ripartono a ogni livello, classi di pannelli e montanti per posto nel motivo, celle unite. Ogni classe usa un tipo di Revit. Il ritmo resta salvato sulla facciata.
+author: CDV Tools
+context: doc-project

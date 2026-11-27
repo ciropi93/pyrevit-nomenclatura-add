@@ -375,6 +375,34 @@ I["ModificaInfisso"] = (
     + R(21.6, 6.4, 4.8, 2.6, MARRONE)
     + "</g>")
 
+# --- Facciate -------------------------------------------------------------------
+# curtain wall vista da fuori: colonne A A B A (B cieca, tratteggiata), parapetto in basso
+_COLONNE = (2, 10.5, 19, 22.5, 30)
+
+
+def _facciata(y0=7.0, y1=30.0, x1=30.0):
+    xs = [x for x in _COLONNE if x < x1] + [x1]
+    ym = y1 - (y1 - y0) * 0.3
+    out = ""
+    for i, (a, b) in enumerate(zip(xs, xs[1:])):
+        out += R(a, y0, b - a, ym - y0, "url(#hg)" if i == 2 else AZZURRO)
+        out += R(a, ym, b - a, y1 - ym, "#DDE3E8")
+    for x in xs[1:-1]:
+        out += L("M%s,%s V%s" % (_n(x), _n(y0), _n(y1)), BLU, 1.6)
+    out += L("M%s,%s H%s" % (_n(xs[0]), _n(ym), _n(x1)), BLU, 1.6)
+    return out + R(xs[0], y0, x1 - xs[0], y1 - y0, "none", BLU, 2.2)
+
+
+I["RitmoFacciata"] = (
+    _facciata()
+    # il motivo A A B quotato in arancio sopra la facciata
+    + L("M2,3 H22.5", ARANCIO, 1.8)
+    + L("M2,0.8 V5.2 M10.5,0.8 V5.2 M19,0.8 V5.2 M22.5,0.8 V5.2", ARANCIO, 1.6))
+I["AggiornaFacciata"] = (
+    _facciata(2, 26, 26)
+    + C(25, 25, 6.4, ARANCIO)
+    + arco(25, 25, 3.5, 200, 470, BIANCO, 1.8, s=3.0))
+
 # ------------------------------------------------------------------------------
 # DOVE VANNO I FILE
 # ------------------------------------------------------------------------------
@@ -422,6 +450,8 @@ PERCORSI = {
     "AlignViewports": os.path.join("Tavole.panel", "AlignViewports.pushbutton", "icon.png"),
     "Configuratore": os.path.join("Infissi.panel", "Configuratore.pushbutton", "icon.png"),
     "ModificaInfisso": os.path.join("Infissi.panel", "ModificaInfisso.pushbutton", "icon.png"),
+    "RitmoFacciata": os.path.join("Facciate.panel", "RitmoFacciata.pushbutton", "icon.png"),
+    "AggiornaFacciata": os.path.join("Facciate.panel", "AggiornaFacciata.pushbutton", "icon.png"),
 }
 
 _RENDER_JS = r"""
