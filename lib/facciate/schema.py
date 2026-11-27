@@ -22,7 +22,7 @@ from facciate import ritmo as R
 VERSIONE = 1
 
 CLASSI_PANNELLI = (R.VETRO, u"cieco", u"apribile", u"vuoto")
-CLASSI_MONTANTI = (R.MONTANTE, R.TRAVERSO, R.MARCAPIANO, u"lesena", u"bordo")
+CLASSI_MONTANTI = (R.MONTANTE, R.TRAVERSO, R.MARCAPIANO, u"lesena")   # i bordi restano del tipo
 
 
 class SchemaErrore(ValueError):

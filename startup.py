@@ -23,6 +23,7 @@ except Exception as ex:
 # Strumenti per lo sviluppo via pyRevit Routes (rispondono solo se in pyRevit -> Settings ->
 # Routes il server e' acceso):
 #   GET  http://localhost:48884/cdv-tools/infissi/prova/   prova dei preset (vedi prova_revit)
+#   GET  http://localhost:48884/cdv-tools/facciate/prova/  prova degli schemi di facciata
 #   POST http://localhost:48884/cdv-tools/ricarica/         ricarica pyRevit
 # Quando gira un handler pyRevit ha gia' svuotato le variabili globali di questo script e
 # ripristinato sys.path: ogni handler prende tutto da dentro (o da argomenti di default),
@@ -58,6 +59,34 @@ try:
             prova_revit = _ricarica(prova_revit)    # cosi' le modifiche valgono senza Reload
             query = getattr(request, "query_params", None) or {}
             return routes.make_response(data=prova_revit.da_route(uiapp.Application, query))
+        except Exception:
+            import traceback
+            return routes.make_response(data={"errore": traceback.format_exc()}, status=500)
+
+    @_api.route("/facciate/prova/", methods=["GET"])
+    def _prova_facciate(request, uiapp, _lib=_LIB):
+        from pyrevit import routes
+        try:
+            import os as _os
+            import sys as _sys
+            try:
+                _lib = _os.path.join(_os.path.dirname(_os.path.abspath(
+                    _sys._getframe(0).f_code.co_filename)), "lib")
+            except Exception:
+                pass
+            if not _os.path.isdir(_os.path.join(_lib, "facciate")):
+                raise ImportError("cartella lib non trovata: %s" % _lib)
+            if _lib not in _sys.path:
+                _sys.path.append(_lib)
+            from facciate import prova_revit
+            try:
+                from importlib import reload as _ricarica
+            except ImportError:             # IronPython 2.7
+                import __builtin__
+                _ricarica = __builtin__.reload
+            prova_revit = _ricarica(prova_revit)
+            query = getattr(request, "query_params", None) or {}
+            return routes.make_response(data=prova_revit.da_route(uiapp, query))
         except Exception:
             import traceback
             return routes.make_response(data={"errore": traceback.format_exc()}, status=500)
